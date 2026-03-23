@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import TodoList from './TodoList.jsx'
+import TodoManagerPanel from './TodoManagerPanel.jsx'
 
 const emptyMeasure  = (type = 'MP') => ({ id: null, type, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', todos: [], sortOrder: 0 })
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
@@ -52,6 +53,7 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [showTodoPanel, setShowTodoPanel] = useState(false)
   const [openTodos, setOpenTodos] = useState(new Set())
   const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
 
@@ -69,6 +71,12 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const kpiW  = editMode ? 134 : COL_KPI
   const s = useMemo(() => buildStyles(darkMode), [darkMode])
 
+  const allTodos = useMemo(() =>
+    (draft?.goals || []).flatMap(g => g.strategies.flatMap(s => s.measures.flatMap(m => m.todos || []))),
+    [draft]
+  )
+  const pendingTodos = allTodos.filter(t => !t.done).length
+
   useEffect(() => {
     const d = JSON.parse(JSON.stringify(project))
     applyOverdueStatus(d)
@@ -80,6 +88,20 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
     setDraft(d => updater(JSON.parse(JSON.stringify(d))))
     setDirty(true)
   }, [])
+
+  const toggleTodoById = useCallback((gi, si, mi, todoId) => {
+    update(d => {
+      const todos = d.goals[gi].strategies[si].measures[mi].todos || []
+      d.goals[gi].strategies[si].measures[mi].todos = todos.map(t =>
+        t.id === todoId ? { ...t, done: !t.done } : t
+      )
+      const updated = d.goals[gi].strategies[si].measures[mi].todos
+      const done = updated.filter(t => t.done).length
+      d.goals[gi].strategies[si].measures[mi].progress = updated.length
+        ? Math.round((done / updated.length) * 100) : 0
+      return d
+    })
+  }, [update])
 
   const handleSave = async () => {
     setSaving(true)
@@ -113,6 +135,7 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const addMeasure      = (gi,si)       => update(d => { d.goals[gi].strategies[si].measures.push(emptyMeasure()); return d })
   const removeMeasure   = (gi,si,mi)    => update(d => { d.goals[gi].strategies[si].measures.splice(mi,1); return d })
   const setTodos        = (gi,si,todos) => update(d => { d.goals[gi].strategies[si].todos = todos; return d })
+
   const setMTodos = (gi,si,mi,todos) => update(d => {
     d.goals[gi].strategies[si].measures[mi].todos = todos
     const done = todos.filter(t => t.done).length
@@ -167,6 +190,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
           box-shadow: 0 0 0 2.5px rgba(240,165,0,0.18), 0 0 8px rgba(240,165,0,0.12) !important;
           background: rgba(240,165,0,0.06) !important;
         }
+        .ogsm-todo-btn:hover {
+          background: rgba(76,175,125,0.12) !important;
+          border-color: #4caf7d !important;
+          color: #4caf7d !important;
+          box-shadow: 0 0 8px rgba(76,175,125,0.25);
+          transform: translateY(-1px);
+        }
         .ogsm-actual-input::placeholder {
           color: ${darkMode ? 'rgba(205, 199, 199, 0.45)' : 'rgba(133, 129, 129, 0.45)'};
         }
@@ -196,6 +226,20 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
           {/* 審計按鈕 */}
           <button className="ogsm-audit-btn" style={s.auditBtn} onClick={() => onAudit(draft)} title="查看審計報告">
             📊 審計報告
+          </button>
+          {/* 待辦管理按鈕 */}
+          <button
+            className="ogsm-todo-btn"
+            style={{ ...s.auditBtn, position: 'relative' }}
+            onClick={() => setShowTodoPanel(true)}
+            title="待辦事項管理"
+          >
+            ☑ 待辦事項
+            {pendingTodos > 0 && (
+              <span style={{ position: 'absolute', top: '-6px', right: '-6px', minWidth: '17px', height: '17px', background: '#e05252', color: '#fff', fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, borderRadius: '99px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
+                {pendingTodos > 99 ? '99+' : pendingTodos}
+              </span>
+            )}
           </button>
           {/* 編輯按鈕 */}
           <button
@@ -394,6 +438,16 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
         </div>
       </div>
+
+      {/* ── Todo Manager Panel ── */}
+      {showTodoPanel && draft && (
+        <TodoManagerPanel
+          project={draft}
+          onClose={() => setShowTodoPanel(false)}
+          onToggleTodo={toggleTodoById}
+          darkMode={darkMode}
+        />
+      )}
     </div>
   )
 }
