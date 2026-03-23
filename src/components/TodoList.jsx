@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
-export default function TodoList({ todos = [], onChange, editMode, darkMode = true }) {
+export default function TodoList({ todos = [], onChange, editMode, darkMode = true, noHeader = false }) {
   const [inputVal, setInputVal] = useState('')
+  const [open, setOpen] = useState(false)
 
   const addTodo = () => {
     const text = inputVal.trim()
@@ -27,21 +28,8 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
 
   if (todos.length === 0 && !editMode) return null
 
-  return (
-    <div style={s.wrap}>
-      {/* Header */}
-      <div style={s.header}>
-        <span style={s.headerLabel}>☑ 待辦事項</span>
-        {todos.length > 0 && (
-          <div style={s.progressPill}>
-            <div style={s.pillTrack}>
-              <div style={{ ...s.pillFill, width: `${pct}%` }} />
-            </div>
-            <span style={s.pillText}>{doneCount}/{todos.length}</span>
-          </div>
-        )}
-      </div>
-
+  const content = (
+    <>
       {/* Todo items */}
       <div style={s.list}>
         {todos.map(t => (
@@ -56,7 +44,6 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
           </div>
         ))}
       </div>
-
       {/* Input */}
       {editMode && (
         <div style={s.inputRow}>
@@ -72,6 +59,30 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
           </button>
         </div>
       )}
+    </>
+  )
+
+  if (noHeader) {
+    return <div style={s.wrap}>{content}</div>
+  }
+
+  return (
+    <div style={s.wrap}>
+      {/* Header — click to toggle */}
+      <div style={s.header} onClick={() => setOpen(o => !o)}>
+        <span style={s.headerLabel}>
+          {open ? '▾' : '▸'} 待辦事項{todos.length > 0 ? ` (${todos.length})` : ''}
+        </span>
+        {todos.length > 0 && (
+          <div style={s.progressPill}>
+            <div style={s.pillTrack}>
+              <div style={{ ...s.pillFill, width: `${pct}%` }} />
+            </div>
+            <span style={s.pillText}>{doneCount}/{todos.length}</span>
+          </div>
+        )}
+      </div>
+      {open && content}
     </div>
   )
 }
@@ -101,7 +112,7 @@ function buildStyles(dark) {
     addBtnColor:     '#8a9ab8',
     itemText:        '#445069',
     itemTextDone:    '#8a9ab8',
-    checkboxBorder:  '#c8d4e8',
+    checkboxBorder:  '#8a9ab8',
     pillTrack:       '#d4dde8',
   }
   return {
@@ -112,7 +123,7 @@ function buildStyles(dark) {
     },
     header: {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      marginBottom: '6px',
+      marginBottom: '6px', cursor: 'pointer', userSelect: 'none',
     },
     headerLabel: {
       fontSize: '10px', fontFamily: '"DM Mono", monospace',

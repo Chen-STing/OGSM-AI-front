@@ -29,7 +29,7 @@ function statusCounts(measures) {
 }
 
 function calcTodos(goals) {
-  const all = goals.flatMap(g => g.strategies.flatMap(s => s.todos || []))
+  const all = goals.flatMap(g => g.strategies.flatMap(s => s.measures.flatMap(m => m.todos || [])))
   const done = all.filter(t => t.done).length
   return { total: all.length, done, pct: all.length ? Math.round((done / all.length) * 100) : 0 }
 }
@@ -57,6 +57,7 @@ function StatusDots({ counts, total }) {
 
 export default function AuditPanel({ project, onClose, darkMode = true }) {
   const [expandedGoals, setExpandedGoals] = useState(new Set())
+  const [expandedMeasureTodos, setExpandedMeasureTodos] = useState(new Set())
   const [pdfLoading, setPdfLoading] = useState(false)
   
   if (!project) return null
@@ -64,11 +65,17 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
   const toggleGoal = (index) => {
     setExpandedGoals(prev => {
       const next = new Set(prev)
-      if (next.has(index)) {
-        next.delete(index)
-      } else {
-        next.add(index)
-      }
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const toggleMeasureTodo = (key) => {
+    setExpandedMeasureTodos(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
@@ -234,79 +241,108 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
     await new Promise(r => setTimeout(r, 100))
     await captureAndAdd()
 
-    // ── Pages: Goals Detail ──
+    // ── Pages: Goals Detail (one page per strategy) ──
     for (let gi = 0; gi < project.goals.length; gi++) {
       const goal = project.goals[gi]
       const gm = goal.strategies.flatMap(s => s.measures)
       const gp = calcProgress(gm)
       const gc2 = progressColor(gp)
 
-      const goalHTML = `
+      const goalHeaderHTML = `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
           <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:4px 12px;font-size:13px;font-weight:800;color:#d97706;">G${gi+1}</div>
           <div style="font-size:20px;font-weight:800;color:#111827;flex:1;">${goal.text || '（未命名）'}</div>
           <div style="font-size:18px;font-weight:800;color:${gc2};">${gp}%</div>
         </div>
         <div style="margin-bottom:20px;">${progressBar(gp, gc2)}</div>
-        
-        ${goal.strategies.map((st, si) => {
-          const sp = calcProgress(st.measures)
-          const sc2 = progressColor(sp)
-          return `
-            <div style="margin-bottom:20px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-              <div style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;font-weight:700;color:#6b7280;">S${gi+1}.${si+1}</span>
-                <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${st.text || '（未命名）'}</span>
-                <span style="font-size:12px;font-weight:700;color:${sc2};">${sp}%</span>
-              </div>
-              ${st.measures.length > 0 ? `
-              <table style="width:100%;border-collapse:collapse;font-size:11px;">
-                <thead>
-                  <tr style="background:#f3f4f6;">
-                    <th style="padding:8px 12px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:35%;">KPI</th>
-                    <th style="padding:8px 12px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:15%;">目標值</th>
-                    <th style="padding:8px 12px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:15%;">實際值</th>
-                    <th style="padding:8px 12px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:15%;">狀態</th>
-                    <th style="padding:8px 12px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:20%;">進度</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${st.measures.map((m, mi) => `
-                    <tr style="border-bottom:1px solid #f3f4f6;background:${mi % 2 === 1 ? '#fafafa' : '#fff'};">
-                      <td style="padding:8px 12px;color:#374151;">${m.kpi || '—'}</td>
-                      <td style="padding:8px 12px;color:#374151;">${m.target || '—'}</td>
-                      <td style="padding:8px 12px;color:#374151;">${m.actual || '—'}</td>
-                      <td style="padding:8px 12px;text-align:center;">
-                        <span style="background:${statusColor[m.status] || '#6b7280'}22;color:${statusColor[m.status] || '#6b7280'};border-radius:4px;padding:2px 6px;font-size:10px;font-weight:600;">
-                          ${statusLabel[m.status] || m.status}
-                        </span>
-                      </td>
-                      <td style="padding:8px 12px;">
-                        <div style="display:flex;align-items:center;gap:6px;">
-                          <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
-                            <div style="width:${m.progress||0}%;height:100%;background:${progressColor(m.progress||0)};border-radius:3px;"></div>
-                          </div>
-                          <span style="color:#374151;font-weight:600;min-width:28px;font-size:10px;">${m.progress||0}%</span>
-                        </div>
-                      </td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>` : `<div style="padding:12px 16px;color:#9ca3af;font-size:12px;">（無 Measures）</div>`}
-              ${(st.todos || []).length > 0 ? `
-              <div style="padding:10px 16px 12px;border-top:1px solid #e5e7eb;background:#fafafa;">
-                <div style="font-size:10px;font-weight:700;color:#d97706;letter-spacing:0.8px;margin-bottom:6px;">☑ 待辦事項 ${(st.todos || []).filter(t => t.done).length}/${(st.todos || []).length}</div>
-                ${(st.todos || []).map(t => `
-                  <div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:4px;">
-                    <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;margin-top:1px;font-weight:700;">${t.done ? '✓' : '○'}</span>
-                    <span style="font-size:11px;color:${t.done ? '#6b7280' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;">${t.text}</span>
-                  </div>`).join('')}
-              </div>` : ''}
-            </div>`
-        }).join('')}
       `
-      container.innerHTML = renderPage(goalHTML)
-      await new Promise(r => setTimeout(r, 100))
-      await captureAndAdd()
+
+      const goalContinuationHTML = `
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:12px;font-weight:600;color:#9ca3af;">（續）</div>
+        </div>
+      `
+
+      for (let si = 0; si < goal.strategies.length; si++) {
+        const st = goal.strategies[si]
+        const sp = calcProgress(st.measures)
+        const sc2 = progressColor(sp)
+
+        const strategyHTML = `
+          <div style="margin-bottom:20px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+            <div style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;font-weight:700;color:#6b7280;">S${gi+1}.${si+1}</span>
+              <span style="font-size:13px;font-weight:600;color:#111827;flex:1;">${st.text || '（未命名）'}</span>
+              <span style="font-size:12px;font-weight:700;color:${sc2};">${sp}%</span>
+            </div>
+            ${st.measures.length > 0 ? `
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="background:#f3f4f6;">
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:46px;">類型</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">KPI</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:13%;">目標值</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:13%;">實際值</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:80px;">期限</th>
+                  <th style="padding:8px 10px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:82px;">狀態</th>
+                  <th style="padding:8px 10px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:100px;">進度</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${st.measures.map((m, mi) => `
+                  <tr style="border-bottom:1px solid #f3f4f6;background:${mi % 2 === 1 ? '#fafafa' : '#fff'};">
+                    <td style="padding:8px 10px;">
+                      <span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;${m.type === 'MD' ? 'background:#fff7ed;color:#d97706;border:1px solid #fcd34d;' : 'background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;'}">${m.type || 'MP'}</span>
+                    </td>
+                    <td style="padding:8px 10px;color:#374151;">${m.kpi || '—'}</td>
+                    <td style="padding:8px 10px;color:#d97706;font-family:monospace;">${m.target || '—'}</td>
+                    <td style="padding:8px 10px;color:#16a34a;font-family:monospace;">${m.actual || '—'}</td>
+                    <td style="padding:8px 10px;color:#6b7280;font-family:monospace;font-size:10px;">${m.deadline || '—'}</td>
+                    <td style="padding:8px 10px;text-align:center;">
+                      <span style="background:${statusColor[m.status] || '#6b7280'}22;color:${statusColor[m.status] || '#6b7280'};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">
+                        ${statusLabel[m.status] || m.status}
+                      </span>
+                    </td>
+                    <td style="padding:8px 10px;">
+                      <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
+                          <div style="width:${m.progress||0}%;height:100%;background:${progressColor(m.progress||0)};border-radius:3px;"></div>
+                        </div>
+                        <span style="color:${progressColor(m.progress||0)};font-weight:600;min-width:28px;font-size:10px;">${m.progress||0}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                  ${(m.todos || []).length > 0 ? `
+                  <tr style="background:#fafbff;">
+                    <td colspan="7" style="padding:6px 10px 10px 52px;border-bottom:1px solid #f3f4f6;">
+                      <div style="font-size:9px;font-weight:700;color:#d97706;letter-spacing:0.6px;margin-bottom:5px;">☑ 待辦事項 ${(m.todos || []).filter(t => t.done).length}/${(m.todos || []).length}</div>
+                      ${(m.todos || []).map(t => `
+                        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;">
+                          <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;font-weight:700;">${t.done ? '✓' : '○'}</span>
+                          <span style="font-size:10px;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;">${t.text}</span>
+                        </div>`).join('')}
+                    </td>
+                  </tr>` : ''}
+                  `).join('')}
+              </tbody>
+            </table>` : `<div style="padding:12px 16px;color:#9ca3af;font-size:12px;">（無 Measures）</div>`}
+            ${(st.todos || []).length > 0 ? `
+            <div style="padding:10px 16px 12px;border-top:1px solid #e5e7eb;background:#fafafa;">
+              <div style="font-size:10px;font-weight:700;color:#d97706;letter-spacing:0.8px;margin-bottom:6px;">☑ Strategy 待辦事項 ${(st.todos || []).filter(t => t.done).length}/${(st.todos || []).length}</div>
+              ${(st.todos || []).map(t => `
+                <div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:4px;">
+                  <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;margin-top:1px;font-weight:700;">${t.done ? '✓' : '○'}</span>
+                  <span style="font-size:11px;color:${t.done ? '#6b7280' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;">${t.text}</span>
+                </div>`).join('')}
+            </div>` : ''}
+          </div>
+        `
+
+        const pageHTML = (si === 0 ? goalHeaderHTML : goalContinuationHTML) + strategyHTML
+        container.innerHTML = renderPage(pageHTML)
+        await new Promise(r => setTimeout(r, 100))
+        await captureAndAdd()
+      }
     }
 
     // Back cover
@@ -464,54 +500,108 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                       </div>
 
                       {/* Measures table */}
-                      {st.measures.length > 0 && (
-                        <div style={s.measureTable}>
-                          <div style={s.mTableHeader}>
-                            <span style={{ ...s.mCol, flex: 2 }}>KPI</span>
-                            <span style={{ ...s.mCol, flex: 1 }}>目標</span>
-                            <span style={{ ...s.mCol, flex: 1 }}>實際</span>
-                            <span style={{ ...s.mCol, width: '70px' }}>狀態</span>
-                            <span style={{ ...s.mCol, width: '80px' }}>進度</span>
-                          </div>
-                          {st.measures.map((m, mi) => {
-                            const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
-                            return (
-                              <div key={m.id ?? mi} style={s.mRow}>
-                                <span style={{ ...s.mCell, flex: 2 }}>{m.kpi || '—'}</span>
-                                <span style={{ ...s.mCell, flex: 1, color: '#f0a500', fontFamily: '"DM Mono", monospace' }}>{m.target || '—'}</span>
-                                <span style={{ ...s.mCell, flex: 1, color: '#4caf7d', fontFamily: '"DM Mono", monospace' }}>{m.actual || '—'}</span>
-                                <span style={{ ...s.mCell, width: '70px' }}>
-                                  <span style={{ color: sc.color, fontSize: '10px' }}>● {sc.label}</span>
-                                </span>
-                                <span style={{ ...s.mCell, width: '80px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <div style={{ flex: 1 }}>
-                                      <ProgressBar value={m.progress || 0} color={sc.color} height={4} trackColor={track} />
-                                    </div>
-                                    <span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: sc.color, minWidth: '26px' }}>
-                                      {m.progress || 0}%
-                                    </span>
-                                  </div>
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                      {/* Todo items */}
-                      {(st.todos || []).length > 0 && (
-                        <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(240,165,0,0.03)', borderRadius: '4px', border: `1px dashed ${darkMode ? '#2a3347' : '#c8d4e8'}` }}>
-                          <div style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', color: '#f0a500', letterSpacing: '0.8px', marginBottom: '6px' }}>
-                            ☑ 待辦事項 {(st.todos || []).filter(t => t.done).length}/{(st.todos || []).length}
-                          </div>
-                          {(st.todos || []).map((t, ti) => (
-                            <div key={t.id ?? ti} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '3px'}}>
-                              <span style={{ fontSize: '10px', color: t.done ? '#4caf7d' : (darkMode ? '#334060' : '#6a7e98'), flexShrink: 0, marginTop: '1px' }}>{t.done ? '✓' : '○'}</span>
-                              <span style={{ fontSize: '11px', color: t.done ? (darkMode ? '#8395b4' : '#9aabbd') : (darkMode ? '#b0bac9' : '#445069'), textDecoration: t.done ? 'line-through' : 'none', lineHeight: 1.4 }}>{t.text}</span>
+                      {st.measures.length > 0 && (() => {
+                        const stratHasTodos = st.measures.some(m => (m.todos || []).length > 0)
+                        return (
+                          <div style={s.measureTable}>
+                            <div style={s.mTableHeader}>
+                              <span style={{ ...s.mCol, width: '40px' }}>類型</span>
+                              <span style={{ ...s.mCol, flex: 2 }}>KPI</span>
+                              <span style={{ ...s.mCol, flex: 1 }}>目標</span>
+                              <span style={{ ...s.mCol, flex: 1 }}>實際</span>
+                              <span style={{ ...s.mCol, width: '76px' }}>期限</span>
+                              <span style={{ ...s.mCol, width: '70px' }}>狀態</span>
+                              <span style={{ ...s.mCol, width: '80px' }}>進度</span>
+                              {stratHasTodos && <span style={{ ...s.mCol, width: '36px', textAlign: 'center' }}>待辦</span>}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            {st.measures.map((m, mi) => {
+                              const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
+                              const pc = progressColor(m.progress || 0)
+                              const todoKey = `${gi}-${si}-${mi}`
+                              const hasTodos = (m.todos || []).length > 0
+                              const todosOpen = expandedMeasureTodos.has(todoKey)
+                              const doneCount = (m.todos || []).filter(t => t.done).length
+                              const totalTodos = (m.todos || []).length
+                              return (
+                                <div key={m.id ?? mi}>
+                                  <div style={s.mRow}>
+                                    <span style={{ ...s.mCell, width: '40px' }}>
+                                      <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, padding: '1px 4px', borderRadius: '3px',
+                                        ...(m.type === 'MD'
+                                          ? { background: 'rgba(240,165,0,0.12)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }
+                                          : { background: 'rgba(59,158,222,0.12)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' })
+                                      }}>{m.type || 'MP'}</span>
+                                    </span>
+                                    <span style={{ ...s.mCell, flex: 2 }}>{m.kpi || '—'}</span>
+                                    <span style={{ ...s.mCell, flex: 1, color: '#f0a500', fontFamily: '"DM Mono", monospace' }}>{m.target || '—'}</span>
+                                    <span style={{ ...s.mCell, flex: 1, color: '#4caf7d', fontFamily: '"DM Mono", monospace' }}>{m.actual || '—'}</span>
+                                    <span style={{ ...s.mCell, width: '76px', fontFamily: '"DM Mono", monospace', fontSize: '10px', color: darkMode ? '#8a95ae' : '#7a8ca8' }}>{m.deadline || '—'}</span>
+                                    <span style={{ ...s.mCell, width: '70px' }}>
+                                      <span style={{ color: sc.color, fontSize: '10px' }}>● {sc.label}</span>
+                                    </span>
+                                    <span style={{ ...s.mCell, width: '80px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ flex: 1 }}>
+                                          <ProgressBar value={m.progress || 0} color={pc} height={4} trackColor={track} />
+                                        </div>
+                                        <span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: pc, minWidth: '26px' }}>
+                                          {m.progress || 0}%
+                                        </span>
+                                      </div>
+                                    </span>
+                                    {stratHasTodos && (
+                                      <span style={{ ...s.mCell, width: '36px', padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {hasTodos ? (
+                                          <button
+                                            onClick={() => toggleMeasureTodo(todoKey)}
+                                            style={{
+                                              background: todosOpen ? 'rgba(244,114,182,0.15)' : (darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)'),
+                                              border: `1px solid ${todosOpen ? 'rgba(244,114,182,0.4)' : (darkMode ? 'rgba(138,149,174,0.25)' : 'rgba(0,0,0,0.15)')}`,
+                                              borderRadius: '4px', padding: '2px 4px', cursor: 'pointer',
+                                              color: todosOpen ? '#f472b6' : (darkMode ? '#8a95ae' : '#6a7e98'),
+                                              fontSize: '9px', fontFamily: '"DM Mono", monospace',
+                                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
+                                              lineHeight: 1.2, minWidth: '28px', transition: 'all 0.15s',
+                                            }}
+                                          >
+                                            <span>{todosOpen ? '▾' : '▸'}</span>
+                                            <span style={{ fontSize: '8px' }}>{doneCount}/{totalTodos}</span>
+                                          </button>
+                                        ) : null}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {hasTodos && todosOpen && (
+                                    <div style={{
+                                      padding: '8px 12px 10px 16px',
+                                      background: darkMode ? 'rgba(0,0,0,0.25)' : 'rgba(244,114,182,0.04)',
+                                      borderTop: `1px solid ${darkMode ? '#1a2133' : '#edf2fa'}`,
+                                      borderLeft: `3px solid ${m.type === 'MD' ? 'rgba(240,165,0,0.5)' : 'rgba(59,158,222,0.5)'}`,
+                                    }}>
+                                      <div style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, color: '#f472b6', letterSpacing: '0.6px', marginBottom: '6px' }}>
+                                        ☑ 待辦事項 {doneCount}/{totalTodos}
+                                      </div>
+                                      {(m.todos || []).map((t, ti) => (
+                                        <div key={t.id ?? ti} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '4px' }}>
+                                          <span style={{
+                                            fontSize: '13px', flexShrink: 0, marginTop: '-1px', lineHeight: 1,
+                                            color: t.done ? '#4caf7d' : (darkMode ? '#7eb8e8' : '#8a9ab8'),
+                                          }}>{t.done ? '✓' : '○'}</span>
+                                          <span style={{
+                                            fontSize: '11px', lineHeight: 1.5,
+                                            color: t.done ? (darkMode ? '#5a7090' : '#9aabbd') : (darkMode ? '#c8d4e8' : '#445069'),
+                                            textDecoration: t.done ? 'line-through' : 'none',
+                                          }}>{t.text}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}
@@ -530,7 +620,7 @@ function buildAuditStyles(dark) {
     backdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 400 },
     panel: {
       position: 'fixed', top: 0, right: 0, bottom: 0,
-      width: '520px', maxWidth: '92vw',
+      width: '580px', maxWidth: '92vw',
       background: dark ? '#161b27' : '#ffffff',
       borderLeft: `1px solid ${dark ? '#2a3347' : '#d1d9e8'}`,
       display: 'flex', flexDirection: 'column',

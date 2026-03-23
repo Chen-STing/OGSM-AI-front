@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import TodoList from './TodoList.jsx'
 
-const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', sortOrder: 0 })
+const emptyMeasure  = (type = 'MP') => ({ id: null, type, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', todos: [], sortOrder: 0 })
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
 const emptyGoal     = () => ({ id: null, text: '', sortOrder: 0, strategies: [emptyStrategy()] })
 
@@ -10,6 +10,20 @@ const STATUS_CONFIG = {
   InProgress:  { label: '進行中', color: '#3b9ede', bg: 'rgba(59,158,222,0.12)', border: '#3b9ede' },
   Completed:   { label: '已完成', color: '#4caf7d', bg: 'rgba(76,175,125,0.12)', border: '#4caf7d' },
   Overdue:     { label: '已逾期', color: '#e05252', bg: 'rgba(224,82,82,0.12)',  border: '#e05252' },
+}
+
+function autoStatus(m) {
+  const pct = m.progress || 0
+  if (pct >= 100) return 'Completed'
+  if (pct > 0)    return 'InProgress'
+  return 'NotStarted'
+}
+
+function applyOverdueStatus(d) {
+  const today = new Date().toISOString().slice(0, 10)
+  d.goals.forEach(g => g.strategies.forEach(s => s.measures.forEach(m => {
+    if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
+  })))
 }
 
 function progressColor(pct) {
@@ -38,10 +52,27 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [openTodos, setOpenTodos] = useState(new Set())
+  const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+
+  useEffect(() => {
+    if (openTodos.size === 0) return
+    const handler = (e) => {
+      if (!e.target.closest('[data-todo-zone]')) {
+        setOpenTodos(new Set())
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openTodos])
+  const typeW = editMode ? 90 : COL_TYPE
+  const kpiW  = editMode ? 134 : COL_KPI
   const s = useMemo(() => buildStyles(darkMode), [darkMode])
 
   useEffect(() => {
-    setDraft(JSON.parse(JSON.stringify(project)))
+    const d = JSON.parse(JSON.stringify(project))
+    applyOverdueStatus(d)
+    setDraft(d)
     setDirty(false)
   }, [project])
 
@@ -65,10 +96,34 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const setStratText    = (gi,si,v)     => update(d => { d.goals[gi].strategies[si].text = v; return d })
   const addStrategy     = (gi)          => update(d => { d.goals[gi].strategies.push(emptyStrategy()); return d })
   const removeStrategy  = (gi,si)       => update(d => { d.goals[gi].strategies.splice(si,1); return d })
-  const setMField       = (gi,si,mi,f,v)=> update(d => { d.goals[gi].strategies[si].measures[mi][f] = v; return d })
+  const setMField       = (gi,si,mi,f,v)=> update(d => {
+    d.goals[gi].strategies[si].measures[mi][f] = v
+    const m = d.goals[gi].strategies[si].measures[mi]
+    const today = new Date().toISOString().slice(0, 10)
+    if (f === 'deadline') {
+      if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
+      else if ((!m.deadline || m.deadline >= today) && m.status === 'Overdue') m.status = autoStatus(m)
+    }
+    if (f === 'progress') {
+      const isOverdue = m.deadline && m.deadline < today
+      if (!isOverdue || v == 100) m.status = autoStatus(m)
+    }
+    return d
+  })
   const addMeasure      = (gi,si)       => update(d => { d.goals[gi].strategies[si].measures.push(emptyMeasure()); return d })
   const removeMeasure   = (gi,si,mi)    => update(d => { d.goals[gi].strategies[si].measures.splice(mi,1); return d })
   const setTodos        = (gi,si,todos) => update(d => { d.goals[gi].strategies[si].todos = todos; return d })
+  const setMTodos = (gi,si,mi,todos) => update(d => {
+    d.goals[gi].strategies[si].measures[mi].todos = todos
+    const done = todos.filter(t => t.done).length
+    const pct = todos.length ? Math.round((done / todos.length) * 100) : 0
+    d.goals[gi].strategies[si].measures[mi].progress = pct
+    const m = d.goals[gi].strategies[si].measures[mi]
+    const today = new Date().toISOString().slice(0, 10)
+    const isOverdue = m.deadline && m.deadline < today
+    if (!isOverdue || pct === 100) m.status = autoStatus(m)
+    return d
+  })
 
   // 計算整體進度（用於頂部進度條）
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
@@ -120,6 +175,9 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
       {/* ── Top bar ── */}
       <div style={s.topBar}>
         <div style={s.topLeft}>
+          {draft.deadline && draft.deadline < new Date().toISOString().slice(0, 10) && (
+            <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>⚠ 計畫已逾期</span>
+          )}
           <input style={s.titleInput} value={draft.title} onChange={e => setField('title', e.target.value)} placeholder="專案標題" />
           <div style={s.metaRow}>
             <span style={s.metaBadge}>OGSM</span>
@@ -160,24 +218,35 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
       {/* ── Objective ── */}
       <div style={s.objectiveWrap}>
-        <div style={s.sectionTag}>O — Objective</div>
-        <textarea style={s.objectiveArea} value={draft.objective} onChange={e => setField('objective', e.target.value)} placeholder="輸入核心目標…" rows={2} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={s.sectionTag}>O — Objective</div>
+            <textarea style={s.objectiveArea} value={draft.objective} onChange={e => setField('objective', e.target.value)} placeholder="輸入核心目標…" rows={2} />
+          </div>
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', paddingTop: '2px' }}>
+            <div style={{ fontSize: '10px', color: darkMode ? '#8a95ae' : '#7a8ca8', fontFamily: '"DM Mono", monospace', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 600 }}>計畫期限</div>
+            <input type="date" style={s.projectDeadlineInput} value={draft.deadline || ''} onChange={e => setField('deadline', e.target.value)} />
+          </div>
+        </div>
       </div>
 
       {/* ── Table ── */}
       <div style={s.tableScroll}>
-        <div style={s.tableWrap}>
+        <div style={{ ...s.tableWrap, minWidth: COL_G + COL_S + typeW + kpiW + COL_VAL*2 + COL_DL + COL_STATUS + COL_PROG + COL_ACT }}>
 
           {/* Header */}
           <div style={s.tableHeader}>
             {[
-              { label: 'G — Goals',     w: COL_G   },
-              { label: 'S — Strategies',w: COL_S   },
-              { label: 'KPI',           w: COL_KPI },
-              { label: '目標值',         w: COL_VAL },
-              { label: '實際值',         w: COL_VAL },
-              { label: '狀態',           w: COL_STATUS },
-              { label: '進度',           w: COL_PROG },
+              { label: 'G — Goals',      w: COL_G      },
+              { label: 'S — Strategies', w: COL_S      },
+              { label: '類型',            w: typeW      },
+              { label: 'KPI',            w: kpiW       },
+              { label: '目標值',          w: COL_VAL    },
+              { label: '實際值',          w: COL_VAL    },
+              { label: '期限',            w: COL_DL     },
+              { label: '狀態',            w: COL_STATUS },
+              { label: '進度',            w: COL_PROG   },
+              { label: '待辦事項',        w: COL_ACT    },
             ].map((col, i) => (
               <div key={i} style={{ ...s.colHead, width: col.w, ...(i >= 6 ? { borderRight: 'none' } : {}) }}>
                 {col.label}
@@ -218,9 +287,23 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                           {st.measures.map((m, mi) => {
                             const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
                             return (
-                              <div key={m.id ?? `m-${mi}`} style={s.measureRow} data-measure-row="1">
-                                <div style={{ ...s.measureCell, width: COL_KPI, alignItems: 'flex-start', display: 'flex', gap: '6px' }}>
-                                  {editMode && <button className="ogsm-remove-btn" style={{ ...s.iconBtn, flexShrink: 0 }} onClick={() => removeMeasure(gi,si,mi)}>✕</button>}
+                              <React.Fragment key={m.id ?? `m-${mi}`}>
+                              <div style={s.measureRow} data-measure-row="1">
+                                {/* 類型標籤 */}
+                                <div style={{ ...s.measureCell, width: typeW, justifyContent: editMode ? 'flex-start' : 'center', gap: '4px', padding: editMode ? '8px 6px' : '8px 10px' }}>
+                                  {editMode ? (
+                                    <>
+                                      <button className="ogsm-remove-btn" style={{ ...s.iconBtn, flexShrink: 0 }} onClick={() => removeMeasure(gi,si,mi)}>✕</button>
+                                      <select style={{ ...(m.type === 'MP' ? s.typeBadgeMP : s.typeBadgeMD), flex: 1, minWidth: '36px', width: 'auto' }} value={m.type || 'MP'} onChange={e => setMField(gi,si,mi,'type',e.target.value)}>
+                                        <option value="MP">MP</option>
+                                        <option value="MD">MD</option>
+                                      </select>
+                                    </>
+                                  ) : (
+                                    <span style={m.type === 'MP' ? s.typeBadgeMP : s.typeBadgeMD}>{m.type || 'MP'}</span>
+                                  )}
+                                </div>
+                                <div style={{ ...s.measureCell, width: kpiW, alignItems: 'flex-start', display: 'flex', gap: '6px' }}>
                                   <textarea style={s.measureText} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="KPI 名稱" rows={1} />
                                 </div>
                                 <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
@@ -228,6 +311,11 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                 </div>
                                 <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
                                   <textarea className="ogsm-actual-input" style={{ ...s.measureText, ...s.actualInput }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
+                                </div>
+
+                                {/* 期限 */}
+                                <div style={{ ...s.measureCell, width: COL_DL }}>
+                                  <input type="date" style={s.deadlineInput} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
                                 </div>
 
                                 {/* 狀態選單 */}
@@ -243,47 +331,51 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                   </select>
                                 </div>
 
-                                {/* 進度：滑桿 + 數字 */}
-                                <div style={{ ...s.measureCell, width: COL_PROG, flexDirection: 'column', gap: '3px', alignItems: 'stretch', justifyContent: 'center', borderRight: 'none', padding: '8px 0' }}>
-                                  <div style={{ ...s.progressRow, padding: '0 20px 0 10px' }}>
-                                    <input
-                                      type="range" min="0" max="100" step="5"
-                                      value={m.progress}
-                                      onChange={e => setMField(gi,si,mi,'progress', Number(e.target.value))}
-                                      style={{ ...s.slider, accentColor: progressColor(m.progress) }}
-                                    />
-                                    <div className="ogsm-progress-wrap" style={s.progressNumWrap}>
-                                      <input
-                                        type="number" min="0" max="100"
-                                        value={m.progress || ''}
-                                        onChange={e => setMField(gi,si,mi,'progress', e.target.value === '' ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
-                                        style={{ ...s.progressNum, color: progressColor(m.progress) }}
-                                        placeholder="0"
-                                      />
-                                      <span style={{ ...s.progressPercent, color: progressColor(m.progress) }}>%</span>
-                                    </div>
+                                {/* 進度 */}
+                                {(() => { const todoKey = `${gi}-${si}-${mi}`; const todoOpen = openTodos.has(todoKey); const todos = m.todos || []; const doneCount = todos.filter(t => t.done).length; return (
+                                <>
+                                <div style={{ ...s.measureCell, width: COL_PROG, flexDirection: 'column', gap: '4px', alignItems: 'stretch', justifyContent: 'center', padding: '8px 12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '18px', fontFamily: '"DM Mono", monospace', fontWeight: 700, color: progressColor(m.progress) }}>{m.progress}%</span>
                                   </div>
-                                  {/* 進度條 */}
-                                  <div style={{ width: '100%', padding: '0 20px 0 10px' }}>
-                                    <div style={s.miniBarTrack}>
-                                      <div style={{ ...s.miniBarFill, width: `${m.progress}%`, background: progressColor(m.progress) }} />
-                                    </div>
+                                  <div style={s.miniBarTrack}>
+                                    <div style={{ ...s.miniBarFill, width: `${m.progress}%`, background: progressColor(m.progress) }} />
                                   </div>
                                 </div>
+                                {/* 待辦展開按鈕 */}
+                                <div data-todo-zone style={{ ...s.measureCell, width: COL_ACT, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: '2px', borderRight: 'none', padding: '4px 2px' }}>
+                                  <button
+                                    onClick={() => toggleTodoRow(todoKey)}
+                                    title="展開/收起待辦事項"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: todoOpen ? '#f0a500' : (todos.length ? '#4caf7d' : '#4a5568'), padding: '2px 4px', lineHeight: 1, transition: 'color 0.15s', borderRadius: '3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
+                                  >
+                                    <span>{todoOpen ? '▾' : '▸'}</span>
+                                    {todos.length > 0 && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{doneCount}/{todos.length} 已完成</span>}
+                                  </button>
+                                </div>
+                                </>
+                                )})()} 
                               </div>
+                              {/* 此 KPI 的待辦事項 */}
+                              {openTodos.has(`${gi}-${si}-${mi}`) && (
+                              <div data-todo-zone style={{ ...s.measureTodoWrap, borderLeft: `3px solid ${m.type === 'MD' ? 'rgba(240,165,0,0.3)' : 'rgba(59,158,222,0.3)'}` }}>
+                                <TodoList
+                                  todos={m.todos || []}
+                                  onChange={todos => setMTodos(gi, si, mi, todos)}
+                                  editMode={editMode}
+                                  darkMode={darkMode}
+                                  noHeader
+                                />
+                              </div>
+                              )}
+                              </React.Fragment>
                             )
                           })}
                           {editMode && <button className="ogsm-add-btn" style={s.addMiniBtn} onClick={() => addMeasure(gi, si)}>+ Measure</button>}
                         </div>
                       </div>
 
-                      {/* Todos */}
-                      <TodoList
-                        todos={st.todos || []}
-                        onChange={todos => setTodos(gi, si, todos)}
-                        editMode={editMode}
-                        darkMode={darkMode}
-                      />
+
 
                     </div>
                   ))}
@@ -308,11 +400,15 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
 const COL_G      = 200
 const COL_S      = 200
-const COL_KPI    = 180
-const COL_VAL    = 110
-const COL_STATUS = 100
-const COL_PROG   = 160
-const COL_ACT    = 36
+const COL_TYPE   = 54
+const COL_KPI    = 170
+const COL_VAL    = 100
+const COL_DL     = 110
+const COL_STATUS = 96
+const COL_PROG   = 165
+const COL_ACT    = 68
+
+
 
 function buildStyles(dark) {
   const T = dark ? {
@@ -429,7 +525,7 @@ function buildStyles(dark) {
 
     tableScroll: { flex: 1, overflow: 'auto', padding: '20px 28px 40px' },
     tableWrap: {
-      minWidth: COL_G + COL_S + COL_KPI + COL_VAL*2 + COL_STATUS + COL_PROG + COL_ACT,
+      minWidth: COL_G + COL_S + COL_TYPE + COL_KPI + COL_VAL*2 + COL_DL + COL_STATUS + COL_PROG + COL_ACT, // preview min; edit-mode override applied inline
       width: 'max-content',
       border: `1px solid ${T.border}`, borderRadius: '8px', overflow: 'hidden',
     },
@@ -565,6 +661,36 @@ function buildStyles(dark) {
     addStratBtn: { background: 'none', border: 'none', color: T.addBtnColor, cursor: 'pointer', fontSize: '12px', fontFamily: '"DM Mono", monospace', padding: '10px 12px', textAlign: 'left', borderTop: `1px dashed ${T.dashedBorder}`, width: '100%', transition: 'color 0.15s' },
     addGoalRow: { borderTop: `1px dashed ${T.dashedBorder}` },
     addGoalBtn: { width: '100%', background: 'none', border: 'none', color: T.addBtnColor, cursor: 'pointer', fontSize: '12px', fontFamily: '"DM Mono", monospace', padding: '12px', textAlign: 'left', transition: 'color 0.15s' },
+    measureTodoWrap: {
+      borderTop: '1px dashed #1e2535',
+      background: 'rgba(0,0,0,0.1)',
+    },
+    typeBadgeMP: {
+      fontSize: '10px', fontFamily: '"DM Mono", monospace', fontWeight: 700,
+      padding: '2px 5px', borderRadius: '3px', letterSpacing: '0.5px',
+      background: 'rgba(59,158,222,0.15)', color: '#3b9ede',
+      border: '1px solid rgba(59,158,222,0.35)',
+      cursor: 'pointer', outline: 'none', width: '100%', textAlign: 'center',
+    },
+    typeBadgeMD: {
+      fontSize: '10px', fontFamily: '"DM Mono", monospace', fontWeight: 700,
+      padding: '2px 5px', borderRadius: '3px', letterSpacing: '0.5px',
+      background: 'rgba(240,165,0,0.15)', color: '#f0a500',
+      border: '1px solid rgba(240,165,0,0.35)',
+      cursor: 'pointer', outline: 'none', width: '100%', textAlign: 'center',
+    },
+    deadlineInput: {
+      background: 'none', border: 'none', color: dark ? '#8a95ae' : '#445069',
+      fontSize: '10px', fontFamily: '"DM Mono", monospace',
+      outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light', cursor: 'pointer',
+    },
+    projectDeadlineInput: {
+      background: dark ? '#1e2535' : '#f3f7fd', border: `1px solid ${dark ? '#2a3347' : '#d1d9e8'}`, borderRadius: '5px',
+      color: dark ? '#e8ecf4' : '#1a2133', fontSize: '13px', fontFamily: '"DM Mono", monospace',
+      padding: '7px 10px', outline: 'none', colorScheme: dark ? 'dark' : 'light',
+    },
+    addMpBtn: { color: '#3b9ede' },
+    addMdBtn: { color: '#f0a500' },
     emptyTable: { padding: '32px', textAlign: 'center', color: T.addBtnColor, fontFamily: '"DM Mono", monospace', fontSize: '12px' },
   }
 }
