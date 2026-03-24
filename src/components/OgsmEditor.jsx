@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TodoList from './TodoList.jsx'
 import TodoManagerPanel from './TodoManagerPanel.jsx'
 import AiConfirmDialog from './AiConfirmDialog.jsx'
@@ -60,6 +60,36 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const [aiLoading, setAiLoading] = useState(false)
   const [openTodos, setOpenTodos] = useState(new Set())
   const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
+  const [dragMeasure, setDragMeasure] = useState(null)         // { gi, si, mi }
+  const [dragOverMeasure, setDragOverMeasure] = useState(null)  // { gi, si, mi }
+  const [dragGoal, setDragGoal] = useState(null)                // gi
+  const [dragOverGoal, setDragOverGoal] = useState(null)        // gi
+  const [dragStrategy, setDragStrategy] = useState(null)        // { gi, si }
+  const [dragOverStrategy, setDragOverStrategy] = useState(null)// { gi, si }
+  const scrollRef = useRef(null)
+  const scrollRafRef = useRef(null)
+
+  // Auto-scroll when dragging near top/bottom edge of the scroll container
+  const handleScrollZoneDragOver = useCallback((e) => {
+    const el = scrollRef.current
+    if (!el) return
+    const { top, bottom } = el.getBoundingClientRect()
+    const zone = 80   // px from edge to trigger scroll
+    const maxSpeed = 18
+    const y = e.clientY
+    let speed = 0
+    if (y < top + zone)    speed = -maxSpeed * (1 - (y - top) / zone)
+    else if (y > bottom - zone) speed =  maxSpeed * (1 - (bottom - y) / zone)
+    if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
+    if (speed !== 0) {
+      const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }
+      scrollRafRef.current = requestAnimationFrame(step)
+    }
+  }, [])
+
+  const handleScrollZoneDragEnd = useCallback(() => {
+    if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
+  }, [])
 
   useEffect(() => {
     if (openTodos.size === 0) return
@@ -248,7 +278,8 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
     }
     if (f === 'progress') {
       const isOverdue = m.deadline && m.deadline < today
-      if (!isOverdue || v == 100) m.status = autoStatus(m)
+      if (isOverdue && v < 100) m.status = 'Overdue'
+      else m.status = autoStatus(m)
     }
     return d
   })
@@ -264,9 +295,95 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
     const m = d.goals[gi].strategies[si].measures[mi]
     const today = new Date().toISOString().slice(0, 10)
     const isOverdue = m.deadline && m.deadline < today
-    if (!isOverdue || pct === 100) m.status = autoStatus(m)
+    if (isOverdue && pct < 100) m.status = 'Overdue'
+    else m.status = autoStatus(m)
     return d
   })
+
+  const handleMeasureDragStart = (e, gi, si, mi) => {
+    const tag = e.target.tagName.toLowerCase()
+    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
+    e.stopPropagation()
+    setDragMeasure({ gi, si, mi })
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleMeasureDragOver = (e, gi, si, mi) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si) return
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverMeasure?.mi !== mi) setDragOverMeasure({ gi, si, mi })
+  }
+  const handleMeasureDrop = (e, gi, si, mi) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si || dragMeasure.mi === mi) {
+      setDragMeasure(null); setDragOverMeasure(null); return
+    }
+    update(d => {
+      const measures = d.goals[gi].strategies[si].measures
+      const [removed] = measures.splice(dragMeasure.mi, 1)
+      measures.splice(mi, 0, removed)
+      return d
+    })
+    setDragMeasure(null)
+    setDragOverMeasure(null)
+  }
+  const handleMeasureDragEnd = () => { setDragMeasure(null); setDragOverMeasure(null) }
+
+  const handleGoalDragStart = (e, gi) => {
+    const tag = e.target.tagName.toLowerCase()
+    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
+    setDragGoal(gi)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleGoalDragOver = (e, gi) => {
+    e.preventDefault()
+    if (dragGoal == null) return
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverGoal !== gi) setDragOverGoal(gi)
+  }
+  const handleGoalDrop = (e, gi) => {
+    e.preventDefault()
+    if (dragGoal == null || dragGoal === gi) { setDragGoal(null); setDragOverGoal(null); return }
+    update(d => {
+      const [removed] = d.goals.splice(dragGoal, 1)
+      d.goals.splice(gi, 0, removed)
+      return d
+    })
+    setDragGoal(null)
+    setDragOverGoal(null)
+  }
+  const handleGoalDragEnd = () => { setDragGoal(null); setDragOverGoal(null) }
+
+  const handleStrategyDragStart = (e, gi, si) => {
+    const tag = e.target.tagName.toLowerCase()
+    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
+    e.stopPropagation()
+    setDragStrategy({ gi, si })
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleStrategyDragOver = (e, gi, si) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragStrategy || dragStrategy.gi !== gi) return
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverStrategy?.si !== si) setDragOverStrategy({ gi, si })
+  }
+  const handleStrategyDrop = (e, gi, si) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!dragStrategy || dragStrategy.gi !== gi || dragStrategy.si === si) { setDragStrategy(null); setDragOverStrategy(null); return }
+    update(d => {
+      const strategies = d.goals[gi].strategies
+      const [removed] = strategies.splice(dragStrategy.si, 1)
+      strategies.splice(si, 0, removed)
+      return d
+    })
+    setDragStrategy(null)
+    setDragOverStrategy(null)
+  }
+  const handleStrategyDragEnd = () => { setDragStrategy(null); setDragOverStrategy(null) }
 
   // 計算整體進度（用於頂部進度條）
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
@@ -326,6 +443,41 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
         }
         .ogsm-actual-input::placeholder {
           color: ${darkMode ? 'rgba(205, 199, 199, 0.45)' : 'rgba(133, 129, 129, 0.45)'};
+        }
+        .ogsm-measure-drag-row {
+          transition: filter 0.15s, opacity 0.15s;
+        }
+        .ogsm-measure-drag-row[data-dragging='true'] {
+          opacity: 0.5 !important;
+          filter: blur(2px) !important;
+        }
+        .ogsm-measure-drag-row[data-dragover='true'] {
+          outline: 2px solid #f0a500;
+          outline-offset: -1px;
+          border-radius: 3px;
+        }
+        .ogsm-goal-drag-block {
+          transition: filter 0.15s, opacity 0.15s;
+        }
+        .ogsm-goal-drag-block[data-dragging='true'] {
+          opacity: 0.5 !important;
+          filter: blur(2px) !important;
+        }
+        .ogsm-goal-drag-block[data-dragover='true'] {
+          outline: 2px solid #f0a500;
+          outline-offset: -1px;
+        }
+        .ogsm-strategy-drag-block {
+          transition: filter 0.15s, opacity 0.15s;
+        }
+        .ogsm-strategy-drag-block[data-dragging='true'] {
+          opacity: 0.5 !important;
+          filter: blur(2px) !important;
+        }
+        .ogsm-strategy-drag-block[data-dragover='true'] {
+          outline: 2px solid #f0a500;
+          outline-offset: -1px;
+          border-radius: 2px;
         }
       `}</style>
 
@@ -402,8 +554,14 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
       </div>
 
       {/* ── Table ── */}
-      <div style={s.tableScroll}>
-        <div style={{ ...s.tableWrap, minWidth: COL_G + COL_S + typeW + kpiW + COL_VAL*2 + COL_DL + COL_STATUS + COL_PROG + COL_ACT }}>
+      <div
+        ref={scrollRef}
+        style={s.tableScroll}
+        onDragOver={handleScrollZoneDragOver}
+        onDragEnd={handleScrollZoneDragEnd}
+        onDrop={handleScrollZoneDragEnd}
+      >
+        <div style={{ ...s.tableWrap, minWidth: COL_G + COL_S + typeW + kpiW + COL_VALT + COL_VALP + COL_DL + COL_STATUS + COL_PROG + COL_ACT }}>
 
           {/* Header */}
           <div style={s.tableHeader}>
@@ -412,8 +570,8 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
               { label: 'S — Strategies', w: COL_S      },
               { label: '類型',            w: typeW      },
               { label: 'KPI',            w: kpiW       },
-              { label: '目標值',          w: COL_VAL    },
-              { label: '實際值',          w: COL_VAL    },
+              { label: '目標值',          w: COL_VALT    },
+              { label: '實際值',          w: COL_VALP    },
               { label: '期限',            w: COL_DL     },
               { label: '狀態',            w: COL_STATUS },
               { label: '進度',            w: COL_PROG   },
@@ -429,8 +587,22 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
             <div style={s.emptyTable}>尚無 Goals，點擊下方「+ 新增 Goal」</div>
           )}
 
-          {draft.goals.map((goal, gi) => (
-            <div key={goal.id ?? `g-${gi}`} style={{ ...s.goalSection, ...(gi % 2 === 1 ? s.goalSectionAlt : {}) }}>
+          {draft.goals.map((goal, gi) => {
+            const isGDragging = dragGoal === gi
+            const isGDragOver = dragOverGoal === gi && dragGoal !== gi
+            return (
+            <div
+              key={goal.id ?? `g-${gi}`}
+              className="ogsm-goal-drag-block"
+              data-dragging={isGDragging ? 'true' : 'false'}
+              data-dragover={isGDragOver ? 'true' : 'false'}
+              style={{ ...s.goalSection, ...(gi % 2 === 1 ? s.goalSectionAlt : {}), cursor: editMode ? 'grab' : 'default' }}
+              draggable={editMode}
+              onDragStart={editMode ? e => handleGoalDragStart(e, gi) : undefined}
+              onDragOver={editMode ? e => handleGoalDragOver(e, gi) : undefined}
+              onDrop={editMode ? e => handleGoalDrop(e, gi) : undefined}
+              onDragEnd={editMode ? handleGoalDragEnd : undefined}
+            >
               <div style={s.goalRow}>
 
                 {/* Goal */}
@@ -447,8 +619,22 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
                 {/* Strategies */}
                 <div style={s.strategiesWrap}>
-                  {goal.strategies.map((st, si) => (
-                    <div key={st.id ?? `s-${si}`} style={s.strategyBlock}>
+                  {goal.strategies.map((st, si) => {
+                    const isSDragging = dragStrategy?.gi === gi && dragStrategy?.si === si
+                    const isSDragOver = dragOverStrategy?.gi === gi && dragOverStrategy?.si === si && !isSDragging
+                    return (
+                    <div
+                      key={st.id ?? `s-${si}`}
+                      className="ogsm-strategy-drag-block"
+                      data-dragging={isSDragging ? 'true' : 'false'}
+                      data-dragover={isSDragOver ? 'true' : 'false'}
+                      style={{ ...s.strategyBlock, cursor: editMode ? 'grab' : 'default' }}
+                      draggable={editMode}
+                      onDragStart={editMode ? e => handleStrategyDragStart(e, gi, si) : undefined}
+                      onDragOver={editMode ? e => handleStrategyDragOver(e, gi, si) : undefined}
+                      onDrop={editMode ? e => handleStrategyDrop(e, gi, si) : undefined}
+                      onDragEnd={editMode ? handleStrategyDragEnd : undefined}
+                    >
                       <div style={s.strategyRow}>
 
                         {/* Strategy */}
@@ -467,9 +653,21 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                         <div style={s.measuresCol}>
                           {st.measures.map((m, mi) => {
                             const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
+                            const isMDragging = dragMeasure?.gi === gi && dragMeasure?.si === si && dragMeasure?.mi === mi
+                            const isMDragOver = dragOverMeasure?.gi === gi && dragOverMeasure?.si === si && dragOverMeasure?.mi === mi && !isMDragging
                             return (
-                              <React.Fragment key={m.id ?? `m-${mi}`}>
-                              <div style={s.measureRow} data-measure-row="1">
+                              <div
+                                key={m.id ?? `m-${mi}`}
+                                className="ogsm-measure-drag-row"
+                                data-dragging={isMDragging ? 'true' : 'false'}
+                                data-dragover={isMDragOver ? 'true' : 'false'}
+                                draggable={editMode}
+                                onDragStart={editMode ? e => handleMeasureDragStart(e, gi, si, mi) : undefined}
+                                onDragOver={editMode ? e => handleMeasureDragOver(e, gi, si, mi) : undefined}
+                                onDrop={editMode ? e => handleMeasureDrop(e, gi, si, mi) : undefined}
+                                onDragEnd={editMode ? handleMeasureDragEnd : undefined}
+                              >
+                              <div style={{ ...s.measureRow, cursor: editMode ? 'grab' : 'default' }} data-measure-row="1">
                                 {/* 類型標籤 */}
                                 <div style={{ ...s.measureCell, width: typeW, justifyContent: editMode ? 'flex-start' : 'center', gap: '4px', padding: editMode ? '8px 6px' : '8px 10px' }}>
                                   {editMode ? (
@@ -488,10 +686,10 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                 <div style={{ ...s.measureCell, width: kpiW, alignItems: 'flex-start', display: 'flex', gap: '6px' }}>
                                   <textarea data-ogsm-autoresize style={s.measureText} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="KPI 名稱" rows={1} />
                                 </div>
-                                <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
+                                <div style={{ ...s.measureCell, width: COL_VALT, alignItems: 'flex-start' }}>
                                   <textarea data-ogsm-autoresize style={{ ...s.measureText, ...s.targetInput }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} />
                                 </div>
-                                <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
+                                <div style={{ ...s.measureCell, width: COL_VALP, alignItems: 'flex-start' }}>
                                   <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, ...s.actualInput }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
                                 </div>
 
@@ -551,7 +749,7 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                 />
                               </div>
                               )}
-                              </React.Fragment>
+                              </div>
                             )
                           })}
                           {editMode && <button className="ogsm-add-btn" style={s.addMiniBtn} onClick={() => addMeasure(gi, si)}>+ Measure</button>}
@@ -561,13 +759,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
 
                     </div>
-                  ))}
+                  )})}
                   {editMode && <button className="ogsm-add-btn" style={s.addStratBtn} onClick={() => addStrategy(gi)}>+ 新增 Strategy</button>}
                 </div>
 
               </div>
             </div>
-          ))}
+          )})}
 
           {editMode && (
             <div style={s.addGoalRow}>
@@ -616,7 +814,8 @@ const COL_G      = 200
 const COL_S      = 200
 const COL_TYPE   = 90
 const COL_KPI    = 170
-const COL_VAL    = 100
+const COL_VALT   = 130
+const COL_VALP   = 75
 const COL_DL     = 110
 const COL_STATUS = 96
 const COL_PROG   = 165
@@ -739,7 +938,7 @@ function buildStyles(dark) {
 
     tableScroll: { flex: 1, overflow: 'auto', padding: '20px 28px 40px' },
     tableWrap: {
-      minWidth: COL_G + COL_S + COL_TYPE + COL_KPI + COL_VAL*2 + COL_DL + COL_STATUS + COL_PROG + COL_ACT, // preview min; edit-mode override applied inline
+      minWidth: COL_G + COL_S + COL_TYPE + COL_KPI + COL_VALT + COL_VALP + COL_DL + COL_STATUS + COL_PROG + COL_ACT, // preview min; edit-mode override applied inline
       width: 'max-content',
       border: `1px solid ${T.border}`, borderRadius: '8px', overflow: 'hidden',
     },
