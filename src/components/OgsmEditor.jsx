@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import TodoList from './TodoList.jsx'
 import TodoManagerPanel from './TodoManagerPanel.jsx'
+import AiConfirmDialog from './AiConfirmDialog.jsx'
+import { api } from '../services/api.js'
 
 const emptyMeasure  = (type = 'MP') => ({ id: null, type, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', todos: [], sortOrder: 0 })
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
@@ -54,6 +56,8 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [showTodoPanel, setShowTodoPanel] = useState(false)
+  const [aiDialog, setAiDialog] = useState(null)  // { type, gi, si, mi, currentText }
+  const [aiLoading, setAiLoading] = useState(false)
   const [openTodos, setOpenTodos] = useState(new Set())
   const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
 
@@ -67,7 +71,7 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [openTodos])
-  const typeW = editMode ? 90 : COL_TYPE
+  const typeW = editMode ? 130 : COL_TYPE
   const kpiW  = editMode ? 134 : COL_KPI
   const s = useMemo(() => buildStyles(darkMode), [darkMode])
 
@@ -89,6 +93,19 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
     setDirty(true)
   }, [])
 
+  // When draft is replaced programmatically (e.g. AI insertion), textareas won't
+  // receive input events — recalc heights for all autosize textareas here.
+  useEffect(() => {
+    if (!draft) return
+    const els = document.querySelectorAll('textarea[data-ogsm-autoresize]')
+    els.forEach(el => {
+      try {
+        el.style.height = '0px'
+        el.style.height = el.scrollHeight + 'px'
+      } catch (e) {}
+    })
+  }, [draft])
+
   const toggleTodoById = useCallback((gi, si, mi, todoId) => {
     update(d => {
       const todos = d.goals[gi].strategies[si].measures[mi].todos || []
@@ -102,6 +119,97 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
       return d
     })
   }, [update])
+
+  // ── AI 局部生成 ──────────────────────────────────────────
+  const handleAiConfirm = useCallback(async (text) => {
+    if (!aiDialog || !draft) return
+    const { type, gi, si, mi } = aiDialog
+    setAiLoading(true)
+
+    // 共用：把 todos 陣列轉成物件
+    const makeTodos = (arr) => (arr || []).map(t => ({
+      id: crypto.randomUUID(), text: t, done: false, createdAt: new Date().toISOString()
+    }))
+
+    // 共用：建立 Measure 物件
+    const makeMeasure = (m, mType, sortOrder) => ({
+      id: null, type: mType, kpi: m.kpi || '', target: m.target || '',
+      deadline: m.deadline || '', actual: '', progress: 0,
+      status: 'NotStarted', sortOrder,
+      todos: makeTodos(m.todos),
+    })
+
+    try {
+      if (type === 'goal') {
+        // ── Goal：清掉舊 Strategies，換成 AI 生成的 ──
+        const existingGoals = draft.goals.map(g => g.text).filter(t => t.trim())
+        const res = await api.generateForGoal({
+          goalText: text, objective: draft.objective,
+          deadline: draft.deadline || undefined, existingGoals,
+        })
+        update(d => {
+          const goal = d.goals[gi]
+          // 1. 填入 Goal 文字（優先用用戶輸入，其次用 AI 回傳）
+          goal.text = text.trim() || res.goalText || goal.text || `Goal ${gi + 1}`
+          // 2. 清掉全部舊 Strategies，換成新的
+          goal.strategies = (res.strategies || []).map((s, idx) => ({
+            id: null, text: s.text || '', sortOrder: idx, todos: [],
+            measures: [
+              ...(s.measuresProcess || []).map((m, mi) => makeMeasure(m, 'MP', mi)),
+              ...(s.measuresData    || []).map((m, mi) => makeMeasure(m, 'MD', (s.measuresProcess || []).length + mi)),
+            ],
+          }))
+          return d
+        })
+
+      } else if (type === 'strategy') {
+        // ── Strategy：清掉舊 Measures，換成 AI 生成的；填入 Strategy 描述 ──
+        const res = await api.generateForStrategy({
+          strategyText: text, goalText: draft.goals[gi].text,
+          objective: draft.objective, deadline: draft.deadline || undefined,
+        })
+        update(d => {
+          const st = d.goals[gi].strategies[si]
+          // 1. 填入 Strategy 文字
+          st.text = text.trim() || res.strategyText || st.text || `Strategy ${si + 1}`
+          // 2. 清掉全部舊 Measures，換成新的
+          st.measures = [
+            ...(res.measuresProcess || []).map((m, idx) => makeMeasure(m, 'MP', idx)),
+            ...(res.measuresData    || []).map((m, idx) => makeMeasure(m, 'MD', (res.measuresProcess || []).length + idx)),
+          ]
+          return d
+        })
+
+      } else if (type === 'measure') {
+        // ── Measure：清掉舊 Todos，換成 AI 生成的；填入 KPI 描述和 type ──
+        const currentMeasure = draft.goals[gi].strategies[si].measures[mi]
+        const res = await api.generateForMeasure({
+          measureType:  currentMeasure.type || 'MP',
+          kpiText:      text,
+          strategyText: draft.goals[gi].strategies[si].text,
+          objective:    draft.objective,
+          deadline:     draft.deadline || undefined,
+        })
+        update(d => {
+          const m = d.goals[gi].strategies[si].measures[mi]
+          // 1. 填入 KPI 文字和 type
+          m.kpi  = text.trim() || res.kpiText || m.kpi || ''
+          m.type = res.type || m.type || 'MP'
+          m.target = res.target || m.target || ''
+          m.deadline = res.deadline || m.deadline || ''
+          // 2. 清掉舊 Todos，換成新的
+          m.todos = makeTodos(res.todos)
+          return d
+        })
+      }
+    } catch (e) {
+      console.error('AI partial generation failed:', e)
+      alert('AI 生成失敗：' + e.message)
+    } finally {
+      setAiLoading(false)
+      setAiDialog(null)
+    }
+  }, [aiDialog, draft, update])
 
   const handleSave = async () => {
     setSaving(true)
@@ -189,6 +297,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
           border-color: rgba(240,165,0,0.75) !important;
           box-shadow: 0 0 0 2.5px rgba(240,165,0,0.18), 0 0 8px rgba(240,165,0,0.12) !important;
           background: rgba(240,165,0,0.06) !important;
+        }
+        .ogsm-ai-btn:hover {
+          background: rgba(240,165,0,0.22) !important;
+          border-color: rgba(240,165,0,0.7) !important;
+          color: #f0a500 !important;
+          box-shadow: 0 0 8px rgba(240,165,0,0.35);
+          transform: scale(1.12);
         }
         .ogsm-todo-btn:hover {
           background: rgba(76,175,125,0.12) !important;
@@ -309,8 +424,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                 {/* Goal */}
                 <div style={{ ...s.goalCell, width: COL_G }}>
                   <div style={s.goalIndex}>G{gi + 1}</div>
-                  <textarea style={{ ...s.cellText, ...s.goalText }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} placeholder="Goal 描述…" rows={3} />
-                  {editMode && <button className="ogsm-remove-btn" style={s.removeBtn} onClick={() => removeGoal(gi)}>✕</button>}
+                  <textarea data-ogsm-autoresize style={{ ...s.measureText, ...s.goalText }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} />
+                  {editMode && (
+                    <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-end' }}>
+                      {goal.id == null && <button style={s.aiBtnSmall} title="AI 生成 Strategies" onClick={() => setAiDialog({ type: 'goal', gi, si: null, mi: null, currentText: goal.text })}>⚡</button>}
+                      <button className="ogsm-remove-btn" style={{ ...s.iconBtn, alignSelf: 'flex-end' }} onClick={() => removeGoal(gi)}>✕</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Strategies */}
@@ -322,8 +442,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                         {/* Strategy */}
                         <div style={{ ...s.stratCell, width: COL_S }}>
                           <div style={s.stratIndex}>S{si + 1}</div>
-                          <textarea style={s.cellText} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} placeholder="Strategy 描述…" rows={2} />
-                          {editMode && <button className="ogsm-remove-btn" style={s.removeBtn} onClick={() => removeStrategy(gi, si)}>✕</button>}
+                          <textarea data-ogsm-autoresize style={s.measureText} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} />
+                          {editMode && (
+                            <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-end' }}>
+                              {st.id == null && <button style={s.aiBtnSmall} title="AI 生成 Measures" onClick={() => setAiDialog({ type: 'strategy', gi, si, mi: null, currentText: st.text })}>⚡</button>}
+                              <button className="ogsm-remove-btn" style={{ ...s.iconBtn, alignSelf: 'flex-end' }} onClick={() => removeStrategy(gi, si)}>✕</button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Measures */}
@@ -337,8 +462,9 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                 <div style={{ ...s.measureCell, width: typeW, justifyContent: editMode ? 'flex-start' : 'center', gap: '4px', padding: editMode ? '8px 6px' : '8px 10px' }}>
                                   {editMode ? (
                                     <>
+                                      {m.id == null && <button style={{ ...s.aiBtnSmall, flexShrink: 0 }} title="AI 生成待辦事項" onClick={() => setAiDialog({ type: 'measure', gi, si, mi, currentText: m.kpi })}>⚡</button>}
                                       <button className="ogsm-remove-btn" style={{ ...s.iconBtn, flexShrink: 0 }} onClick={() => removeMeasure(gi,si,mi)}>✕</button>
-                                      <select style={{ ...(m.type === 'MP' ? s.typeBadgeMP : s.typeBadgeMD), flex: 1, minWidth: '36px', width: 'auto' }} value={m.type || 'MP'} onChange={e => setMField(gi,si,mi,'type',e.target.value)}>
+                                      <select style={{ ...(m.type === 'MP' ? s.typeBadgeMP : s.typeBadgeMD), flex: 1, maxWidth: '60px', width: 'auto' }} value={m.type || 'MP'} onChange={e => setMField(gi,si,mi,'type',e.target.value)}>
                                         <option value="MP">MP</option>
                                         <option value="MD">MD</option>
                                       </select>
@@ -348,13 +474,13 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                   )}
                                 </div>
                                 <div style={{ ...s.measureCell, width: kpiW, alignItems: 'flex-start', display: 'flex', gap: '6px' }}>
-                                  <textarea style={s.measureText} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="KPI 名稱" rows={1} />
+                                  <textarea data-ogsm-autoresize style={s.measureText} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="KPI 名稱" rows={1} />
                                 </div>
                                 <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
-                                  <textarea style={{ ...s.measureText, ...s.targetInput }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} />
+                                  <textarea data-ogsm-autoresize style={{ ...s.measureText, ...s.targetInput }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} />
                                 </div>
                                 <div style={{ ...s.measureCell, width: COL_VAL, alignItems: 'flex-start' }}>
-                                  <textarea className="ogsm-actual-input" style={{ ...s.measureText, ...s.actualInput }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
+                                  <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, ...s.actualInput }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
                                 </div>
 
                                 {/* 期限 */}
@@ -439,6 +565,27 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
         </div>
       </div>
 
+      {/* ── AI Refill Modal ── */}
+
+      {/* ── AI Loading overlay ── */}
+      {aiLoading && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ width: '36px', height: '36px', border: '3px solid #2a3347', borderTopColor: '#f0a500', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          <div style={{ color: '#f0a500', fontFamily: '"DM Mono", monospace', fontSize: '13px' }}>AI 生成中…</div>
+        </div>
+      )}
+
+      {/* ── AI Confirm Dialog ── */}
+      {aiDialog && !aiLoading && (
+        <AiConfirmDialog
+          type={aiDialog.type}
+          currentText={aiDialog.currentText}
+          onConfirm={handleAiConfirm}
+          onCancel={() => setAiDialog(null)}
+          darkMode={darkMode}
+        />
+      )}
+
       {/* ── Todo Manager Panel ── */}
       {showTodoPanel && draft && (
         <TodoManagerPanel
@@ -454,7 +601,7 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
 
 const COL_G      = 200
 const COL_S      = 200
-const COL_TYPE   = 54
+const COL_TYPE   = 90
 const COL_KPI    = 170
 const COL_VAL    = 100
 const COL_DL     = 110
@@ -687,7 +834,6 @@ function buildStyles(dark) {
       transition: 'width 0.2s ease, background 0.2s',
       boxShadow: '0 0 4px currentColor',
     },
-
     removeBtn: {
       background: 'rgba(239,68,68,0.15)',
       border: '1px solid rgba(239,68,68,0.3)',
@@ -745,6 +891,17 @@ function buildStyles(dark) {
     },
     addMpBtn: { color: '#3b9ede' },
     addMdBtn: { color: '#f0a500' },
+    aiBtnSmall: {
+      background: 'rgba(240,165,0,0.12)',
+      border: '1px solid rgba(240,165,0,0.3)',
+      color: '#f0a500',
+      cursor: 'pointer',
+      fontSize: '11px',
+      padding: '4px 7px',
+      borderRadius: '3px',
+      transition: 'all 0.15s',
+      fontWeight: 700,
+    },
     emptyTable: { padding: '32px', textAlign: 'center', color: T.addBtnColor, fontFamily: '"DM Mono", monospace', fontSize: '12px' },
   }
 }

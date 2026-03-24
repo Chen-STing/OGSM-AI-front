@@ -21,6 +21,11 @@ export const api = {
   update:   (id, body) => request(`/ogsm/${id}`, { method: 'PUT',  body: JSON.stringify(body) }),
   delete:   (id)       => request(`/ogsm/${id}`, { method: 'DELETE' }),
 
-  // AI 生成
-  generate: (body)     => request('/ai/generate', { method: 'POST', body: JSON.stringify(body) }),
+  // AI 生成整份 OGSM
+  generate: (body) => request('/ai/generate', { method: 'POST', body: JSON.stringify(body) }),
+
+  // AI 局部生成（不儲存，直接回傳結果供前端合併）
+  generateForGoal:     (body) => request('/ai/generate-for-goal',     { method: 'POST', body: JSON.stringify(body) }),
+  generateForStrategy: (body) => request('/ai/generate-for-strategy', { method: 'POST', body: JSON.stringify(body) }),
+  generateForMeasure:  (body) => request('/ai/generate-for-measure',  { method: 'POST', body: JSON.stringify(body) }),
 }
