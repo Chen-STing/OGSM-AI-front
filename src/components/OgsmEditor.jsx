@@ -502,7 +502,8 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                 </div>
 
                                 {/* 進度 */}
-                                {(() => { const todoKey = `${gi}-${si}-${mi}`; const todoOpen = openTodos.has(todoKey); const todos = m.todos || []; const doneCount = todos.filter(t => t.done).length; return (
+                                {(() => { const todoKey = `${gi}-${si}-${mi}`; const todoOpen = openTodos.has(todoKey); const todos = m.todos || []; const doneCount = todos.filter(t => t.done).length;
+                                const todoProgressColor = !todos.length ? (darkMode ? '#6e7d94' : '#8a9ab8') : doneCount === 0 ? (darkMode ? '#8a96a8' : '#9aaaba') : doneCount === todos.length ? (darkMode ? '#4caf7d' : '#2a9060') : (darkMode ? '#3b9ede' : '#1a7bbf'); return (
                                 <>
                                 <div style={{ ...s.measureCell, width: COL_PROG, flexDirection: 'column', gap: '4px', alignItems: 'stretch', justifyContent: 'center', padding: '8px 12px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -517,10 +518,10 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
                                   <button
                                     onClick={() => toggleTodoRow(todoKey)}
                                     title="展開/收起待辦事項"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: todoOpen ? '#f0a500' : (todos.length ? '#4caf7d' : '#4a5568'), padding: '2px 4px', lineHeight: 1, transition: 'color 0.15s', borderRadius: '3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: todoOpen ? '#f0a500' : todoProgressColor, padding: '2px 4px', lineHeight: 1, transition: 'color 0.15s', borderRadius: '3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
                                   >
-                                    <span>{todoOpen ? '▾' : '▸'}</span>
-                                    {todos.length > 0 && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', lineHeight: 1 }}>{doneCount}/{todos.length} 已完成</span>}
+                                    <span style={{ fontSize: '23px', lineHeight: 1 }}>{todoOpen ? '▾' : '▸'}</span>
+                                    {todos.length > 0 && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', lineHeight: 1, color: todoProgressColor }}>{doneCount}/{todos.length} 已完成</span>}
                                   </button>
                                 </div>
                                 </>

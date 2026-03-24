@@ -52,7 +52,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast }) {
         </div>
 
         <p style={st.description}>
-          輸入核心目標與截止日期，AI 將自動規劃 Goals、Strategies、<strong style={{ color: '#3b9ede' }}>MP</strong> 過程指標、<strong style={{ color: '#f0a500' }}>MD</strong> 結果指標與待辦清單。
+          輸入核心目標與截止日期，AI 將自動規劃 Goals、Strategies、<strong style={{ color: '#3b9ede' }}>MP</strong> 檢核指標、<strong style={{ color: '#f0a500' }}>MD</strong> 定量指標與待辦清單。
         </p>
 
         {/* Objective */}
@@ -102,11 +102,11 @@ export default function GenerateModal({ onClose, onGenerated, showToast }) {
         <div style={st.tipBox}>
           <div style={st.tipRow}>
             <span style={{ ...st.tipBadge, background: 'rgba(59,158,222,0.15)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' }}>MP</span>
-            <span style={st.tipText}>過程指標 — 監控行動有沒有執行、執行品質（例：每週運動次數、飲食記錄率）</span>
+            <span style={st.tipText}>檢核指標 — 監控行動有沒有執行、執行品質（例：每週運動次數、飲食記錄率）</span>
           </div>
           <div style={st.tipRow}>
             <span style={{ ...st.tipBadge, background: 'rgba(240,165,0,0.15)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }}>MD</span>
-            <span style={st.tipText}>結果指標 — 監控最終產出數字、績效（例：體重、體脂率、業績達成率）</span>
+            <span style={st.tipText}>定量指標 — 監控最終產出數字、績效（例：體重、體脂率、業績達成率）</span>
           </div>
         </div>
 

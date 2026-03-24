@@ -59,15 +59,14 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
   const [expandedGoals, setExpandedGoals] = useState(new Set())
   const [expandedMeasureTodos, setExpandedMeasureTodos] = useState(new Set())
   const [pdfLoading, setPdfLoading] = useState(false)
-  
+  const [pptLoading, setPptLoading] = useState(false)
+
   if (!project) return null
 
   const toggleGoal = (index) => {
     setExpandedGoals(prev => {
-      const next = new Set(prev)
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
-      return next
+      if (prev.has(index)) return new Set()
+      return new Set([index])
     })
   }
 
@@ -356,6 +355,382 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
     }
   }
 
+  const generatePPT = async () => {
+    setPptLoading(true)
+    try {
+      // Dynamically load PptxGenJS from CDN
+      await new Promise((resolve, reject) => {
+        if (window.PptxGenJS) return resolve()
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'
+        script.onload = resolve
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+
+      const pres = new window.PptxGenJS()
+      pres.layout = 'LAYOUT_WIDE' // 13.3" × 7.5"
+      pres.title = project.title + ' OGSM'
+
+      // ── Colours ──────────────────────────────────────────────────────────────
+      const HDR_BG  = 'F5DEB3'   // wheat – header row fill (matches screenshot)
+      const HDR_BD  = '8B6914'   // dark gold – header border
+      const OBJ_BG  = 'FEFDF5'   // near-white with warm tint – objective body
+      const CELL_WH = 'FFFFFF'   // white body cell
+      const CELL_AL = 'FAFAFA'   // very light grey alt row
+      const CELL_MD = 'FFFEF8'   // warm tint for MD col alt row
+      const CELL_MP = 'F5FFF8'   // cool tint for MP col alt row
+      const BD      = '999999'   // normal border
+      const TXT     = '1A1A2E'   // body text
+      const MUT     = '555566'   // muted / label text
+      const TODO_OK = '888888'   // done todo
+      const TODO_ND = '2C3E6B'   // open todo
+
+      // fresh border helper (avoids PptxGenJS in-place mutation)
+      const b  = (c = BD, pt = 0.75) => ({ pt, color: c })
+      const bH = (pt = 1.2)          => ({ pt, color: HDR_BD })
+
+      // ── Load cover images ────────────────────────────────────────────────────
+      const loadCoverImage = async (url) => {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (e) => resolve(e.target.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+      }
+      const [pptFrontData, pptBackData] = await Promise.all([
+        loadCoverImage('/PPT Front Cover.png'),
+        loadCoverImage('/PPT Back Cover.png'),
+      ])
+
+      // ── Front cover slide ────────────────────────────────────────────────────
+      const frontSlide = pres.addSlide()
+      frontSlide.addImage({ data: pptFrontData, x: 0, y: 0, w: 13.3, h: 7.5 })
+      frontSlide.addText('亞家科技股份有限公司', {
+        x: 2.3, y: 2.8, w: 8.6, h: 0.9,
+        fontSize: 45, fontFace: 'DFKai-SB', color: '1A1A2E',
+        bold: true, align: 'left', valign: 'middle',
+      })
+      frontSlide.addText(`${project.title}`, {
+        x: 2.4, y: 3.7, w: 7.5, h: 0.65,
+        fontSize: 24, fontFace: 'DFKai-SB', color: 'E70012',
+        bold: true, align: 'left', valign: 'middle',
+      })
+      frontSlide.addText(`OGSM 策略報告`, {
+        x: 2.45, y: 4.3, w: 5, h: 0.6,
+        fontSize: 17, fontFace: 'DFKai-SB', color: 'E07800',
+        align: 'left', valign: 'middle',
+      })
+
+      // ── Per-goal slides ───────────────────────────────────────────────────────
+      for (let gi = 0; gi < project.goals.length; gi++) {
+        const goal       = project.goals[gi]
+        const strategies = goal.strategies || []
+
+        // Flatten: each measure = one body row
+        // { strat, si, measure|null, mi, stratRowCount }
+        const rows = []
+        strategies.forEach((strat, si) => {
+          const ms = strat.measures || []
+          if (ms.length === 0) {
+            rows.push({ strat, si, measure: null, mi: 0, stratRowCount: 1 })
+          } else {
+            ms.forEach((m, mi) =>
+              rows.push({ strat, si, measure: m, mi, stratRowCount: ms.length })
+            )
+          }
+        })
+        const totalRows = Math.max(rows.length, 1)
+
+        // ── Slide ──────────────────────────────────────────────────────────────
+        const sl = pres.addSlide()
+        sl.background = { color: 'FFFFFF' }
+
+        // ── Layout constants (all in inches) ───────────────────────────────────
+        const MG  = 0.18                // left/right margin
+        const TW  = 13.3 - MG * 2      // total table width  ≈ 12.94"
+        const TX  = MG
+
+        // Column widths (proportional – matches screenshot aspect)
+        const GW  = TW * 0.152
+        const SW  = TW * 0.218
+        const MDW = TW * 0.315
+        const MPW = TW - GW - SW - MDW
+        const GX  = TX
+        const SX  = GX + GW
+        const MDX = SX + SW
+        const MPX = MDX + MDW
+
+        // Row Y positions
+        const OBJ_Y  = 0.10
+        const OBJ_H  = 0.50           // Objective row (single)
+
+        // Header: G and S span TWO sub-rows; M has row-1 + row-2
+        const HR1_Y  = OBJ_Y + OBJ_H  // header row 1
+        const HR1_H  = 0.28
+        const HR2_Y  = HR1_Y + HR1_H  // header row 2 (MD/MP labels)
+        const HR2_H  = 0.26
+        const HDR_TOTAL = HR1_H + HR2_H  // G & S cells span this full height
+
+        const BODY_Y = HR2_Y + HR2_H
+        const BODY_AVAIL = 7.5 - BODY_Y - 0.10
+        const RH = Math.max(BODY_AVAIL / totalRows, 0.52)  // row height
+
+        // ── Objective row ──────────────────────────────────────────────────────
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: TX, y: OBJ_Y, w: TW, h: OBJ_H,
+          fill: { color: OBJ_BG }, line: bH()
+        })
+        sl.addText('O：Objective（目標）', {
+          x: TX + 0.08, y: OBJ_Y, w: TW - 0.16, h: 0.22,
+          fontSize: 11, fontFace: 'Microsoft JhengHei', color: '000000',
+          bold: true, align: 'left', valign: 'middle', margin: 0
+        })
+        sl.addShape(pres.shapes.LINE, {
+          x: TX, y: OBJ_Y + 0.22, w: TW, h: 0,
+          line: { color: HDR_BD, pt: 0.7 }
+        })
+        sl.addText('O（目標）：' + (project.objective || ''), {
+          x: TX + 0.08, y: OBJ_Y + 0.22, w: TW - 0.16, h: OBJ_H - 0.24,
+          fontSize: 11, fontFace: 'Microsoft JhengHei', color: TXT,
+          align: 'left', valign: 'middle', margin: 0
+        })
+
+        // ── Header rows ────────────────────────────────────────────────────────
+        // G column: spans HR1+HR2 (HDR_TOTAL height), text vertically centred
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: GX, y: HR1_Y, w: GW, h: HDR_TOTAL,
+          fill: { color: HDR_BG }, line: bH()
+        })
+        sl.addText('G：Goals（具體目標）', {
+          x: GX + 0.06, y: HR1_Y, w: GW - 0.08, h: HDR_TOTAL,
+          fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000',
+          bold: true, align: 'left', valign: 'middle', margin: 0
+        })
+
+        // S column: spans HR1+HR2 (HDR_TOTAL height), text vertically centred
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: SX, y: HR1_Y, w: SW, h: HDR_TOTAL,
+          fill: { color: HDR_BG }, line: bH()
+        })
+        sl.addText('S：Strategies（策略）', {
+          x: SX + 0.06, y: HR1_Y, w: SW - 0.08, h: HDR_TOTAL,
+          fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000',
+          bold: true, align: 'left', valign: 'middle', margin: 0
+        })
+
+        // M header row 1: "M：Measures（衡量指標）" spans MD+MP
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: MDX, y: HR1_Y, w: MDW + MPW, h: HR1_H,
+          fill: { color: HDR_BG }, line: bH()
+        })
+        sl.addText('M：Measures（衡量指標）', {
+          x: MDX + 0.06, y: HR1_Y, w: MDW + MPW - 0.08, h: HR1_H,
+          fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000',
+          bold: true, align: 'left', valign: 'middle', margin: 0
+        })
+
+        // M header row 2: MD label | MP label
+        ;[
+          { x: MDX, w: MDW, label: 'MD（定量指標）' },
+          { x: MPX, w: MPW, label: 'MP（檢核指標）' },
+        ].forEach(({ x, w, label }) => {
+          sl.addShape(pres.shapes.RECTANGLE, {
+            x, y: HR2_Y, w, h: HR2_H,
+            fill: { color: HDR_BG }, line: bH()
+          })
+          sl.addText(label, {
+            x: x + 0.06, y: HR2_Y, w: w - 0.08, h: HR2_H,
+            fontSize: 10, fontFace: 'Microsoft JhengHei', color: '000000',
+            bold: true, align: 'left', valign: 'middle', margin: 0
+          })
+        })
+
+        // ── Goal body cell (spans all rows) ────────────────────────────────────
+        const goalBodyH = RH * totalRows
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: GX, y: BODY_Y, w: GW, h: goalBodyH,
+          fill: { color: CELL_WH }, line: b()
+        })
+        // "G1" number prefix + goal text, vertically centred in full span
+        sl.addText([
+          { text: `G${gi + 1}\n`, options: { bold: true, color: '7A4F00', fontSize: 12, breakLine: true } },
+          { text: goal.text || '', options: { bold: true, color: TXT, fontSize: 14 } },
+        ], {
+          x: GX + 0.07, y: BODY_Y + 0.06, w: GW - 0.12, h: goalBodyH - 0.1,
+          fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0
+        })
+
+        // ── Pre-compute strategy spans ─────────────────────────────────────────
+        const stratSpans = []
+        let rIdx = 0
+        strategies.forEach((strat, si) => {
+          const cnt = Math.max((strat.measures || []).length, 1)
+          stratSpans.push({ startRow: rIdx, rowCount: cnt })
+          rIdx += cnt
+        })
+
+        // ── Collect all MD todos and MP todos for the entire goal ──────────────
+        // Each entry: { num: 'D1.1.1', todoText, done }  /  { num: 'P1.1.1', todoText, done }
+        // Counters reset per strategy (third number restarts at each new second number)
+        const mdItems = []  // { num, text, done }
+        const mpItems = []  // { num, text, done }
+
+        strategies.forEach((strat, si) => {
+          let mdCounter = 0   // resets per strategy
+          let mpCounter = 0   // resets per strategy
+          ;(strat.measures || []).forEach((m) => {
+            const isMD = !m.type || m.type === 'MD'
+            const todos = m.todos || []
+            if (isMD) {
+              todos.forEach(t => {
+                mdCounter++
+                mdItems.push({
+                  num:  `D${gi + 1}.${si + 1}.${mdCounter}`,
+                  text: t.text,
+                  done: t.done,
+                })
+              })
+              // Also include checkpoints → MP side
+              const lines = (m.checkpoints && m.checkpoints.length > 0)
+                ? m.checkpoints
+                : (m.milestone ? [m.milestone] : [])
+              lines.forEach(ln => {
+                mpCounter++
+                mpItems.push({ num: `P${gi + 1}.${si + 1}.${mpCounter}`, text: ln, done: false })
+              })
+            } else {
+              // MP-type measure: todos go to MP col
+              todos.forEach(t => {
+                mpCounter++
+                mpItems.push({
+                  num:  `P${gi + 1}.${si + 1}.${mpCounter}`,
+                  text: t.text,
+                  done: t.done,
+                })
+              })
+            }
+          })
+        })
+
+        // ── Draw G/S rows (no MD/MP cells here) ───────────────────────────────
+        rows.forEach((row, ri) => {
+          const rowY   = BODY_Y + ri * RH
+          const isFirst = row.mi === 0
+          const span    = stratSpans[row.si]
+          const stratH  = RH * span.rowCount
+
+          // S cell – drawn once per strategy, spans its measure rows
+          if (isFirst) {
+            sl.addShape(pres.shapes.RECTANGLE, {
+              x: SX, y: rowY, w: SW, h: stratH,
+              fill: { color: ri % 2 === 0 ? CELL_AL : CELL_WH }, line: b()
+            })
+            sl.addText([
+              { text: `S${gi + 1}.${row.si + 1}\n`, options: { bold: true, color: '1A4A8A', fontSize: 12, breakLine: true } },
+              { text: row.strat.text || '', options: { color: TXT, fontSize: 13 } },
+            ], {
+              x: SX + 0.07, y: rowY + 0.06, w: SW - 0.12, h: stratH - 0.1,
+              fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0
+            })
+          }
+        })
+
+        // ── MD column: one single spanning cell, no inner row borders ─────────
+        // Only left/top/bottom border; right border shared with MP
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: MDX, y: BODY_Y, w: MDW, h: goalBodyH,
+          fill: { color: CELL_MD },
+          line: b()
+        })
+
+        if (mdItems.length > 0) {
+          const mdParts = []
+          mdItems.forEach((item, idx) => {
+            const isLast = idx === mdItems.length - 1
+            mdParts.push({ text: item.num + ' ', options: { bold: true, color: '7A4000', fontSize: 10 } })
+            mdParts.push({
+              text: item.text,
+              options: {
+                color: '000000',
+                fontSize: 11,
+                breakLine: !isLast,
+                paraSpaceAfter: isLast ? 0 : 42,
+              }
+            })
+          })
+          sl.addText(mdParts, {
+            x: MDX + 0.08, y: BODY_Y + 0.08, w: MDW - 0.14, h: goalBodyH - 0.14,
+            fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
+            lineSpacingMultiple: 1.5,
+          })
+        }
+
+        // ── MP column: one single spanning cell, no inner row borders ─────────
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: MPX, y: BODY_Y, w: MPW, h: goalBodyH,
+          fill: { color: CELL_MP },
+          line: b()
+        })
+
+        if (mpItems.length > 0) {
+          const mpParts = []
+          mpItems.forEach((item, idx) => {
+            const isLast = idx === mpItems.length - 1
+            mpParts.push({ text: item.num + ' ', options: { bold: true, color: '1A4A2E', fontSize: 10 } })
+            mpParts.push({
+              text: item.text,
+              options: {
+                color: '000000',
+                fontSize: 11,
+                breakLine: !isLast,
+                paraSpaceAfter: isLast ? 0 : 42,
+              }
+            })
+          })
+          sl.addText(mpParts, {
+            x: MPX + 0.08, y: BODY_Y + 0.08, w: MPW - 0.12, h: goalBodyH - 0.14,
+            fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
+            lineSpacingMultiple: 1.5,
+          })
+        }
+
+        // ── Outer border overlay ───────────────────────────────────────────────
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: TX, y: OBJ_Y,
+          w: TW,
+          h: OBJ_H + HDR_TOTAL + RH * totalRows,
+          fill: { type: 'none' }, line: { color: HDR_BD, pt: 1.8 }
+        })
+
+        // ── Footer ────────────────────────────────────────────────────────────
+        sl.addText(`${project.title}　·　G${gi + 1} / ${project.goals.length}`, {
+          x: MG, y: 7.36, w: TW, h: 0.16,
+          fontSize: 9, fontFace: 'Microsoft JhengHei', color: 'AAAAAA',
+          align: 'left', valign: 'middle', margin: 0
+        })
+
+      } // end goals loop
+
+      // ── Back cover slide ─────────────────────────────────────────────────────
+      const backSlide = pres.addSlide()
+      backSlide.addImage({ data: pptBackData, x: 0, y: 0, w: 13.3, h: 7.5 })
+
+      // ── Save ──────────────────────────────────────────────────────────────────
+      const safe = (project.title || 'Project').replace(/[/\\?%*:|"<>]/g, '_')
+      await pres.writeFile({ fileName: `OGSM_${safe}.pptx` })
+
+    } catch (err) {
+      console.error('PPT generation error:', err)
+      alert('PPT 生成失敗：' + err.message)
+    } finally {
+      setPptLoading(false)
+    }
+  }
+
   return (
     <>
       <style>{`
@@ -363,6 +738,12 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           background: rgba(240,165,0,0.22) !important;
           border-color: rgba(240,165,0,0.7) !important;
           box-shadow: 0 0 10px rgba(240,165,0,0.3);
+          transform: translateY(-1px);
+        }
+        .audit-ppt-btn:hover:not(:disabled) {
+          background: rgba(59,158,222,0.22) !important;
+          border-color: rgba(59,158,222,0.7) !important;
+          box-shadow: 0 0 10px rgba(59,158,222,0.3);
           transform: translateY(-1px);
         }
         .audit-close-btn:hover {
@@ -384,6 +765,9 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
             <div style={s.headerTitle}>{project.title}</div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button className="audit-ppt-btn" style={{ ...s.pdfBtn, opacity: pptLoading ? 0.6 : 1, background: 'rgba(59,158,222,0.1)', border: '1px solid rgba(59,158,222,0.3)', color: '#3b9ede' }} onClick={generatePPT} disabled={pptLoading} title="生成 OGSM PPT">
+              {pptLoading ? '生成中…' : '📊 生成 PPT'}
+            </button>
             <button className="audit-pdf-btn" style={{ ...s.pdfBtn, opacity: pdfLoading ? 0.6 : 1 }} onClick={generatePDF} disabled={pdfLoading} title="導出 PDF 報告">
               {pdfLoading ? '生成中…' : '📄 導出 PDF'}
             </button>
@@ -477,7 +861,15 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                     </div>
                   </div>
                   <div 
-                    style={s.expandBtn}
+                    style={{
+                      ...s.expandBtn,
+                      ...(isExpanded ? {
+                        background: `${goalColor}28`,
+                        border: `1px solid ${goalColor}88`,
+                        color: goalColor,
+                        boxShadow: `0 0 6px ${goalColor}44`,
+                      } : {})
+                    }}
                     title={isExpanded ? '收起' : '展開'}
                   >
                     {isExpanded ? '▲' : '▼'}
@@ -535,7 +927,7 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                                     <span style={{ ...s.mCell, flex: 2 }}>{m.kpi || '—'}</span>
                                     <span style={{ ...s.mCell, flex: 1, color: '#f0a500', fontFamily: '"DM Mono", monospace' }}>{m.target || '—'}</span>
                                     <span style={{ ...s.mCell, flex: 1, color: '#4caf7d', fontFamily: '"DM Mono", monospace' }}>{m.actual || '—'}</span>
-                                    <span style={{ ...s.mCell, width: '76px', fontFamily: '"DM Mono", monospace', fontSize: '10px', color: darkMode ? '#8a95ae' : '#7a8ca8' }}>{m.deadline || '—'}</span>
+                                    <span style={{ ...s.mCell, width: '76px', fontFamily: '"DM Mono", monospace', fontSize: '10px', color: darkMode ? '#8a95ae' : '#4a607a' }}>{m.deadline || '—'}</span>
                                     <span style={{ ...s.mCell, width: '70px' }}>
                                       <span style={{ color: sc.color, fontSize: '10px' }}>● {sc.label}</span>
                                     </span>
@@ -558,7 +950,7 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                                               background: todosOpen ? 'rgba(244,114,182,0.15)' : (darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)'),
                                               border: `1px solid ${todosOpen ? 'rgba(244,114,182,0.4)' : (darkMode ? 'rgba(138,149,174,0.25)' : 'rgba(0,0,0,0.15)')}`,
                                               borderRadius: '4px', padding: '2px 4px', cursor: 'pointer',
-                                              color: todosOpen ? '#f472b6' : (darkMode ? '#8a95ae' : '#6a7e98'),
+                                              color: todosOpen ? '#f472b6' : (darkMode ? '#8a95ae' : '#3d5470'),
                                               fontSize: '9px', fontFamily: '"DM Mono", monospace',
                                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
                                               lineHeight: 1.2, minWidth: '28px', transition: 'all 0.15s',
@@ -635,7 +1027,7 @@ function buildAuditStyles(dark) {
     },
     headerTag: { fontSize: '11px', fontFamily: '"DM Mono", monospace', color: '#d4a855', letterSpacing: '0.8px', marginBottom: '4px', fontWeight: 600 },
     headerTitle: { fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '18px', color: dark ? '#e8ecf4' : '#1a2133' },
-    closeBtn: { background: 'none', border: 'none', color: dark ? '#8a95ae' : '#6a7e98', cursor: 'pointer', fontSize: '16px', padding: '4px', lineHeight: 1, transition: 'color 0.2s' },
+    closeBtn: { background: 'none', border: 'none', color: dark ? '#8a95ae' : '#3d5470', cursor: 'pointer', fontSize: '16px', padding: '4px', lineHeight: 1, transition: 'color 0.2s' },
     pdfBtn: {
       background: 'rgba(240,165,0,0.1)',
       border: '1px solid rgba(240,165,0,0.3)',
@@ -659,7 +1051,7 @@ function buildAuditStyles(dark) {
     statsRow: { display: 'flex', gap: '8px', marginTop: '14px' },
     statBox: { flex: 1, background: dark ? '#161b27' : '#e8f0fa', borderRadius: '6px', padding: '10px 8px', textAlign: 'center' },
     statNum: { fontSize: '22px', fontFamily: '"Syne", sans-serif', fontWeight: 800, color: dark ? '#e8ecf4' : '#1a2133', lineHeight: 1 },
-    statLabel: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: dark ? '#8a95ae' : '#7a8ca8', marginTop: '4px', letterSpacing: '0.5px' },
+    statLabel: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: dark ? '#8a95ae' : '#4a607a', marginTop: '4px', letterSpacing: '0.5px' },
 
     objectiveBox: {
       display: 'flex', gap: '10px', alignItems: 'flex-start',
@@ -682,7 +1074,7 @@ function buildAuditStyles(dark) {
 
     stratCard: { padding: '16px 18px', borderBottom: `1px solid ${dark ? '#1a2133' : '#e4ecf7'}` },
     stratHeader: { display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' },
-    stratBadge: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: dark ? '#b0bac9' : '#7a8ca8', flexShrink: 0, marginTop: '2px', fontWeight: 500 },
+    stratBadge: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: dark ? '#b0bac9' : '#4a607a', flexShrink: 0, marginTop: '2px', fontWeight: 500 },
     stratText: { fontSize: '12px', color: dark ? '#d4dce8' : '#445069', flex: 1, lineHeight: 1.7, wordBreak: 'break-word', whiteSpace: 'normal' },
 
     measureTable: { marginTop: '10px' },
@@ -690,7 +1082,7 @@ function buildAuditStyles(dark) {
       display: 'flex', gap: '0', padding: '6px 8px',
       background: dark ? '#161b27' : '#e8f0fa', borderRadius: '4px 4px 0 0',
     },
-    mCol: { fontSize: '9px', fontFamily: '"DM Mono", monospace', color: dark ? '#8a95ae' : '#7a8ca8', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '0 4px', fontWeight: 600 },
+    mCol: { fontSize: '9px', fontFamily: '"DM Mono", monospace', color: dark ? '#8a95ae' : '#4a607a', letterSpacing: '0.5px', textTransform: 'uppercase', padding: '0 4px', fontWeight: 600 },
     mRow: {
       display: 'flex', padding: '8px', alignItems: 'flex-start',
       borderTop: `1px solid ${dark ? '#1e2535' : '#edf2fa'}`, minHeight: '36px',
@@ -706,10 +1098,7 @@ function buildAuditStyles(dark) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: dark ? '#8a95ae' : '#6a7e98',
-      fontSize: '10px',
-      flexShrink: 0,
-      pointerEvents: 'none',
+      color: dark ? '#8a95ae' : '#3d5470',
     },
   }
 }

@@ -24,6 +24,12 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
   const doneCount = todos.filter(t => t.done).length
   const pct = todos.length ? Math.round((doneCount / todos.length) * 100) : 0
 
+  const progressColor = doneCount === 0
+    ? (darkMode ? '#8a96a8' : '#9aaaba')
+    : doneCount === todos.length
+      ? (darkMode ? '#4caf7d' : '#2a9060')
+      : (darkMode ? '#3b9ede' : '#1a7bbf')
+
   const s = buildStyles(darkMode)
 
   if (todos.length === 0 && !editMode) return null
@@ -76,9 +82,9 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
         {todos.length > 0 && (
           <div style={s.progressPill}>
             <div style={s.pillTrack}>
-              <div style={{ ...s.pillFill, width: `${pct}%` }} />
+              <div style={{ ...s.pillFill, width: `${pct}%`, background: progressColor }} />
             </div>
-            <span style={s.pillText}>{doneCount}/{todos.length}</span>
+            <span style={{ ...s.pillText, color: progressColor }}>{doneCount}/{todos.length}</span>
           </div>
         )}
       </div>
