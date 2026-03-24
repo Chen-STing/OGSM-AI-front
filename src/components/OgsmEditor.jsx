@@ -116,6 +116,18 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
       const done = updated.filter(t => t.done).length
       d.goals[gi].strategies[si].measures[mi].progress = updated.length
         ? Math.round((done / updated.length) * 100) : 0
+      // 根據 todos 完成比例自動更新 measure 狀態
+      const today = new Date().toISOString().slice(0, 10)
+      const deadline = d.goals[gi].strategies[si].measures[mi].deadline
+      if (updated.length > 0 && done === updated.length) {
+        d.goals[gi].strategies[si].measures[mi].status = 'Completed'
+      } else if (done > 0) {
+        d.goals[gi].strategies[si].measures[mi].status = 'InProgress'
+      } else if (deadline && deadline < today) {
+        d.goals[gi].strategies[si].measures[mi].status = 'Overdue'
+      } else {
+        d.goals[gi].strategies[si].measures[mi].status = 'NotStarted'
+      }
       return d
     })
   }, [update])
