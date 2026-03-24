@@ -480,20 +480,22 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
         const RH = Math.max(BODY_AVAIL / totalRows, 0.52)  // row height
 
         // ── Objective row ──────────────────────────────────────────────────────
+        // Header strip (wheat, same as G/S/M headers)
         sl.addShape(pres.shapes.RECTANGLE, {
-          x: TX, y: OBJ_Y, w: TW, h: OBJ_H,
-          fill: { color: OBJ_BG }, line: bH()
+          x: TX, y: OBJ_Y, w: TW, h: 0.22,
+          fill: { color: HDR_BG }, line: bH()
         })
         sl.addText('O：Objective（目標）', {
           x: TX + 0.08, y: OBJ_Y, w: TW - 0.16, h: 0.22,
           fontSize: 11, fontFace: 'Microsoft JhengHei', color: '000000',
           bold: true, align: 'left', valign: 'middle', margin: 0
         })
-        sl.addShape(pres.shapes.LINE, {
-          x: TX, y: OBJ_Y + 0.22, w: TW, h: 0,
-          line: { color: HDR_BD, pt: 0.7 }
+        // Content area (warm near-white)
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: TX, y: OBJ_Y + 0.22, w: TW, h: OBJ_H - 0.22,
+          fill: { color: OBJ_BG }, line: bH()
         })
-        sl.addText('O（目標）：' + (project.objective || ''), {
+        sl.addText(`${project.objective || ''}`, {
           x: TX + 0.08, y: OBJ_Y + 0.22, w: TW - 0.16, h: OBJ_H - 0.24,
           fontSize: 11, fontFace: 'Microsoft JhengHei', color: TXT,
           align: 'left', valign: 'middle', margin: 0
@@ -766,7 +768,7 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button className="audit-ppt-btn" style={{ ...s.pdfBtn, opacity: pptLoading ? 0.6 : 1, background: 'rgba(59,158,222,0.1)', border: '1px solid rgba(59,158,222,0.3)', color: '#3b9ede' }} onClick={generatePPT} disabled={pptLoading} title="生成 OGSM PPT">
-              {pptLoading ? '生成中…' : '📊 生成 PPT'}
+              {pptLoading ? '生成中…' : '📽️ 生成 PPT'}
             </button>
             <button className="audit-pdf-btn" style={{ ...s.pdfBtn, opacity: pdfLoading ? 0.6 : 1 }} onClick={generatePDF} disabled={pdfLoading} title="導出 PDF 報告">
               {pdfLoading ? '生成中…' : '📄 導出 PDF'}
@@ -1012,7 +1014,7 @@ function buildAuditStyles(dark) {
     backdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 400 },
     panel: {
       position: 'fixed', top: 0, right: 0, bottom: 0,
-      width: '580px', maxWidth: '92vw',
+      width: '640px', maxWidth: '92vw',
       background: dark ? '#161b27' : '#ffffff',
       borderLeft: `1px solid ${dark ? '#2a3347' : '#d1d9e8'}`,
       display: 'flex', flexDirection: 'column',

@@ -338,9 +338,12 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
           >
             <div style={styles.itemInner}>
               <div style={styles.itemTitle}>
-                {p.deadline && p.deadline < new Date().toISOString().slice(0, 10) && (
-                  <span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '3px', padding: '1px 5px', marginRight: '6px', verticalAlign: 'middle', letterSpacing: '0.3px', flexShrink: 0 }}>已逾期</span>
-                )}
+                {pct >= 100
+                  ? <span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, color: '#4caf7d', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '3px', padding: '1px 5px', marginRight: '6px', verticalAlign: 'middle', letterSpacing: '0.3px', flexShrink: 0 }}>✓ 已完成</span>
+                  : p.deadline && p.deadline < new Date().toISOString().slice(0, 10) && (
+                    <span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '3px', padding: '1px 5px', marginRight: '6px', verticalAlign: 'middle', letterSpacing: '0.3px', flexShrink: 0 }}>已逾期</span>
+                  )
+                }
                 {p.title}
               </div>
               <div style={styles.itemObjective}>

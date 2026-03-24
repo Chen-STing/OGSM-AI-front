@@ -484,9 +484,12 @@ export default function OgsmEditor({ project, onSave, onAudit, darkMode = true }
       {/* ── Top bar ── */}
       <div style={s.topBar}>
         <div style={s.topLeft}>
-          {draft.deadline && draft.deadline < new Date().toISOString().slice(0, 10) && (
-            <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>⚠ 計畫已逾期</span>
-          )}
+          {overallProgress >= 100
+            ? <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#4caf7d', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>✓ 計畫已完成</span>
+            : draft.deadline && draft.deadline < new Date().toISOString().slice(0, 10) && (
+              <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>⚠ 計畫已逾期</span>
+            )
+          }
           <input style={s.titleInput} value={draft.title} onChange={e => setField('title', e.target.value)} placeholder="專案標題" />
           <div style={s.metaRow}>
             <span style={s.metaBadge}>OGSM</span>

@@ -43,7 +43,7 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
             <button style={{ ...s.checkbox, ...(t.done ? s.checkboxDone : {}) }} onClick={() => toggleTodo(t.id)}>
               {t.done && <span style={s.checkmark}>✓</span>}
             </button>
-            <span style={{ ...s.itemText, ...(t.done ? s.itemTextDone : {}) }}>{t.text}</span>
+            <span style={{ ...s.itemText, ...(t.done ? s.itemTextDone : {}), cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleTodo(t.id)}>{t.text}</span>
             {editMode && (
               <button className="ogsm-remove-btn" style={s.removeBtn} onClick={() => removeTodo(t.id)}>✕</button>
             )}
