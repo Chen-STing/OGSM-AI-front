@@ -1,18 +1,28 @@
 import { useState } from 'react'
 
-export default function TodoList({ todos = [], onChange, editMode, darkMode = true, noHeader = false }) {
+export default function TodoList({ todos = [], onChange, editMode, members = [], darkMode = true, noHeader = false }) {
   const [inputVal, setInputVal] = useState('')
   const [open, setOpen] = useState(false)
 
   const addTodo = () => {
     const text = inputVal.trim()
     if (!text) return
-    onChange([...todos, { id: crypto.randomUUID(), text, done: false, createdAt: new Date().toISOString() }])
+    onChange([...todos, {
+      id: crypto.randomUUID(),
+      text,
+      done: false,
+      assignee: '',
+      deadline: '',
+      createdAt: new Date().toISOString()
+    }])
     setInputVal('')
   }
 
   const toggleTodo = (id) =>
     onChange(todos.map(t => t.id === id ? { ...t, done: !t.done } : t))
+
+  const updateTodoField = (id, field, value) =>
+    onChange(todos.map(t => t.id === id ? { ...t, [field]: value } : t))
 
   const removeTodo = (id) =>
     onChange(todos.filter(t => t.id !== id))
@@ -34,22 +44,67 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
 
   if (todos.length === 0 && !editMode) return null
 
+  const today = new Date().toISOString().slice(0, 10)
+
   const content = (
     <>
       {/* Todo items */}
       <div style={s.list}>
-        {todos.map(t => (
-          <div key={t.id} style={{ ...s.item, ...(t.done ? s.itemDone : {}) }}>
-            <button style={{ ...s.checkbox, ...(t.done ? s.checkboxDone : {}) }} onClick={() => toggleTodo(t.id)}>
-              {t.done && <span style={s.checkmark}>✓</span>}
-            </button>
-            <span style={{ ...s.itemText, ...(t.done ? s.itemTextDone : {}), cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleTodo(t.id)}>{t.text}</span>
-            {editMode && (
-              <button className="ogsm-remove-btn" style={s.removeBtn} onClick={() => removeTodo(t.id)}>✕</button>
-            )}
-          </div>
-        ))}
+        {todos.map(t => {
+          const isOverdue = t.deadline && t.deadline < today && !t.done
+          return (
+            <div key={t.id} style={{ ...s.item, ...(t.done ? s.itemDone : {}) }}>
+              {/* Checkbox + text row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', flex: 1, minWidth: 0 }}>
+                <button
+                  style={{ ...s.checkbox, ...(t.done ? s.checkboxDone : {}), marginTop: '2px', flexShrink: 0 }}
+                  onClick={() => toggleTodo(t.id)}
+                >
+                  {t.done && <span style={s.checkmark}>✓</span>}
+                </button>
+                <span
+                  style={{ ...s.itemText, ...(t.done ? s.itemTextDone : {}), cursor: 'pointer', userSelect: 'none', flex: 1 }}
+                  onClick={() => toggleTodo(t.id)}
+                >
+                  {t.text}
+                </span>
+              </div>
+
+              {/* Meta: assignee + deadline */}
+              <div style={s.todoMeta}>
+                <select
+                  style={s.assigneeInput}
+                  value={t.assignee || ''}
+                  onChange={e => updateTodoField(t.id, 'assignee', e.target.value)}
+                  title="負責人"
+                >
+                  <option value=''>— 負責人 —</option>
+                  {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
+                </select>
+
+                {editMode ? (
+                  <input
+                    type="date"
+                    style={{ ...s.todoDeadlineInput, ...(isOverdue ? s.todoDeadlineOverdue : {}) }}
+                    value={t.deadline || ''}
+                    onChange={e => updateTodoField(t.id, 'deadline', e.target.value)}
+                    title="截止日期"
+                  />
+                ) : t.deadline ? (
+                  <span style={{ ...s.deadlineBadge, ...(isOverdue ? s.deadlineBadgeOverdue : {}) }}>
+                    📅 {t.deadline}
+                  </span>
+                ) : null}
+
+                {editMode && (
+                  <button className="ogsm-remove-btn" style={s.removeBtn} onClick={() => removeTodo(t.id)}>✕</button>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
+
       {/* Input */}
       {editMode && (
         <div style={s.inputRow}>
@@ -60,7 +115,12 @@ export default function TodoList({ todos = [], onChange, editMode, darkMode = tr
             onKeyDown={handleKey}
             placeholder="新增待辦事項…"
           />
-          <button className="ogsm-add-btn" style={{ ...s.addBtn, ...(inputVal.trim() ? s.addBtnActive : {}) }} onClick={addTodo} disabled={!inputVal.trim()}>
+          <button
+            className="ogsm-add-btn"
+            style={{ ...s.addBtn, ...(inputVal.trim() ? s.addBtnActive : {}) }}
+            onClick={addTodo}
+            disabled={!inputVal.trim()}
+          >
             +
           </button>
         </div>
@@ -107,6 +167,9 @@ function buildStyles(dark) {
     itemTextDone:    '#9aa8b8',
     checkboxBorder:  '#334060',
     pillTrack:       '#2a3347',
+    metaInputBg:     '#1e2840',
+    metaInputBorder: '#3d5080',
+    metaInputColor:  '#c8d8f0',
   } : {
     wrapBg:          'rgba(204,119,0,0.03)',
     wrapBorder:      '#c8d4e8',
@@ -120,6 +183,9 @@ function buildStyles(dark) {
     itemTextDone:    '#8a9ab8',
     checkboxBorder:  '#8a9ab8',
     pillTrack:       '#d4dde8',
+    metaInputBg:     '#f3f7fd',
+    metaInputBorder: '#c8d4e8',
+    metaInputColor:  '#5a6e88',
   }
   return {
     wrap: {
@@ -140,14 +206,15 @@ function buildStyles(dark) {
     pillFill: { height: '100%', background: '#4caf7d', borderRadius: '99px', transition: 'width 0.3s ease' },
     pillText: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: '#4caf7d' },
 
-    list: { display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '6px' },
+    list: { display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '6px' },
     item: {
-      display: 'flex', alignItems: 'center', gap: '7px',
-      padding: '4px 4px',
+      display: 'flex', alignItems: 'flex-start', gap: '7px',
+      padding: '5px 4px',
       borderRadius: '4px',
       transition: 'background 0.12s',
+      flexWrap: 'wrap',
     },
-    itemDone: {},
+    itemDone: { opacity: 0.7 },
 
     checkbox: {
       width: '15px', height: '15px', flexShrink: 0,
@@ -165,6 +232,65 @@ function buildStyles(dark) {
     },
     itemTextDone: {
       textDecoration: 'line-through', color: T.itemTextDone,
+    },
+
+    todoMeta: {
+      display: 'flex', alignItems: 'center', gap: '5px',
+      flexShrink: 0, flexWrap: 'wrap',
+    },
+    assigneeInput: {
+      background: T.metaInputBg,
+      border: `1px solid ${T.metaInputBorder}`,
+      borderRadius: '3px',
+      color: T.metaInputColor,
+      fontSize: '10px',
+      fontFamily: '"Noto Sans TC", sans-serif',
+      padding: '2px 4px',
+      outline: 'none',
+      cursor: 'pointer',
+      width: '88px',
+      colorScheme: dark ? 'dark' : 'light',
+    },
+    todoDeadlineInput: {
+      background: T.metaInputBg,
+      border: `1px solid ${T.metaInputBorder}`,
+      borderRadius: '3px',
+      color: T.metaInputColor,
+      fontSize: '10px',
+      fontFamily: '"DM Mono", monospace',
+      padding: '2px 4px',
+      outline: 'none',
+      colorScheme: dark ? 'dark' : 'light',
+      width: '106px',
+    },
+    todoDeadlineOverdue: {
+      color: '#ef4444',
+      borderColor: 'rgba(239,68,68,0.4)',
+    },
+    assigneeBadge: {
+      fontSize: '10px',
+      fontFamily: '"Noto Sans TC", sans-serif',
+      color: dark ? '#c8d8f0' : '#5a6e88',
+      background: dark ? 'rgba(100,140,210,0.15)' : 'rgba(90,110,136,0.08)',
+      border: `1px solid ${dark ? '#3d5080' : '#c8d4e8'}`,
+      borderRadius: '3px',
+      padding: '1px 5px',
+      whiteSpace: 'nowrap',
+    },
+    deadlineBadge: {
+      fontSize: '10px',
+      fontFamily: '"DM Mono", monospace',
+      color: dark ? '#c8d8f0' : '#5a6e88',
+      background: dark ? 'rgba(100,140,210,0.15)' : 'rgba(90,110,136,0.08)',
+      border: `1px solid ${dark ? '#3d5080' : '#c8d4e8'}`,
+      borderRadius: '3px',
+      padding: '1px 5px',
+      whiteSpace: 'nowrap',
+    },
+    deadlineBadgeOverdue: {
+      color: '#ef4444',
+      background: 'rgba(239,68,68,0.08)',
+      borderColor: 'rgba(239,68,68,0.3)',
     },
     removeBtn: {
       background: 'rgba(239,68,68,0.15)',

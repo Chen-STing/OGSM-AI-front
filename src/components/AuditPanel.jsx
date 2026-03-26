@@ -241,6 +241,17 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
     await captureAndAdd()
 
     // ── Pages: Goals Detail (one page per strategy) ──
+    // ── Pages: Goals Detail (flow-based, new page only on overflow) ──
+    const PAGE_CONTENT_H = 1027 // 1123px A4 - 48px*2 padding
+    const probe = document.createElement('div')
+    probe.style.cssText = 'position:fixed;left:-9999px;top:0;width:698px;background:#fff;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:13px;line-height:1.6;'
+    document.body.appendChild(probe)
+    const measureHTML = async (html) => {
+      probe.innerHTML = '<div>' + html + '</div>'
+      await new Promise(r => setTimeout(r, 30))
+      return probe.firstChild.scrollHeight
+    }
+
     for (let gi = 0; gi < project.goals.length; gi++) {
       const goal = project.goals[gi]
       const gm = goal.strategies.flatMap(s => s.measures)
@@ -262,6 +273,9 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
         </div>
       `
 
+      let currentPageHTML = goalHeaderHTML
+      let currentPageH = await measureHTML(goalHeaderHTML)
+
       for (let si = 0; si < goal.strategies.length; si++) {
         const st = goal.strategies[si]
         const sp = calcProgress(st.measures)
@@ -278,10 +292,10 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
             <table style="width:100%;border-collapse:collapse;font-size:11px;">
               <thead>
                 <tr style="background:#f3f4f6;">
-                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:46px;">類型</th>
-                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">KPI</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">MD 定量指標</th>
                   <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:13%;">目標值</th>
                   <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:13%;">實際值</th>
+                  <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:70px;">負責人</th>
                   <th style="padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:80px;">期限</th>
                   <th style="padding:8px 10px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:82px;">狀態</th>
                   <th style="padding:8px 10px;text-align:center;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;width:100px;">進度</th>
@@ -290,12 +304,10 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
               <tbody>
                 ${st.measures.map((m, mi) => `
                   <tr style="border-bottom:1px solid #f3f4f6;background:${mi % 2 === 1 ? '#fafafa' : '#fff'};">
-                    <td style="padding:8px 10px;">
-                      <span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;${m.type === 'MD' ? 'background:#fff7ed;color:#d97706;border:1px solid #fcd34d;' : 'background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;'}">${m.type || 'MP'}</span>
-                    </td>
                     <td style="padding:8px 10px;color:#374151;">${m.kpi || '—'}</td>
                     <td style="padding:8px 10px;color:#d97706;font-family:monospace;">${m.target || '—'}</td>
                     <td style="padding:8px 10px;color:#16a34a;font-family:monospace;">${m.actual || '—'}</td>
+                    <td style="padding:8px 10px;color:#6b7280;font-size:10px;">${m.assignee || '—'}</td>
                     <td style="padding:8px 10px;color:#6b7280;font-family:monospace;font-size:10px;">${m.deadline || '—'}</td>
                     <td style="padding:8px 10px;text-align:center;">
                       <span style="background:${statusColor[m.status] || '#6b7280'}22;color:${statusColor[m.status] || '#6b7280'};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">
@@ -312,13 +324,14 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                     </td>
                   </tr>
                   ${(m.todos || []).length > 0 ? `
-                  <tr style="background:#fafbff;">
-                    <td colspan="7" style="padding:6px 10px 10px 52px;border-bottom:1px solid #f3f4f6;">
-                      <div style="font-size:9px;font-weight:700;color:#d97706;letter-spacing:0.6px;margin-bottom:5px;">☑ 待辦事項 ${(m.todos || []).filter(t => t.done).length}/${(m.todos || []).length}</div>
+                  <tr style="background:#f8faff;">
+                    <td colspan="7" style="padding:6px 10px 10px 20px;border-bottom:1px solid #f3f4f6;border-left:3px solid rgba(59,158,222,0.4);">
+                      <div style="font-size:9px;font-weight:700;color:#3b9ede;letter-spacing:0.5px;margin-bottom:5px;">☑ MP 檢核步驟 ${(m.todos || []).filter(t => t.done).length}/${(m.todos || []).length}</div>
                       ${(m.todos || []).map(t => `
-                        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;">
-                          <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;font-weight:700;">${t.done ? '✓' : '○'}</span>
-                          <span style="font-size:10px;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;">${t.text}</span>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+                          <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;font-weight:700;align-self:flex-start;line-height:1.5;">${t.done ? '✓' : '○'}</span>
+                          <span style="font-size:10px;flex:1;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;word-break:break-word;">${t.text}</span>
+                          ${(t.assignee || t.deadline) ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center;align-self:center;">${t.assignee ? `<span style="font-size:9px;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">👤 ${t.assignee}</span>` : ''}${t.deadline ? `<span style="font-size:9px;color:#6b7280;font-family:monospace;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">📅 ${t.deadline}</span>` : ''}</div>` : ''}
                         </div>`).join('')}
                     </td>
                   </tr>` : ''}
@@ -337,12 +350,23 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           </div>
         `
 
-        const pageHTML = (si === 0 ? goalHeaderHTML : goalContinuationHTML) + strategyHTML
-        container.innerHTML = renderPage(pageHTML)
-        await new Promise(r => setTimeout(r, 100))
-        await captureAndAdd()
+        const stratH = await measureHTML(strategyHTML)
+        if (currentPageH + stratH > PAGE_CONTENT_H) {
+          container.innerHTML = renderPage(currentPageHTML)
+          await new Promise(r => setTimeout(r, 100))
+          await captureAndAdd()
+          currentPageHTML = goalContinuationHTML
+          currentPageH = await measureHTML(goalContinuationHTML)
+        }
+        currentPageHTML += strategyHTML
+        currentPageH += stratH
       }
+      // Flush last page of this goal
+      container.innerHTML = renderPage(currentPageHTML)
+      await new Promise(r => setTimeout(r, 100))
+      await captureAndAdd()
     }
+    document.body.removeChild(probe)
 
     // Back cover
     doc.addPage()
@@ -575,71 +599,60 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           rIdx += cnt
         })
 
-        // ── Collect all MD todos and MP todos for the entire goal ──────────────
-        // Each entry: { num: 'D1.1.1', todoText, done }  /  { num: 'P1.1.1', todoText, done }
-        // Counters reset per strategy (third number restarts at each new second number)
-        const mdItems = []  // { num, text, done }
+        // ── Collect MD items (定量指標 KPI names) and MP items (MP 檢核步驟 todos) ──
+        // MD 編碼：D{gi+1}.{si+1}.{mi+1}        e.g. D1.1.1, D1.1.2
+        // MP 編碼：P{gi+1}.{si+1}.{mi+1}.{ti+1} e.g. P1.1.1.1, P1.1.1.2, P1.1.2.1
+        const mdItems = []  // { num, text }
         const mpItems = []  // { num, text, done }
 
         strategies.forEach((strat, si) => {
-          let mdCounter = 0   // resets per strategy
-          let mpCounter = 0   // resets per strategy
-          ;(strat.measures || []).forEach((m) => {
-            const isMD = !m.type || m.type === 'MD'
-            const todos = m.todos || []
-            if (isMD) {
-              todos.forEach(t => {
-                mdCounter++
-                mdItems.push({
-                  num:  `D${gi + 1}.${si + 1}.${mdCounter}`,
-                  text: t.text,
-                  done: t.done,
-                })
+          ;(strat.measures || []).forEach((m, mi) => {
+            // MD 欄：每個定量指標的 KPI 名稱
+            mdItems.push({
+              num:      `D${gi + 1}.${si + 1}.${mi + 1}`,
+              text:     m.kpi || '—',
+              deadline: m.deadline || '',
+              assignee: m.assignee || '',
+            })
+            // MP 欄：該定量指標底下所有 todos（MP 檢核步驟）
+            ;(m.todos || []).forEach((t, ti) => {
+              mpItems.push({
+                num:      `P${gi + 1}.${si + 1}.${mi + 1}.${ti + 1}`,
+                text:     t.text,
+                done:     t.done,
+                deadline: t.deadline || '',
+                assignee: t.assignee || '',
               })
-              // Also include checkpoints → MP side
-              const lines = (m.checkpoints && m.checkpoints.length > 0)
-                ? m.checkpoints
-                : (m.milestone ? [m.milestone] : [])
-              lines.forEach(ln => {
-                mpCounter++
-                mpItems.push({ num: `P${gi + 1}.${si + 1}.${mpCounter}`, text: ln, done: false })
-              })
-            } else {
-              // MP-type measure: todos go to MP col
-              todos.forEach(t => {
-                mpCounter++
-                mpItems.push({
-                  num:  `P${gi + 1}.${si + 1}.${mpCounter}`,
-                  text: t.text,
-                  done: t.done,
-                })
-              })
-            }
+            })
           })
         })
 
-        // ── Draw G/S rows (no MD/MP cells here) ───────────────────────────────
-        rows.forEach((row, ri) => {
-          const rowY   = BODY_Y + ri * RH
-          const isFirst = row.mi === 0
-          const span    = stratSpans[row.si]
-          const stratH  = RH * span.rowCount
-
-          // S cell – drawn once per strategy, spans its measure rows
-          if (isFirst) {
-            sl.addShape(pres.shapes.RECTANGLE, {
-              x: SX, y: rowY, w: SW, h: stratH,
-              fill: { color: ri % 2 === 0 ? CELL_AL : CELL_WH }, line: b()
-            })
-            sl.addText([
-              { text: `S${gi + 1}.${row.si + 1}\n`, options: { bold: true, color: '1A4A8A', fontSize: 12, breakLine: true } },
-              { text: row.strat.text || '', options: { color: TXT, fontSize: 13 } },
-            ], {
-              x: SX + 0.07, y: rowY + 0.06, w: SW - 0.12, h: stratH - 0.1,
-              fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0
-            })
-          }
+        // ── S column: single spanning rect, MD-style parts array ─────────────
+        const sParts = []
+        strategies.forEach((strat, si) => {
+          const isLast = si === strategies.length - 1
+          sParts.push({ text: `S${gi + 1}.${si + 1} `, options: { bold: true, color: '1A4A8A', fontSize: 12 } })
+          sParts.push({
+            text: strat.text || '',
+            options: { color: TXT, fontSize: 13, breakLine: true, paraSpaceAfter: 0 }
+          })
+          // Blank spacer line — same pattern as MD, but larger gap
+          sParts.push({
+            text: ' ',
+            options: { color: TXT, fontSize: 9, breakLine: !isLast, paraSpaceAfter: isLast ? 0 : 30 }
+          })
         })
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: SX, y: BODY_Y, w: SW, h: goalBodyH,
+          fill: { color: CELL_AL }, line: b()
+        })
+        if (sParts.length > 0) {
+          sl.addText(sParts, {
+            x: SX + 0.07, y: BODY_Y + 0.08, w: SW - 0.12, h: goalBodyH - 0.14,
+            fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
+            lineSpacingMultiple: 1.3,
+          })
+        }
 
         // ── MD column: one single spanning cell, no inner row borders ─────────
         // Only left/top/bottom border; right border shared with MP
@@ -649,54 +662,92 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           line: b()
         })
 
-        if (mdItems.length > 0) {
-          const mdParts = []
-          mdItems.forEach((item, idx) => {
-            const isLast = idx === mdItems.length - 1
-            mdParts.push({ text: item.num + ' ', options: { bold: true, color: '7A4000', fontSize: 10 } })
-            mdParts.push({
-              text: item.text,
-              options: {
-                color: '000000',
-                fontSize: 11,
-                breakLine: !isLast,
-                paraSpaceAfter: isLast ? 0 : 42,
-              }
-            })
+        const mdParts = []
+        mdItems.forEach((item, idx) => {
+          const isLast = idx === mdItems.length - 1
+          const hasMeta = item.deadline || item.assignee
+          const fmtDate = item.deadline ? item.deadline.replace(/-/g, '/') : ''
+          const metaLine = [fmtDate ? `[期限 ${fmtDate}]` : '', item.assignee ? `負責人員: ${item.assignee}` : ''].filter(Boolean).join('  ')
+          mdParts.push({ text: item.num + ' ', options: { bold: true, color: '7A4000', fontSize: 10 } })
+          mdParts.push({
+            text: item.text,
+            options: { color: '000000', fontSize: 11, breakLine: true, paraSpaceAfter: 0 }
           })
+          // Always emit meta line slot (blank if none) for consistent inter-item spacing
+          mdParts.push({
+            text: hasMeta ? metaLine : ' ',
+            options: { color: '7A6030', fontSize: 9, breakLine: !isLast, paraSpaceAfter: isLast ? 0 : 15 }
+          })
+        })
+        if (mdParts.length > 0) {
           sl.addText(mdParts, {
             x: MDX + 0.08, y: BODY_Y + 0.08, w: MDW - 0.14, h: goalBodyH - 0.14,
             fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
-            lineSpacingMultiple: 1.5,
+            lineSpacingMultiple: 1.2,
           })
         }
 
-        // ── MP column: one single spanning cell, no inner row borders ─────────
-        sl.addShape(pres.shapes.RECTANGLE, {
-          x: MPX, y: BODY_Y, w: MPW, h: goalBodyH,
-          fill: { color: CELL_MP },
-          line: b()
+        // ── MP column: overflow-aware rendering ───────────────────────────────
+        // Estimate height per item to detect overflow and paginate
+        const MP_ITEM_H   = 0.28   // approx text line height (inches, fontSize 11)
+        const MP_META_H   = 0.20   // extra for meta line (fontSize 9)
+        const MP_GAP_H    = 0.08   // paraSpaceAfter 6pt ≈ 0.08" between items
+        const mpAvailH    = goalBodyH - 0.20
+
+        // Fixed height per item (meta-line slot always counted for consistent spacing)
+        const itemSlotH = MP_ITEM_H + MP_META_H + MP_GAP_H
+
+        // Split into chunks that fit within available height
+        const mpChunks = [[]]
+        let mpChunkH = 0
+        mpItems.forEach(item => {
+          const h = itemSlotH
+          if (mpChunkH + h > mpAvailH && mpChunks[mpChunks.length - 1].length > 0) {
+            mpChunks.push([])
+            mpChunkH = 0
+          }
+          mpChunks[mpChunks.length - 1].push(item)
+          mpChunkH += h
         })
 
-        if (mpItems.length > 0) {
-          const mpParts = []
-          mpItems.forEach((item, idx) => {
-            const isLast = idx === mpItems.length - 1
-            mpParts.push({ text: item.num + ' ', options: { bold: true, color: '1A4A2E', fontSize: 10 } })
-            mpParts.push({
+        // Helper: build pptx text parts from a chunk of mpItems
+        // Always emits a meta-line run (even if blank) so every item occupies
+        // the same vertical slot → consistent inter-item spacing
+        const buildMpParts = (chunk) => {
+          const parts = []
+          chunk.forEach((item, idx) => {
+            const isLast = idx === chunk.length - 1
+            const fmtDate = item.deadline ? item.deadline.replace(/-/g, '/') : ''
+            const metaLineText = [
+              fmtDate ? `[期限 ${fmtDate}]` : '',
+              item.assignee ? `負責人員: ${item.assignee}` : '',
+            ].filter(Boolean).join('  ')
+            parts.push({ text: item.num + ' ', options: { bold: true, color: '1A4A2E', fontSize: 10 } })
+            parts.push({
               text: item.text,
-              options: {
-                color: '000000',
-                fontSize: 11,
-                breakLine: !isLast,
-                paraSpaceAfter: isLast ? 0 : 42,
-              }
+              options: { color: '000000', fontSize: 11, breakLine: true, paraSpaceAfter: 0 }
+            })
+            // Always emit meta line (or blank space) to keep consistent item height
+            parts.push({
+              text: metaLineText || ' ',
+              options: { color: '1A4A2E', fontSize: 9, breakLine: !isLast, paraSpaceAfter: isLast ? 0 : 4 },
             })
           })
-          sl.addText(mpParts, {
-            x: MPX + 0.08, y: BODY_Y + 0.08, w: MPW - 0.12, h: goalBodyH - 0.14,
+          return parts
+        }
+
+        // First-page MP cell
+        // Reduce padding dynamically: more items → less whitespace
+        const mpPadY = mpItems.length > 8 ? 0.02 : mpItems.length > 4 ? 0.04 : 0.08
+        sl.addShape(pres.shapes.RECTANGLE, {
+          x: MPX, y: BODY_Y, w: MPW, h: goalBodyH,
+          fill: { color: CELL_MP }, line: b()
+        })
+        if (mpChunks[0].length > 0) {
+          sl.addText(buildMpParts(mpChunks[0]), {
+            x: MPX + 0.08, y: BODY_Y + mpPadY, w: MPW - 0.12, h: goalBodyH - mpPadY * 2,
             fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
-            lineSpacingMultiple: 1.5,
+            lineSpacingMultiple: 1.1,
           })
         }
 
@@ -714,6 +765,75 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
           fontSize: 9, fontFace: 'Microsoft JhengHei', color: 'AAAAAA',
           align: 'left', valign: 'middle', margin: 0
         })
+
+        // ── MP overflow continuation slides (full OGSM format) ────────────────
+        for (let ci = 1; ci < mpChunks.length; ci++) {
+          const ovSl = pres.addSlide()
+          ovSl.background = { color: 'FFFFFF' }
+
+          // Objective row
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: TX, y: OBJ_Y, w: TW, h: 0.22, fill: { color: HDR_BG }, line: bH() })
+          ovSl.addText('O：Objective（目標）', { x: TX + 0.08, y: OBJ_Y, w: TW - 0.16, h: 0.22, fontSize: 11, fontFace: 'Microsoft JhengHei', color: '000000', bold: true, align: 'left', valign: 'middle', margin: 0 })
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: TX, y: OBJ_Y + 0.22, w: TW, h: OBJ_H - 0.22, fill: { color: OBJ_BG }, line: bH() })
+          ovSl.addText(`${project.objective || ''}`, { x: TX + 0.08, y: OBJ_Y + 0.22, w: TW - 0.16, h: OBJ_H - 0.24, fontSize: 11, fontFace: 'Microsoft JhengHei', color: TXT, align: 'left', valign: 'middle', margin: 0 })
+
+          // Header rows
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: GX, y: HR1_Y, w: GW, h: HDR_TOTAL, fill: { color: HDR_BG }, line: bH() })
+          ovSl.addText('G：Goals（具體目標）', { x: GX + 0.06, y: HR1_Y, w: GW - 0.08, h: HDR_TOTAL, fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000', bold: true, align: 'left', valign: 'middle', margin: 0 })
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: SX, y: HR1_Y, w: SW, h: HDR_TOTAL, fill: { color: HDR_BG }, line: bH() })
+          ovSl.addText('S：Strategies（策略）', { x: SX + 0.06, y: HR1_Y, w: SW - 0.08, h: HDR_TOTAL, fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000', bold: true, align: 'left', valign: 'middle', margin: 0 })
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: MDX, y: HR1_Y, w: MDW + MPW, h: HR1_H, fill: { color: HDR_BG }, line: bH() })
+          ovSl.addText('M：Measures（衡量指標）', { x: MDX + 0.06, y: HR1_Y, w: MDW + MPW - 0.08, h: HR1_H, fontSize: 10.5, fontFace: 'Microsoft JhengHei', color: '000000', bold: true, align: 'left', valign: 'middle', margin: 0 })
+          ;[
+            { x: MDX, w: MDW, label: 'MD（定量指標）' },
+            { x: MPX, w: MPW, label: 'MP（檢核指標）（續）' },
+          ].forEach(({ x, w, label }) => {
+            ovSl.addShape(pres.shapes.RECTANGLE, { x, y: HR2_Y, w, h: HR2_H, fill: { color: HDR_BG }, line: bH() })
+            ovSl.addText(label, { x: x + 0.06, y: HR2_Y, w: w - 0.08, h: HR2_H, fontSize: 10, fontFace: 'Microsoft JhengHei', color: '000000', bold: true, align: 'left', valign: 'middle', margin: 0 })
+          })
+
+          // G column body
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: GX, y: BODY_Y, w: GW, h: goalBodyH, fill: { color: CELL_WH }, line: b() })
+          ovSl.addText([
+            { text: `G${gi + 1}\n`, options: { bold: true, color: '7A4F00', fontSize: 12, breakLine: true } },
+            { text: goal.text || '', options: { bold: true, color: TXT, fontSize: 14 } },
+          ], { x: GX + 0.07, y: BODY_Y + 0.06, w: GW - 0.12, h: goalBodyH - 0.1, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0 })
+
+          // S column body
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: SX, y: BODY_Y, w: SW, h: goalBodyH, fill: { color: CELL_AL }, line: b() })
+          if (sParts.length > 0) {
+            ovSl.addText(sParts, { x: SX + 0.07, y: BODY_Y + 0.08, w: SW - 0.12, h: goalBodyH - 0.14, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.3 })
+          }
+
+          // MD column
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: MDX, y: BODY_Y, w: MDW, h: goalBodyH, fill: { color: CELL_MD }, line: b() })
+          if (mdParts.length > 0) {
+            ovSl.addText(mdParts, { x: MDX + 0.08, y: BODY_Y + 0.08, w: MDW - 0.14, h: goalBodyH - 0.14, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.2 })
+          }
+
+          // MP column (overflow chunk, vertically centred)
+          ovSl.addShape(pres.shapes.RECTANGLE, { x: MPX, y: BODY_Y, w: MPW, h: goalBodyH, fill: { color: CELL_MP }, line: b() })
+          if (mpChunks[ci].length > 0) {
+            ovSl.addText(buildMpParts(mpChunks[ci]), {
+              x: MPX + 0.08, y: BODY_Y + mpPadY, w: MPW - 0.12, h: goalBodyH - mpPadY * 2,
+              fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0,
+              lineSpacingMultiple: 1.1,
+            })
+          }
+
+          // Outer border overlay
+          ovSl.addShape(pres.shapes.RECTANGLE, {
+            x: TX, y: OBJ_Y, w: TW, h: OBJ_H + HDR_TOTAL + RH * totalRows,
+            fill: { type: 'none' }, line: { color: HDR_BD, pt: 1.8 }
+          })
+
+          // Footer
+          ovSl.addText(`${project.title}　·　G${gi + 1} / ${project.goals.length}　（MP 續 ${ci}）`, {
+            x: MG, y: 7.36, w: TW, h: 0.16,
+            fontSize: 9, fontFace: 'Microsoft JhengHei', color: 'AAAAAA',
+            align: 'left', valign: 'middle', margin: 0
+          })
+        }
 
       } // end goals loop
 
@@ -886,7 +1006,7 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                   return (
                     <div key={st.id ?? si} style={s.stratCard}>
                       <div style={s.stratHeader}>
-                        <span style={s.stratBadge}>S{si + 1}</span>
+                        <span style={s.stratBadge}>S{gi + 1}.{si + 1}</span>
                         <span style={s.stratText}>{st.text || '(未命名)'}</span>
                         <span style={{ fontSize: '11px', fontFamily: '"DM Mono", monospace', color: stColor, flexShrink: 0 }}>
                           {stProgress}%
@@ -899,14 +1019,14 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                         return (
                           <div style={s.measureTable}>
                             <div style={s.mTableHeader}>
-                              <span style={{ ...s.mCol, width: '40px' }}>類型</span>
-                              <span style={{ ...s.mCol, flex: 2 }}>KPI</span>
-                              <span style={{ ...s.mCol, flex: 1 }}>目標</span>
-                              <span style={{ ...s.mCol, flex: 1 }}>實際</span>
+                              <span style={{ ...s.mCol, flex: 2 }}>MD 定量指標</span>
+                              <span style={{ ...s.mCol, flex: 1.2 }}>目標</span>
+                              <span style={{ ...s.mCol, flex: 0.8 }}>實際</span>
+                              <span style={{ ...s.mCol, width: '76px' }}>負責人</span>
                               <span style={{ ...s.mCol, width: '76px' }}>期限</span>
                               <span style={{ ...s.mCol, width: '70px' }}>狀態</span>
                               <span style={{ ...s.mCol, width: '80px' }}>進度</span>
-                              {stratHasTodos && <span style={{ ...s.mCol, width: '36px', textAlign: 'center' }}>待辦</span>}
+                              {stratHasTodos && <span style={{ ...s.mCol, width: '36px', textAlign: 'center' }}>MP</span>}
                             </div>
                             {st.measures.map((m, mi) => {
                               const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
@@ -919,16 +1039,10 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                               return (
                                 <div key={m.id ?? mi}>
                                   <div style={s.mRow}>
-                                    <span style={{ ...s.mCell, width: '40px' }}>
-                                      <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, padding: '1px 4px', borderRadius: '3px',
-                                        ...(m.type === 'MD'
-                                          ? { background: 'rgba(240,165,0,0.12)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }
-                                          : { background: 'rgba(59,158,222,0.12)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' })
-                                      }}>{m.type || 'MP'}</span>
-                                    </span>
                                     <span style={{ ...s.mCell, flex: 2 }}>{m.kpi || '—'}</span>
-                                    <span style={{ ...s.mCell, flex: 1, color: '#f0a500', fontFamily: '"DM Mono", monospace' }}>{m.target || '—'}</span>
-                                    <span style={{ ...s.mCell, flex: 1, color: '#4caf7d', fontFamily: '"DM Mono", monospace' }}>{m.actual || '—'}</span>
+                                    <span style={{ ...s.mCell, flex: 1.2, color: '#f0a500', fontFamily: '"DM Mono", monospace' }}>{m.target || '—'}</span>
+                                    <span style={{ ...s.mCell, flex: 0.8, color: '#4caf7d', fontFamily: '"DM Mono", monospace' }}>{m.actual || '—'}</span>
+                                    <span style={{ ...s.mCell, width: '76px', fontSize: '10px', color: darkMode ? '#c0c8d8' : '#374151' }}>{m.assignee || '—'}</span>
                                     <span style={{ ...s.mCell, width: '76px', fontFamily: '"DM Mono", monospace', fontSize: '10px', color: darkMode ? '#8a95ae' : '#4a607a' }}>{m.deadline || '—'}</span>
                                     <span style={{ ...s.mCell, width: '70px' }}>
                                       <span style={{ color: sc.color, fontSize: '10px' }}>● {sc.label}</span>
@@ -970,24 +1084,26 @@ export default function AuditPanel({ project, onClose, darkMode = true }) {
                                       padding: '8px 12px 10px 16px',
                                       background: darkMode ? 'rgba(0,0,0,0.25)' : 'rgba(244,114,182,0.04)',
                                       borderTop: `1px solid ${darkMode ? '#1a2133' : '#edf2fa'}`,
-                                      borderLeft: `3px solid ${m.type === 'MD' ? 'rgba(240,165,0,0.5)' : 'rgba(59,158,222,0.5)'}`,
+                                      borderLeft: `3px solid rgba(59,158,222,0.5)`,
                                     }}>
                                       <div style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, color: '#f472b6', letterSpacing: '0.6px', marginBottom: '6px' }}>
-                                        ☑ 待辦事項 {doneCount}/{totalTodos}
+                                        ☑ MP 檢核步驟 {doneCount}/{totalTodos}
                                       </div>
-                                      {(m.todos || []).map((t, ti) => (
+                                      {(m.todos || []).map((t, ti) => {
+                                        const tOverdue = t.deadline && t.deadline < new Date().toISOString().slice(0,10) && !t.done
+                                        return (
                                         <div key={t.id ?? ti} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '4px' }}>
-                                          <span style={{
-                                            fontSize: '13px', flexShrink: 0, marginTop: '-1px', lineHeight: 1,
-                                            color: t.done ? '#4caf7d' : (darkMode ? '#7eb8e8' : '#8a9ab8'),
-                                          }}>{t.done ? '✓' : '○'}</span>
-                                          <span style={{
-                                            fontSize: '11px', lineHeight: 1.5,
-                                            color: t.done ? (darkMode ? '#5a7090' : '#9aabbd') : (darkMode ? '#c8d4e8' : '#445069'),
-                                            textDecoration: t.done ? 'line-through' : 'none',
-                                          }}>{t.text}</span>
+                                          <span style={{ fontSize: '13px', flexShrink: 0, lineHeight: 1.5, color: t.done ? '#4caf7d' : (darkMode ? '#7eb8e8' : '#8a9ab8') }}>{t.done ? '✓' : '○'}</span>
+                                          <span style={{ fontSize: '11px', lineHeight: 1.5, flex: 1, color: t.done ? (darkMode ? '#5a7090' : '#9aabbd') : (darkMode ? '#c8d4e8' : '#445069'), textDecoration: t.done ? 'line-through' : 'none', wordBreak: 'break-word' }}>{t.text}</span>
+                                          {(t.assignee || t.deadline) && (
+                                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', alignSelf: 'center' }}>
+                                              {t.assignee && <span style={{ fontSize: '9px', fontFamily: '"Noto Sans TC", sans-serif', color: darkMode ? '#8a95ae' : '#6b7280', background: darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)', border: `1px solid ${darkMode ? '#2a3347' : '#e5e7eb'}`, borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>👤 {t.assignee}</span>}
+                                              {t.deadline && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', color: tOverdue ? '#ef4444' : (darkMode ? '#8a95ae' : '#6b7280'), background: tOverdue ? 'rgba(239,68,68,0.08)' : (darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)'), border: `1px solid ${tOverdue ? 'rgba(239,68,68,0.3)' : (darkMode ? '#2a3347' : '#e5e7eb')}`, borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>{tOverdue ? '⚠ ' : '📅 '}{t.deadline}</span>}
+                                            </div>
+                                          )}
                                         </div>
-                                      ))}
+                                        )
+                                      })}
                                     </div>
                                   )}
                                 </div>
@@ -1014,7 +1130,7 @@ function buildAuditStyles(dark) {
     backdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 400 },
     panel: {
       position: 'fixed', top: 0, right: 0, bottom: 0,
-      width: '640px', maxWidth: '92vw',
+      width: '700px', maxWidth: '92vw',
       background: dark ? '#161b27' : '#ffffff',
       borderLeft: `1px solid ${dark ? '#2a3347' : '#d1d9e8'}`,
       display: 'flex', flexDirection: 'column',

@@ -24,15 +24,21 @@ function flattenTodos(project) {
             goalIndex:     gi,
             stratIndex:    si,
             measureIndex:  mi,
-            measureType:   m.type || 'MP',
+            todoIndex:     ti,
             measureKpi:    m.kpi,
             measureDeadline: m.deadline || '',
             measureStatus: m.status,
             goalText:      goal.text,
             stratText:     st.text,
-            // 是否逾期（依 measure 的 deadline）
-            isOverdue: m.deadline && m.deadline < today && !t.done,
-            isDueToday: m.deadline === today && !t.done,
+            // 是否逾期（依 MP 步驟自身期限，或超過 MD 期限）
+            isOverdue: !t.done && (
+              (t.deadline && t.deadline < today) ||
+              (t.deadline && m.deadline && t.deadline > m.deadline)
+            ),
+            isDueToday: !t.done && t.deadline === today,
+            // 向下相容保留
+            todoOverdue: t.deadline && t.deadline < today && !t.done,
+            todoDueToday: t.deadline === today && !t.done,
           })
         })
       })
@@ -41,7 +47,7 @@ function flattenTodos(project) {
   return items
 }
 
-export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkMode = true }) {
+export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpdateTodo, members = [], darkMode = true }) {
   const [filter, setFilter]   = useState('全部')
   const [search, setSearch]   = useState('')
   const [groupBy, setGroupBy] = useState('measure') // 'measure' | 'goal' | 'status'
@@ -79,8 +85,8 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
     // 日期排序
     if (sortDate !== 'none') {
       items = [...items].sort((a, b) => {
-        const da = a.measureDeadline || ''
-        const db = b.measureDeadline || ''
+        const da = a.deadline || ''
+        const db = b.deadline || ''
         if (!da && !db) return 0
         if (!da) return sortDate === 'asc' ? 1 : -1
         if (!db) return sortDate === 'asc' ? -1 : 1
@@ -102,10 +108,10 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
         key   = t.done ? 'done' : t.isOverdue ? 'overdue' : t.isDueToday ? 'today' : 'pending'
         label = t.done ? '✓ 已完成' : t.isOverdue ? '⚠ 已逾期' : t.isDueToday ? '📅 今日到期' : '○ 待處理'
       } else {
-        key   = `G${t.goalIndex}-S${t.stratIndex}-M${t.measureIndex}`
-        label = `${t.measureType} — ${t.measureKpi || '未命名 KPI'}`
+        key   = `G${t.goalIndex+1}-S${t.goalIndex+1}.${t.stratIndex+1}-D${t.goalIndex+1}.${t.stratIndex+1}.${t.measureIndex+1}`
+        label = `D${t.goalIndex+1}.${t.stratIndex+1}.${t.measureIndex+1} — ${t.measureKpi || '未命名'}`
       }
-      if (!groups[key]) groups[key] = { label, items: [], measureType: t.measureType }
+      if (!groups[key]) groups[key] = { label, items: [] }
       groups[key].items.push(t)
     })
     return Object.entries(groups)
@@ -124,7 +130,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
         {/* ── Header ── */}
         <div style={{ ...P.header, borderBottom: `1px solid ${T.border}` }}>
           <div>
-            <div style={{ fontSize: '11px', fontFamily: '"DM Mono", monospace', color: '#d4a855', letterSpacing: '0.8px', marginBottom: '3px' }}>☑ 待辦事項管理</div>
+            <div style={{ fontSize: '11px', fontFamily: '"DM Mono", monospace', color: '#d4a855', letterSpacing: '0.8px', marginBottom: '3px' }}>☑ MP 檢核步驟管理</div>
             <div style={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: '17px', color: T.text }}>{project.title}</div>
           </div>
           <button style={{ background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: '16px', padding: '4px' }} onClick={onClose}>✕</button>
@@ -160,7 +166,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
           {/* 搜尋 */}
           <input
             style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: '5px', color: T.text, fontSize: '12px', fontFamily: '"Noto Sans TC", sans-serif', padding: '6px 10px', outline: 'none', width: '100%' }}
-            placeholder="🔍 搜尋待辦事項或 KPI 名稱…"
+            placeholder="🔍 搜尋檢核步驟或定量指標名稱…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -180,7 +186,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
             {/* 分組 + 排序 */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: T.textMuted }}>分組：</span>
-              {[['measure', 'KPI'], ['goal', 'Goal'], ['status', '狀態']].map(([v, l]) => (
+              {[['measure', '定量指標'], ['goal', 'Goal'], ['status', '狀態']].map(([v, l]) => (
                 <button
                   key={v}
                   style={{ padding: '3px 8px', borderRadius: '4px', border: `1px solid ${groupBy === v ? '#3b9ede' : T.border}`, background: groupBy === v ? 'rgba(59,158,222,0.15)' : 'transparent', color: groupBy === v ? '#3b9ede' : T.textMuted, fontSize: '10px', fontFamily: '"DM Mono", monospace', cursor: 'pointer' }}
@@ -215,14 +221,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
                 style={{ padding: '8px 16px 4px', display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', userSelect: 'none' }}
               >
                 <span style={{ fontSize: '10px', color: T.textMuted, flexShrink: 0, lineHeight: 1 }}>{isCollapsed ? '▸' : '▾'}</span>
-                {groupBy === 'measure' && (
-                  <span style={{
-                    fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, padding: '1px 5px', borderRadius: '3px',
-                    ...(group.measureType === 'MD'
-                      ? { background: 'rgba(240,165,0,0.12)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }
-                      : { background: 'rgba(59,158,222,0.12)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' })
-                  }}>{group.measureType}</span>
-                )}
+
                 <span style={{ fontSize: '11px', fontFamily: '"Noto Sans TC", sans-serif', color: T.textSub, fontWeight: 600, flex: 1 }}>{group.label}</span>
                 <span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: '#4caf7d' }}>
                   {group.items.filter(t => t.done).length}/{group.items.length}
@@ -240,6 +239,8 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
                     onRequestConfirm={() => setConfirmingId(id => id === itemId ? null : itemId)}
                     onConfirm={() => { onToggleTodo(t.goalIndex, t.stratIndex, t.measureIndex, t.id); setConfirmingId(null) }}
                     onCancel={() => setConfirmingId(null)}
+                    onUpdate={(field, val) => onUpdateTodo && onUpdateTodo(t.goalIndex, t.stratIndex, t.measureIndex, t.id, field, val)}
+                    members={members}
                     darkMode={darkMode}
                     T={T}
                   />
@@ -253,7 +254,8 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, darkM
   )
 }
 
-function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, darkMode, T }) {
+function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onUpdate, members, darkMode, T }) {
+  const today = new Date().toISOString().slice(0, 10)
   return (
     <div>
     <div
@@ -267,13 +269,36 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, dar
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '12px', color: todo.done ? T.textMuted : T.text, textDecoration: todo.done ? 'line-through' : 'none', fontFamily: '"Noto Sans TC", sans-serif', lineHeight: 1.5 }}>
-          {todo.text}
+        {/* Main row: text + right-side badges */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: '12px', color: todo.done ? T.textMuted : T.text, textDecoration: todo.done ? 'line-through' : 'none', fontFamily: '"Noto Sans TC", sans-serif', lineHeight: 1.5, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+              <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: '#5a9ade', marginRight: '4px' }}>P{todo.goalIndex+1}.{todo.stratIndex+1}.{todo.measureIndex+1}.{todo.todoIndex+1}</span>{todo.text}
+            </span>
+          </div>
+          {/* Assignee + deadline — always shown, editable inline */}
+          <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', paddingTop: '1px' }} onClick={e => e.stopPropagation()}>
+            <select
+              style={{ width: '88px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '3px', color: T.textMuted, fontSize: '9px', fontFamily: '"Noto Sans TC", sans-serif', padding: '1px 4px', outline: 'none', cursor: 'pointer', colorScheme: darkMode ? 'dark' : 'light' }}
+              value={todo.assignee || ''}
+              onChange={e => onUpdate && onUpdate('assignee', e.target.value)}
+              onClick={e => e.stopPropagation()}
+            >
+              <option value=''>— 負責人 —</option>
+              {(members || []).map(mb => <option key={mb} value={mb}>{mb}</option>)}
+            </select>
+            <input
+              type="date"
+              style={{ width: '108px', background: 'transparent', border: `1px solid ${todo.todoOverdue ? 'rgba(224,82,82,0.4)' : T.border}`, borderRadius: '3px', color: todo.todoOverdue ? '#e05252' : T.textMuted, fontSize: '9px', fontFamily: '"DM Mono", monospace', padding: '1px 4px', outline: 'none', colorScheme: darkMode ? 'dark' : 'light' }}
+              value={todo.deadline || ''}
+              onChange={e => onUpdate && onUpdate('deadline', e.target.value)}
+            />
+          </div>
         </div>
         {/* Source breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', color: T.textMuted, opacity: 0.7 }}>
-            G{todo.goalIndex + 1} › S{todo.stratIndex + 1} › {todo.measureType}
+            G{todo.goalIndex + 1} › S{todo.goalIndex + 1}.{todo.stratIndex + 1} › D{todo.goalIndex + 1}.{todo.stratIndex + 1}.{todo.measureIndex + 1}
           </span>
           {/* KPI */}
           {todo.measureKpi && (
@@ -281,17 +306,13 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, dar
               {todo.measureKpi}
             </span>
           )}
-          {/* Deadline badge */}
-          {todo.measureDeadline && !todo.done && (
+          {/* MD deadline badge */}
+          {todo.measureDeadline && (
             <span style={{
               fontSize: '9px', fontFamily: '"DM Mono", monospace', padding: '1px 5px', borderRadius: '99px',
-              ...(todo.isOverdue
-                ? { background: 'rgba(224,82,82,0.15)', color: '#e05252', border: '1px solid rgba(224,82,82,0.3)' }
-                : todo.isDueToday
-                  ? { background: 'rgba(240,165,0,0.15)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }
-                  : { background: 'transparent', color: T.textMuted, border: `1px solid ${T.border}` })
+              background: 'transparent', color: T.textMuted, border: `1px solid ${T.border}`
             }}>
-              {todo.isOverdue ? '⚠ 逾期 ' : todo.isDueToday ? '📅 今日 ' : ''}{todo.measureDeadline}
+              {todo.measureDeadline}
             </span>
           )}
           {/* KPI Status */}

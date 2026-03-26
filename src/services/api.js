@@ -28,4 +28,8 @@ export const api = {
   generateForGoal:     (body) => request('/ai/generate-for-goal',     { method: 'POST', body: JSON.stringify(body) }),
   generateForStrategy: (body) => request('/ai/generate-for-strategy', { method: 'POST', body: JSON.stringify(body) }),
   generateForMeasure:  (body) => request('/ai/generate-for-measure',  { method: 'POST', body: JSON.stringify(body) }),
+
+  // 負責人成員
+  getMembers:    ()      => request('/members'),
+  saveMembers:   (names) => request('/members', { method: 'PUT', body: JSON.stringify(names) }),
 }

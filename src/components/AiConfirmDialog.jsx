@@ -17,7 +17,7 @@ export default function AiConfirmDialog({ type, currentText = '', onConfirm, onC
   const config = {
     goal: {
       title: '⚡ AI 生成 Strategies',
-      desc: <>根據此 Goal，AI 將生成 2~3 個 Strategies，以及各自的 <strong style={{ color: '#3b9ede' }}>MP</strong> 檢核指標、<strong style={{ color: '#f0a500' }}>MD</strong> 定量指標、待辦事項。</>,
+      desc: <>根據此 Goal，AI 將生成 2~3 個 Strategies，以及各自的定量指標與 MP 檢核步驟。</>,
       label: 'Goal 內容',
       placeholder: '輸入 Goal 描述，或留空讓 AI 自行補充…',
       hint: '留空時 AI 會根據 Objective 自動生成合適的 Goal 內容',
@@ -25,7 +25,7 @@ export default function AiConfirmDialog({ type, currentText = '', onConfirm, onC
     },
     strategy: {
       title: '⚡ AI 生成 Measures',
-      desc: <>根據此 Strategy，AI 將生成 <strong style={{ color: '#3b9ede' }}>MP</strong> 檢核指標、<strong style={{ color: '#f0a500' }}>MD</strong> 定量指標，以及各自的待辦事項。</>,
+      desc: <>根據此 Strategy，AI 將生成定量指標，以及各指標對應的 MP 檢核步驟。</>,
       label: 'Strategy 內容',
       placeholder: '輸入 Strategy 描述，或留空讓 AI 自行補充…',
       hint: '留空時 AI 會根據 Goal 自動生成合適的 Strategy 內容',
@@ -33,11 +33,11 @@ export default function AiConfirmDialog({ type, currentText = '', onConfirm, onC
     },
     measure: {
       title: '⚡ AI 生成待辦事項',
-      desc: <>根據此 KPI，AI 將生成 3~5 個具體可執行的待辦事項。</>,
-      label: 'KPI 內容',
-      placeholder: '輸入 KPI 名稱，或留空讓 AI 自行補充…',
-      hint: '留空時 AI 會根據 Strategy 自動補充合適的待辦事項',
-      confirmLabel: '⚡ 生成待辦事項',
+      desc: <>根據此定量指標，AI 將生成 3~5 個具體可執行的 MP 檢核步驟。</>,
+      label: '定量指標內容',
+      placeholder: '輸入定量指標名稱，或留空讓 AI 自行補充…',
+      hint: '留空時 AI 會根據 Strategy 自動生成合適的定量指標與檢核步驟',
+      confirmLabel: '⚡ 生成 MP 檢核步驟',
     },
   }[type] || {}
 

@@ -12,7 +12,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast }) {
     if (!objective.trim()) return
     setLoading(true)
 
-    const steps = ['分析目標…', '規劃 Goals…', '制定 Strategies…', '設定 MP / MD 指標…', '生成待辦清單…', '整合輸出…']
+    const steps = ['分析目標…', '規劃 Goals…', '制定 Strategies…', '規劃定量指標…', '生成待辦清單…', '整合輸出…']
     let i = 0
     setProgress(steps[0])
     const tick = setInterval(() => {
@@ -52,7 +52,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast }) {
         </div>
 
         <p style={st.description}>
-          輸入核心目標與截止日期，AI 將自動規劃 Goals、Strategies、<strong style={{ color: '#3b9ede' }}>MP</strong> 檢核指標、<strong style={{ color: '#f0a500' }}>MD</strong> 定量指標與待辦清單。
+          輸入核心目標與截止日期，AI 將自動規劃 Goals、Strategies、定量指標，以及各指標對應的 MP 檢核步驟。
         </p>
 
         {/* Objective */}
@@ -98,15 +98,15 @@ export default function GenerateModal({ onClose, onGenerated, showToast }) {
           />
         </div>
 
-        {/* MP/MD 說明 */}
+        {/* M 說明 */}
         <div style={st.tipBox}>
           <div style={st.tipRow}>
-            <span style={{ ...st.tipBadge, background: 'rgba(59,158,222,0.15)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' }}>MP</span>
-            <span style={st.tipText}>檢核指標 — 監控行動有沒有執行、執行品質（例：每週運動次數、飲食記錄率）</span>
+            <span style={{ ...st.tipBadge, background: 'rgba(240,165,0,0.15)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }}>MD</span>
+            <span style={st.tipText}>定量指標 — 監控最終產出數字與績效（例：體重、體脂率、業績達成率）</span>
           </div>
           <div style={st.tipRow}>
-            <span style={{ ...st.tipBadge, background: 'rgba(240,165,0,0.15)', color: '#f0a500', border: '1px solid rgba(240,165,0,0.3)' }}>MD</span>
-            <span style={st.tipText}>定量指標 — 監控最終產出數字、績效（例：體重、體脂率、業績達成率）</span>
+            <span style={{ ...st.tipBadge, background: 'rgba(59,158,222,0.15)', color: '#3b9ede', border: '1px solid rgba(59,158,222,0.3)' }}>MP</span>
+            <span style={st.tipText}>檢核步驟 — 每個定量指標底下的可執行行動（例：每週量體重、記錄飲食）</span>
           </div>
         </div>
 

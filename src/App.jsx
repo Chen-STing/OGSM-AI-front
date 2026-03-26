@@ -4,6 +4,7 @@ import ProjectList from './components/ProjectList.jsx'
 import OgsmEditor from './components/OgsmEditor.jsx'
 import GenerateModal from './components/GenerateModal.jsx'
 import AuditPanel from './components/AuditPanel.jsx'
+import MemberSettings from './components/MemberSettings.jsx'
 
 export default function App() {
   const [projects, setProjects]       = useState([])
@@ -15,11 +16,22 @@ export default function App() {
   const [auditProject, setAuditProject] = useState(null)
   const [toast, setToast]             = useState(null)
   const [darkMode, setDarkMode]         = useState(true)
+  const [members, setMembers]           = useState([])
+  const [showMemberSettings, setShowMemberSettings] = useState(false)
 
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }, [])
+
+  const handleMembersChange = useCallback(async (newMembers) => {
+    setMembers(newMembers)
+    try {
+      await api.saveMembers(newMembers)
+    } catch (e) {
+      showToast('負責人儲存失敗：' + e.message, 'error')
+    }
+  }, [showToast])
 
   // 載入清單
   const loadList = useCallback(async () => {
@@ -39,6 +51,11 @@ export default function App() {
       setLoadingList(false)
     }
   }, [showToast])
+
+  // 載入負責人清單
+  useEffect(() => {
+    api.getMembers().then(setMembers).catch(() => {})
+  }, [])
 
   useEffect(() => { loadList() }, [loadList])
 
@@ -112,10 +129,16 @@ export default function App() {
             </div>
           </div>
 
-          <button className="btn-generate" onClick={() => setShowGenerate(true)}>
-            <span className="btn-generate-icon">⚡</span>
-            AI 生成 OGSM
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 14px 8px' }}>
+            <button className="btn-generate btn-generate--flex" onClick={() => setShowGenerate(true)}>
+              <span className="btn-generate-icon">⚡</span>
+              AI 生成 OGSM
+            </button>
+            <button className="btn-members" onClick={() => setShowMemberSettings(true)} title="管理負責人">
+              👥
+              {members.length > 0 && <span className="members-count">{members.length}</span>}
+            </button>
+          </div>
 
           <ProjectList
             projects={projects}
@@ -158,7 +181,7 @@ export default function App() {
               <p>載入中…</p>
             </div>
           ) : activeProject ? (
-            <OgsmEditor project={activeProject} onSave={handleSave} onAudit={setAuditProject} darkMode={darkMode} />
+            <OgsmEditor project={activeProject} onSave={handleSave} onAudit={setAuditProject} members={members} onMembersChange={handleMembersChange} darkMode={darkMode} />
           ) : (
             <div className="empty-state">
               <div className="empty-icon">◈</div>
@@ -170,6 +193,16 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {/* ── Member Settings ── */}
+        {showMemberSettings && (
+          <MemberSettings
+            members={members}
+            onChange={handleMembersChange}
+            onClose={() => setShowMemberSettings(false)}
+            darkMode={darkMode}
+          />
+        )}
 
         {/* ── Generate Modal ── */}
         {showGenerate && (
@@ -291,7 +324,6 @@ const globalStyles = `
   .logo-sub { font-size: 10px; color: #d4a855; letter-spacing: 0.5px; font-weight: 500; }
 
   .btn-generate {
-    margin: 16px 14px 8px;
     padding: 10px 14px;
     background: var(--accent);
     color: #000;
@@ -307,9 +339,44 @@ const globalStyles = `
     transition: background 0.15s, transform 0.1s;
     letter-spacing: 0.3px;
   }
+  .btn-generate--flex { flex: 1; }
   .btn-generate:hover { background: #ffc233; transform: translateY(-1px); }
   .btn-generate:active { transform: translateY(0); }
   .btn-generate-icon { font-size: 15px; }
+
+  .btn-members {
+    padding: 0;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .btn-members:hover { border-color: var(--border-light); color: var(--text-primary); background: var(--bg-hover); }
+  .members-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--accent);
+    color: #000;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 99px;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.4;
+  }
 
   .sidebar-footer {
     padding: 14px 20px;
