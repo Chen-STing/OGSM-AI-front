@@ -9,10 +9,26 @@ const emptyGoal     = () => ({ id: null, text: '', sortOrder: 0, strategies: [em
 
 const STATUS_CONFIG = {
   NotStarted: { label: '未開始', color: '#a8b4c9', bg: 'rgba(168,180,201,0.12)', border: '#a8b4c9' },
-  InProgress:  { label: '進行中', color: '#3b9ede', bg: 'rgba(59,158,222,0.12)', border: '#3b9ede' },
-  Completed:   { label: '已完成', color: '#4caf7d', bg: 'rgba(76,175,125,0.12)', border: '#4caf7d' },
-  Overdue:     { label: '已逾期', color: '#e05252', bg: 'rgba(224,82,82,0.12)',  border: '#e05252' },
+  InProgress: { label: '進行中', color: '#3b9ede', bg: 'rgba(59,158,222,0.12)', border: '#3b9ede' },
+  Completed:  { label: '已完成', color: '#4caf7d', bg: 'rgba(76,175,125,0.12)', border: '#4caf7d' },
+  Overdue:    { label: '已逾期', color: '#e05252', bg: 'rgba(224,82,82,0.12)',  border: '#e05252' },
 }
+
+const B_YELLOW = '#FFFF00'
+const B_BLUE   = '#0000FF'
+const B_PINK   = '#FF00FF'
+const B_GREEN  = '#00FF00'
+
+const COL_G      = 200
+const COL_S      = 200
+const COL_KPI    = 200
+const COL_VALT   = 120
+const COL_VALP   = 75
+const COL_OWNER  = 120
+const COL_DL     = 120
+const COL_STATUS = 100
+const COL_PROG   = 150
+const COL_ACT    = 100
 
 function autoStatus(m) {
   const pct = m.progress || 0
@@ -30,10 +46,10 @@ function applyOverdueStatus(d) {
 
 function progressColor(pct) {
   if (pct === 0)  return '#94a3b8'
-  if (pct < 30)   return '#ef4444'
-  if (pct < 60)   return '#f59e0b'
-  if (pct < 100)  return '#3b82f6'
-  return '#22c55e'
+  if (pct < 30)   return B_PINK
+  if (pct < 60)   return B_YELLOW
+  if (pct < 100)  return B_BLUE
+  return B_GREEN
 }
 
 const autoResize = (e) => {
@@ -49,66 +65,88 @@ const autoResize = (e) => {
 }
 const initResize = (el) => { if (!el) return; el.style.height = '0px'; el.style.height = el.scrollHeight + 'px' }
 
-export default function OgsmEditor({ project, onSave, onAudit, members = [], onMembersChange, darkMode = true }) {
+const Icons = {
+  FileText: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+  CheckCircle: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Edit: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
+  Calendar: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  Zap: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>,
+  More: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>,
+  X: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  ArrowRight: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
+  Menu: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+  PanelLeftClose: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+}
+
+// ─── SLIDE PANEL WRAPPER ─────────────────────────────────────────────────────
+function SlidePanel({ title, icon, onClose, children, dark, width = "480px" }) {
+  return (
+    <>
+      <div className="ogsm-slide-overlay" onClick={onClose} />
+      <div className="ogsm-slide-panel" style={{ width, background: dark ? '#1a1a1a' : '#fff', borderLeft: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
+        <div style={{ padding: '24px 32px', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : '#000'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ background: B_YELLOW, color: '#000', padding: '8px', borderRadius: '2px' }}>
+              {icon}
+            </div>
+            <h3 style={{ fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, letterSpacing: '-0.02em', color: dark ? '#fff' : '#000' }}>
+              {title}
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', padding: '8px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = B_PINK} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}>
+            <Icons.X />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {children}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── MAIN EDITOR COMPONENT ───────────────────────────────────────────────────
+export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen, onToggleSidebar }) {
   const [draft, setDraft]   = useState(null)
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  
   const [showTodoPanel, setShowTodoPanel] = useState(false)
+  const [showLocalAudit, setShowLocalAudit] = useState(false) 
+
   const [aiDialog, setAiDialog] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
+  
   const [openTodos, setOpenTodos] = useState(new Set())
   const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
-  const [dragMeasure, setDragMeasure] = useState(null)
-  const [dragOverMeasure, setDragOverMeasure] = useState(null)
-  const [dragTodo, setDragTodo] = useState(null)
-  const [dragOverTodo, setDragOverTodo] = useState(null)
-  const [dragGoal, setDragGoal] = useState(null)
-  const [dragOverGoal, setDragOverGoal] = useState(null)
-  const [dragStrategy, setDragStrategy] = useState(null)
-  const [dragOverStrategy, setDragOverStrategy] = useState(null)
-  const scrollRef = useRef(null)
-  const scrollRafRef = useRef(null)
+  
+  const [dragMeasure, setDragMeasure] = useState(null); const [dragOverMeasure, setDragOverMeasure] = useState(null)
+  const [dragTodo, setDragTodo] = useState(null); const [dragOverTodo, setDragOverTodo] = useState(null)
+  const [dragGoal, setDragGoal] = useState(null); const [dragOverGoal, setDragOverGoal] = useState(null)
+  const [dragStrategy, setDragStrategy] = useState(null); const [dragOverStrategy, setDragOverStrategy] = useState(null)
+  const scrollRef = useRef(null); const scrollRafRef = useRef(null)
 
   const handleScrollZoneDragOver = useCallback((e) => {
-    const el = scrollRef.current
-    if (!el) return
-    const { top, bottom } = el.getBoundingClientRect()
-    const zone = 80
-    const maxSpeed = 18
-    const y = e.clientY
-    let speed = 0
-    if (y < top + zone)    speed = -maxSpeed * (1 - (y - top) / zone)
-    else if (y > bottom - zone) speed =  maxSpeed * (1 - (bottom - y) / zone)
+    const el = scrollRef.current; if (!el) return
+    const { top, bottom } = el.getBoundingClientRect(); const zone = 80, maxSpeed = 18; const y = e.clientY; let speed = 0
+    if (y < top + zone) speed = -maxSpeed * (1 - (y - top) / zone)
+    else if (y > bottom - zone) speed = maxSpeed * (1 - (bottom - y) / zone)
     if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
-    if (speed !== 0) {
-      const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }
-      scrollRafRef.current = requestAnimationFrame(step)
-    }
+    if (speed !== 0) { const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }; scrollRafRef.current = requestAnimationFrame(step) }
   }, [])
-
-  const handleScrollZoneDragEnd = useCallback(() => {
-    if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null }
-  }, [])
+  const handleScrollZoneDragEnd = useCallback(() => { if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null } }, [])
 
   useEffect(() => {
     if (openTodos.size === 0) return
-    const handler = (e) => {
-      if (!e.target.closest('[data-todo-zone]') && !e.target.closest('.ogsm-save-btn') && !e.target.closest('.ogsm-edit-btn')) setOpenTodos(new Set())
-    }
+    const handler = (e) => { if (!e.target.closest('[data-todo-zone]') && !e.target.closest('.b-action-btn')) setOpenTodos(new Set()) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [openTodos])
 
-  // Column widths — no type column
-  const kpiW = editMode ? 190 : COL_KPI
-
   const s = useMemo(() => buildStyles(darkMode), [darkMode])
-
-  const allTodos = useMemo(() =>
-    (draft?.goals || []).flatMap(g => g.strategies.flatMap(s => s.measures.flatMap(m => m.todos || []))),
-    [draft]
-  )
+  const allTodos = useMemo(() => (draft?.goals || []).flatMap(g => g.strategies.flatMap(s => s.measures.flatMap(m => m.todos || []))), [draft])
   const pendingTodos = allTodos.filter(t => !t.done).length
 
   useEffect(() => {
@@ -118,41 +156,55 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], onM
     setDirty(false)
   }, [project])
 
-  const update = useCallback((updater) => {
-    setDraft(d => updater(JSON.parse(JSON.stringify(d))))
-    setDirty(true)
-  }, [])
+  const update = useCallback((updater) => { setDraft(d => updater(JSON.parse(JSON.stringify(d)))); setDirty(true) }, [])
 
   useEffect(() => {
     if (!draft) return
     const els = document.querySelectorAll('textarea[data-ogsm-autoresize]')
-    els.forEach(el => {
-      try { el.style.height = '0px'; el.style.height = el.scrollHeight + 'px' } catch (e) {}
-    })
+    els.forEach(el => { try { el.style.height = '0px'; el.style.height = el.scrollHeight + 'px' } catch (e) {} })
   }, [draft])
+
+  // ─── DYNAMIC WIDTH CALCULATION ───
+  const baseKpiW = editMode ? 220 : COL_KPI
+  const baseTotalW = COL_G + COL_S + baseKpiW + COL_VALT + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT
+  
+  const [extraW, setExtraW] = useState(0)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width } = entry.contentRect
+        if (width > baseTotalW + 2) {
+          setExtraW(Math.floor(width - baseTotalW - 2))
+        } else {
+          setExtraW(0)
+        }
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [baseTotalW])
+
+  // 分配剩餘寬度: S(50%), 目標值(30%), KPI(20%)
+  const dynS = Math.floor(COL_S + extraW * 0.5)
+  const dynTarget = Math.floor(COL_VALT + extraW * 0.3)
+  const dynKpi = baseKpiW + extraW - Math.floor(extraW * 0.5) - Math.floor(extraW * 0.3)
 
   const toggleTodoById = useCallback((gi, si, mi, todoId) => {
     update(d => {
       const todos = d.goals[gi].strategies[si].measures[mi].todos || []
-      d.goals[gi].strategies[si].measures[mi].todos = todos.map(t =>
-        t.id === todoId ? { ...t, done: !t.done } : t
-      )
+      d.goals[gi].strategies[si].measures[mi].todos = todos.map(t => t.id === todoId ? { ...t, done: !t.done } : t)
       const updated = d.goals[gi].strategies[si].measures[mi].todos
       const done = updated.filter(t => t.done).length
-      d.goals[gi].strategies[si].measures[mi].progress = updated.length
-        ? Math.round((done / updated.length) * 100) : 0
+      d.goals[gi].strategies[si].measures[mi].progress = updated.length ? Math.round((done / updated.length) * 100) : 0
       const today = new Date().toISOString().slice(0, 10)
-      const deadline = d.goals[gi].strategies[si].measures[mi].deadline
-      const isOverdue = deadline && deadline < today
-      if (updated.length > 0 && done === updated.length) {
-        d.goals[gi].strategies[si].measures[mi].status = 'Completed'
-      } else if (isOverdue) {
-        d.goals[gi].strategies[si].measures[mi].status = 'Overdue'
-      } else if (done > 0) {
-        d.goals[gi].strategies[si].measures[mi].status = 'InProgress'
-      } else {
-        d.goals[gi].strategies[si].measures[mi].status = 'NotStarted'
-      }
+      const isOverdue = d.goals[gi].strategies[si].measures[mi].deadline && d.goals[gi].strategies[si].measures[mi].deadline < today
+      if (updated.length > 0 && done === updated.length) d.goals[gi].strategies[si].measures[mi].status = 'Completed'
+      else if (isOverdue) d.goals[gi].strategies[si].measures[mi].status = 'Overdue'
+      else if (done > 0) d.goals[gi].strategies[si].measures[mi].status = 'InProgress'
+      else d.goals[gi].strategies[si].measures[mi].status = 'NotStarted'
       return d
     })
   }, [update])
@@ -160,650 +212,425 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], onM
   const updateTodoById = useCallback((gi, si, mi, todoId, field, value) => {
     update(d => {
       const todos = d.goals[gi].strategies[si].measures[mi].todos || []
-      d.goals[gi].strategies[si].measures[mi].todos = todos.map(t =>
-        t.id === todoId ? { ...t, [field]: value } : t
-      )
+      d.goals[gi].strategies[si].measures[mi].todos = todos.map(t => t.id === todoId ? { ...t, [field]: value } : t)
       return d
     })
   }, [update])
 
-  // ── AI 局部生成 ──────────────────────────────────────────
   const handleAiConfirm = useCallback(async (text) => {
     if (!aiDialog || !draft) return
     const { type, gi, si, mi } = aiDialog
     setAiLoading(true)
 
-    const makeTodos = (arr) => (arr || []).map(t => ({
-      id: crypto.randomUUID(), text: typeof t === 'string' ? t : (t.text || ''),
-      done: false, assignee: typeof t === 'object' ? (t.assignee || '') : '',
-      deadline: typeof t === 'object' ? (t.deadline || '') : '',
-      createdAt: new Date().toISOString()
-    }))
-
-    const makeMeasure = (m, sortOrder) => ({
-      id: null, kpi: m.kpi || '', target: m.target || '',
-      deadline: m.deadline || '', assignee: '', actual: '', progress: 0,
-      status: 'NotStarted', sortOrder,
-      todos: makeTodos(m.todos),
-    })
+    const makeTodos = (arr) => (arr || []).map(t => ({ id: crypto.randomUUID(), text: typeof t === 'string' ? t : (t.text || ''), done: false, assignee: typeof t === 'object' ? (t.assignee || '') : '', deadline: typeof t === 'object' ? (t.deadline || '') : '', createdAt: new Date().toISOString() }))
+    const makeMeasure = (m, sortOrder) => ({ id: null, kpi: m.kpi || '', target: m.target || '', deadline: m.deadline || '', assignee: '', actual: '', progress: 0, status: 'NotStarted', sortOrder, todos: makeTodos(m.todos) })
 
     try {
       if (type === 'goal') {
         const existingGoals = draft.goals.map(g => g.text).filter(t => t.trim())
-        const res = await api.generateForGoal({
-          goalText: text, objective: draft.objective,
-          deadline: draft.deadline || undefined, existingGoals,
-        })
+        const res = await api.generateForGoal({ goalText: text, objective: draft.objective, deadline: draft.deadline || undefined, existingGoals })
         update(d => {
           const goal = d.goals[gi]
           goal.text = text.trim() || res.goalText || goal.text || `Goal ${gi + 1}`
-          // 每個 Strategy 只建 MD rows；todos 即 MP 行動步驟
-          goal.strategies = (res.strategies || []).map((s, idx) => ({
-            id: null, text: s.text || '', sortOrder: idx, todos: [],
-            measures: (s.measures || []).map((m, mi) => makeMeasure(m, mi)),
-          }))
+          goal.strategies = (res.strategies || []).map((s, idx) => ({ id: null, text: s.text || '', sortOrder: idx, todos: [], measures: (s.measures || []).map((m, mi) => makeMeasure(m, mi)) }))
           return d
         })
-
       } else if (type === 'strategy') {
-        const res = await api.generateForStrategy({
-          strategyText: text, goalText: draft.goals[gi].text,
-          objective: draft.objective, deadline: draft.deadline || undefined,
-        })
+        const res = await api.generateForStrategy({ strategyText: text, goalText: draft.goals[gi].text, objective: draft.objective, deadline: draft.deadline || undefined })
         update(d => {
           const st = d.goals[gi].strategies[si]
           st.text = text.trim() || res.strategyText || st.text || `Strategy ${si + 1}`
-          // 只建 MD rows；todos 即 MP 行動步驟
           st.measures = (res.measures || []).map((m, idx) => makeMeasure(m, idx))
           return d
         })
-
       } else if (type === 'measure') {
-        const res = await api.generateForMeasure({
-          kpiText:      text,
-          strategyText: draft.goals[gi].strategies[si].text,
-          objective:    draft.objective,
-          deadline:     draft.deadline || undefined,
-        })
+        const res = await api.generateForMeasure({ kpiText: text, strategyText: draft.goals[gi].strategies[si].text, objective: draft.objective, deadline: draft.deadline || undefined })
         update(d => {
           const m = d.goals[gi].strategies[si].measures[mi]
-          m.kpi  = text.trim() || res.kpiText || m.kpi || ''
-          m.target = res.target || m.target || ''
-          m.deadline = res.deadline || m.deadline || ''
-          m.todos = makeTodos(res.todos)
+          m.kpi = text.trim() || res.kpiText || m.kpi || ''; m.target = res.target || m.target || ''; m.deadline = res.deadline || m.deadline || ''; m.todos = makeTodos(res.todos)
           return d
         })
       }
-    } catch (e) {
-      console.error('AI partial generation failed:', e)
-      alert('AI 生成失敗：' + e.message)
-    } finally {
-      setAiLoading(false)
-      setAiDialog(null)
-    }
+    } catch (e) { alert('AI 生成失敗：' + e.message) } finally { setAiLoading(false); setAiDialog(null) }
   }, [aiDialog, draft, update])
 
-  const handleSave = async () => {
-    setSaving(true)
-    try { await onSave(draft) } finally { setSaving(false) }
-    setDirty(false)
-  }
+  const handleSave = async () => { setSaving(true); try { await onSave(draft) } finally { setSaving(false) }; setDirty(false) }
 
   if (!draft) return null
 
-  const setField        = (f,v)         => update(d => { d[f] = v; return d })
-  const setGoalText     = (gi,v)        => update(d => { d.goals[gi].text = v; return d })
-  const addGoal         = ()            => update(d => { d.goals.push(emptyGoal()); return d })
-  const removeGoal      = (gi)          => update(d => { d.goals.splice(gi,1); return d })
-  const setStratText    = (gi,si,v)     => update(d => { d.goals[gi].strategies[si].text = v; return d })
-  const addStrategy     = (gi)          => update(d => { d.goals[gi].strategies.push(emptyStrategy()); return d })
-  const removeStrategy  = (gi,si)       => update(d => { d.goals[gi].strategies.splice(si,1); return d })
-  const setMField       = (gi,si,mi,f,v)=> update(d => {
-    d.goals[gi].strategies[si].measures[mi][f] = v
-    const m = d.goals[gi].strategies[si].measures[mi]
-    const today = new Date().toISOString().slice(0, 10)
+  // CRUD helpers
+  const setField       = (f,v)          => update(d => { d[f] = v; return d })
+  const setGoalText    = (gi,v)          => update(d => { d.goals[gi].text = v; return d })
+  const addGoal        = ()              => update(d => { d.goals.push(emptyGoal()); return d })
+  const removeGoal     = (gi)            => update(d => { d.goals.splice(gi,1); return d })
+  const setStratText   = (gi,si,v)       => update(d => { d.goals[gi].strategies[si].text = v; return d })
+  const addStrategy    = (gi)            => update(d => { d.goals[gi].strategies.push(emptyStrategy()); return d })
+  const removeStrategy = (gi,si)         => update(d => { d.goals[gi].strategies.splice(si,1); return d })
+  const setMField      = (gi,si,mi,f,v)  => update(d => {
+    d.goals[gi].strategies[si].measures[mi][f] = v; const m = d.goals[gi].strategies[si].measures[mi]; const today = new Date().toISOString().slice(0, 10)
     if (f === 'deadline') {
       if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
       else if ((!m.deadline || m.deadline >= today) && m.status === 'Overdue') m.status = autoStatus(m)
     }
     if (f === 'progress') {
-      const isOverdue = m.deadline && m.deadline < today
-      if (isOverdue && v < 100) m.status = 'Overdue'
-      else m.status = autoStatus(m)
+      if (m.deadline && m.deadline < today && v < 100) m.status = 'Overdue'; else m.status = autoStatus(m)
     }
     return d
   })
-  const addMeasure      = (gi,si) => update(d => { d.goals[gi].strategies[si].measures.push(emptyMeasure()); return d })
-  const removeMeasure   = (gi,si,mi)    => update(d => { d.goals[gi].strategies[si].measures.splice(mi,1); return d })
-
-  const setMTodos = (gi,si,mi,todos) => update(d => {
-    d.goals[gi].strategies[si].measures[mi].todos = todos
-    const done = todos.filter(t => t.done).length
-    const pct = todos.length ? Math.round((done / todos.length) * 100) : 0
-    d.goals[gi].strategies[si].measures[mi].progress = pct
-    const m = d.goals[gi].strategies[si].measures[mi]
-    const today = new Date().toISOString().slice(0, 10)
-    const isOverdue = m.deadline && m.deadline < today
-    if (isOverdue && pct < 100) m.status = 'Overdue'
-    else m.status = autoStatus(m)
+  const addMeasure     = (gi,si)         => update(d => { d.goals[gi].strategies[si].measures.push(emptyMeasure()); return d })
+  const removeMeasure  = (gi,si,mi)      => update(d => { d.goals[gi].strategies[si].measures.splice(mi,1); return d })
+  const setMTodos      = (gi,si,mi,todos) => update(d => {
+    d.goals[gi].strategies[si].measures[mi].todos = todos; const done = todos.filter(t => t.done).length; const pct = todos.length ? Math.round((done / todos.length) * 100) : 0
+    d.goals[gi].strategies[si].measures[mi].progress = pct; const m = d.goals[gi].strategies[si].measures[mi]; const today = new Date().toISOString().slice(0, 10)
+    if (m.deadline && m.deadline < today && pct < 100) m.status = 'Overdue'; else m.status = autoStatus(m)
     return d
   })
 
-  // Drag handlers — measures
-  const handleMeasureDragStart = (e, gi, si, mi) => {
-    const tag = e.target.tagName.toLowerCase()
-    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
-    e.stopPropagation()
-    setDragMeasure({ gi, si, mi })
-    e.dataTransfer.effectAllowed = 'move'
-  }
-  const handleMeasureDragOver = (e, gi, si, mi) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si) return
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverMeasure?.mi !== mi) setDragOverMeasure({ gi, si, mi })
-  }
-  const handleMeasureDrop = (e, gi, si, mi) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si || dragMeasure.mi === mi) {
-      setDragMeasure(null); setDragOverMeasure(null); return
-    }
-    update(d => {
-      const measures = d.goals[gi].strategies[si].measures
-      const [removed] = measures.splice(dragMeasure.mi, 1)
-      measures.splice(mi, 0, removed)
-      return d
-    })
-    setDragMeasure(null); setDragOverMeasure(null)
-  }
-  const handleMeasureDragEnd = () => { setDragMeasure(null); setDragOverMeasure(null) }
-
-  // Drag handlers — todos
-  const handleTodoDragStart = (e, gi, si, mi, ti) => {
-    const tag = e.target.tagName.toLowerCase()
-    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
-    e.stopPropagation()
-    setDragTodo({ gi, si, mi, ti })
-    e.dataTransfer.effectAllowed = 'move'
-  }
-  const handleTodoDragOver = (e, gi, si, mi, ti) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi) return
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverTodo?.ti !== ti) setDragOverTodo({ gi, si, mi, ti })
-  }
-  const handleTodoDrop = (e, gi, si, mi, ti) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi || dragTodo.ti === ti) {
-      setDragTodo(null); setDragOverTodo(null); return
-    }
-    const todos = [...(draft.goals[gi].strategies[si].measures[mi].todos || [])]
-    const [removed] = todos.splice(dragTodo.ti, 1)
-    todos.splice(ti, 0, removed)
-    setMTodos(gi, si, mi, todos)
-    setDragTodo(null); setDragOverTodo(null)
-  }
-  const handleTodoDragEnd = () => { setDragTodo(null); setDragOverTodo(null) }
-
-  // Drag handlers — goals
-  const handleGoalDragStart = (e, gi) => {
-    const tag = e.target.tagName.toLowerCase()
-    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
-    setDragGoal(gi); e.dataTransfer.effectAllowed = 'move'
-  }
-  const handleGoalDragOver = (e, gi) => {
-    e.preventDefault()
-    if (dragGoal == null) return
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverGoal !== gi) setDragOverGoal(gi)
-  }
-  const handleGoalDrop = (e, gi) => {
-    e.preventDefault()
-    if (dragGoal == null || dragGoal === gi) { setDragGoal(null); setDragOverGoal(null); return }
-    update(d => { const [r] = d.goals.splice(dragGoal, 1); d.goals.splice(gi, 0, r); return d })
-    setDragGoal(null); setDragOverGoal(null)
-  }
-  const handleGoalDragEnd = () => { setDragGoal(null); setDragOverGoal(null) }
-
-  // Drag handlers — strategies
-  const handleStrategyDragStart = (e, gi, si) => {
-    const tag = e.target.tagName.toLowerCase()
-    if (['textarea', 'input', 'select', 'button'].includes(tag)) { e.preventDefault(); return }
-    e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move'
-  }
-  const handleStrategyDragOver = (e, gi, si) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragStrategy || dragStrategy.gi !== gi) return
-    e.dataTransfer.dropEffect = 'move'
-    if (dragOverStrategy?.si !== si) setDragOverStrategy({ gi, si })
-  }
-  const handleStrategyDrop = (e, gi, si) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!dragStrategy || dragStrategy.gi !== gi || dragStrategy.si === si) { setDragStrategy(null); setDragOverStrategy(null); return }
-    update(d => {
-      const strategies = d.goals[gi].strategies
-      const [r] = strategies.splice(dragStrategy.si, 1)
-      strategies.splice(si, 0, r)
-      return d
-    })
-    setDragStrategy(null); setDragOverStrategy(null)
-  }
-  const handleStrategyDragEnd = () => { setDragStrategy(null); setDragOverStrategy(null) }
+  // Drag handlers
+  const handleMeasureDragStart = (e, gi, si, mi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragMeasure({ gi, si, mi }); e.dataTransfer.effectAllowed = 'move' }
+  const handleMeasureDragOver  = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si) return; e.dataTransfer.dropEffect = 'move'; if (dragOverMeasure?.mi !== mi) setDragOverMeasure({ gi, si, mi }) }
+  const handleMeasureDrop      = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si || dragMeasure.mi === mi) { setDragMeasure(null); setDragOverMeasure(null); return } update(d => { const measures = d.goals[gi].strategies[si].measures; const [removed] = measures.splice(dragMeasure.mi, 1); measures.splice(mi, 0, removed); return d }); setDragMeasure(null); setDragOverMeasure(null) }
+  const handleMeasureDragEnd   = () => { setDragMeasure(null); setDragOverMeasure(null) }
+  const handleTodoDragStart = (e, gi, si, mi, ti) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragTodo({ gi, si, mi, ti }); e.dataTransfer.effectAllowed = 'move' }
+  const handleTodoDragOver  = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverTodo?.ti !== ti) setDragOverTodo({ gi, si, mi, ti }) }
+  const handleTodoDrop      = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi || dragTodo.ti === ti) { setDragTodo(null); setDragOverTodo(null); return } const todos = [...(draft.goals[gi].strategies[si].measures[mi].todos || [])]; const [removed] = todos.splice(dragTodo.ti, 1); todos.splice(ti, 0, removed); setMTodos(gi, si, mi, todos); setDragTodo(null); setDragOverTodo(null) }
+  const handleTodoDragEnd   = () => { setDragTodo(null); setDragOverTodo(null) }
+  const handleGoalDragStart = (e, gi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } setDragGoal(gi); e.dataTransfer.effectAllowed = 'move' }
+  const handleGoalDragOver  = (e, gi) => { e.preventDefault(); if (dragGoal == null) return; e.dataTransfer.dropEffect = 'move'; if (dragOverGoal !== gi) setDragOverGoal(gi) }
+  const handleGoalDrop      = (e, gi) => { e.preventDefault(); if (dragGoal == null || dragGoal === gi) { setDragGoal(null); setDragOverGoal(null); return } update(d => { const [r] = d.goals.splice(dragGoal, 1); d.goals.splice(gi, 0, r); return d }); setDragGoal(null); setDragOverGoal(null) }
+  const handleGoalDragEnd   = () => { setDragGoal(null); setDragOverGoal(null) }
+  const handleStrategyDragStart = (e, gi, si) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move' }
+  const handleStrategyDragOver  = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverStrategy?.si !== si) setDragOverStrategy({ gi, si }) }
+  const handleStrategyDrop      = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi || dragStrategy.si === si) { setDragStrategy(null); setDragOverStrategy(null); return } update(d => { const strategies = d.goals[gi].strategies; const [r] = strategies.splice(dragStrategy.si, 1); strategies.splice(si, 0, r); return d }); setDragStrategy(null); setDragOverStrategy(null) }
+  const handleStrategyDragEnd   = () => { setDragStrategy(null); setDragOverStrategy(null) }
 
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
-  const overallProgress = allMeasures.length
-    ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length)
-    : 0
-
-  const totalMinW = COL_G + COL_S + kpiW + COL_VALT + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT
+  const overallProgress = allMeasures.length ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length) : 0
+  const dark = darkMode
 
   return (
-    <div style={s.wrap}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent', position: 'relative' }}>
       <style>{`
-        .ogsm-remove-btn:hover {
-          background: rgba(239,68,68,0.35) !important;
-          border-color: rgba(239,68,68,0.7) !important;
-          color: #fff !important;
-          transform: scale(1.1);
-          box-shadow: 0 0 8px rgba(239,68,68,0.5);
-        }
-        .ogsm-add-btn:hover { color: #f0a500 !important; background: rgba(240,165,0,0.07) !important; }
-        .ogsm-audit-btn:hover {
-          background: rgba(212,168,85,0.12) !important; border-color: #d4a855 !important;
-          color: #d4a855 !important; box-shadow: 0 0 8px rgba(212,168,85,0.25); transform: translateY(-1px);
-        }
-        .ogsm-edit-btn:hover { background: rgba(138,149,174,0.15) !important; border-color: rgba(138,149,174,0.6) !important; transform: translateY(-1px); }
-        .ogsm-save-btn:hover:not(:disabled) { background: #ffc233 !important; box-shadow: 0 4px 12px rgba(240,165,0,0.4); transform: translateY(-1px); }
-        .ogsm-ai-btn:hover {
-          background: rgba(240,165,0,0.22) !important; border-color: rgba(240,165,0,0.7) !important;
-          color: #f0a500 !important; box-shadow: 0 0 8px rgba(240,165,0,0.35); transform: scale(1.12);
-        }
-        .ogsm-todo-btn:hover {
-          background: rgba(76,175,125,0.12) !important; border-color: #4caf7d !important;
-          color: #4caf7d !important; box-shadow: 0 0 8px rgba(76,175,125,0.25); transform: translateY(-1px);
-        }
-        .ogsm-actual-input::placeholder { color: ${darkMode ? 'rgba(205,199,199,0.45)' : 'rgba(133,129,129,0.45)'}; }
-        .ogsm-measure-drag-row { transition: filter 0.15s, opacity 0.15s; }
-        .ogsm-measure-drag-row[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
-        .ogsm-measure-drag-row[data-dragover='true'] { outline: 2px solid #f0a500; outline-offset: -1px; border-radius: 3px; }
-        .ogsm-goal-drag-block { transition: filter 0.15s, opacity 0.15s; }
-        .ogsm-goal-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
-        .ogsm-goal-drag-block[data-dragover='true'] { outline: 2px solid #f0a500; outline-offset: -1px; }
-        .ogsm-strategy-drag-block { transition: filter 0.15s, opacity 0.15s; }
-        .ogsm-strategy-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
-        .ogsm-strategy-drag-block[data-dragover='true'] { outline: 2px solid #f0a500; outline-offset: -1px; border-radius: 2px; }
+        @keyframes b-spin { to { transform: rotate(360deg); } }
+        @keyframes ogsm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .ogsm-slide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 9998; animation: ogsm-fade-in 0.2s ease-out forwards; }
+        .ogsm-slide-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 9999; box-shadow: -10px 0 40px rgba(0,0,0,0.4); display: flex; flex-direction: column; animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        .b-header-btn { border: 2px solid #000; box-shadow: 2px 2px 0 rgba(0,0,0,1); transition: transform 0.1s, box-shadow 0.1s, background 0.15s, color 0.15s; cursor: pointer; display: flex; alignItems: center; gap: 8px; font-weight: 900; text-transform: uppercase; font-size: 11px; font-family: "Space Grotesk", sans-serif; letter-spacing: 0.04em; }
+        .dark .b-header-btn { border-color: rgba(255,255,255,0.2); box-shadow: 2px 2px 0 rgba(255,255,255,0.1); }
+        .b-header-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(0,0,0,1); }
+        .dark .b-header-btn:active { box-shadow: 1px 1px 0 rgba(255,255,255,0.1); }
+        
+        .ogsm-table-row { transition: background 0.15s; }
+        .ogsm-table-row:hover { background: ${dark ? 'rgba(0,0,255,0.04)' : 'rgba(0,0,255,0.02)'}; }
+
+        .ogsm-remove-btn:hover { background: ${B_PINK} !important; border-color: #000 !important; color: #000 !important; transform: scale(1.05); box-shadow: 2px 2px 0 #000; }
+        .ogsm-add-btn:hover { color: ${B_YELLOW} !important; }
+        .ogsm-ai-btn:hover { background: ${B_YELLOW} !important; border-color: #000 !important; color: #000 !important; box-shadow: 2px 2px 0 #000; transform: scale(1.05); }
+        .ogsm-measure-drag-row[data-dragging='true'], .ogsm-goal-drag-block[data-dragging='true'], .ogsm-strategy-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
+        .ogsm-measure-drag-row[data-dragover='true'], .ogsm-goal-drag-block[data-dragover='true'], .ogsm-strategy-drag-block[data-dragover='true'] { outline: 2px solid ${B_YELLOW}; outline-offset: -1px; }
+        
+        /* 改為取消文字選中或聚焦時的藍色外框 */
+        textarea:focus, input:focus, select:focus { outline: none !important; box-shadow: none !important; }
+        ::selection { background: ${B_YELLOW}; color: #000; }
       `}</style>
 
-      {/* ── Top bar ── */}
-      <div style={s.topBar}>
-        <div style={s.topLeft}>
-          {overallProgress >= 100
-            ? <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#4caf7d', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>✓ 計畫已完成</span>
-            : draft.deadline && draft.deadline < new Date().toISOString().slice(0, 10) && (
-              <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: '4px', padding: '2px 7px', marginBottom: '4px', letterSpacing: '0.4px' }}>⚠ 計畫已逾期</span>
-            )
-          }
-          <input style={s.titleInput} value={draft.title} onChange={e => setField('title', e.target.value)} placeholder="專案標題" />
-          <div style={s.metaRow}>
-            <span style={s.metaBadge}>OGSM</span>
-            <span style={s.metaDate}>更新：{new Date(draft.updatedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
+      {/* ── Top Header ── */}
+      <div style={{ padding: '12px 24px', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 20, background: dark ? 'rgba(20,20,20,0.3)' : 'rgba(255,255,255,0.3)', backdropFilter: 'blur(16px)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          
+          <button onClick={onToggleSidebar} title="收合/展開側邊欄" style={{ background: 'transparent', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', cursor: 'pointer', padding: '4px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = dark ? '#fff' : '#000'} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}>
+            {sidebarOpen ? <Icons.PanelLeftClose /> : <Icons.Menu />}
+          </button>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <input
+              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '24px', letterSpacing: '-0.02em', textTransform: 'uppercase', fontStyle: 'italic', outline: 'none', width: '300px', marginBottom: '4px', lineHeight: 1 }}
+              value={draft.title}
+              onChange={e => setField('title', e.target.value)}
+              placeholder="專案標題"
+              readOnly={!editMode}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: dark ? B_BLUE : '#000', color: dark ? '#fff' : B_YELLOW, fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '2px 6px' }}>OGSM</span>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>更新：{new Date(draft.updatedAt).toLocaleDateString('zh-TW')}</span>
+            </div>
           </div>
         </div>
-        <div style={s.topActions}>
-          <div style={s.overallWrap}>
-            <span style={s.overallLabel}>整體進度</span>
-            <div style={s.overallBarTrack}><div style={{ ...s.overallBarFill, width: `${overallProgress}%` }} /></div>
-            <span style={s.overallPct}>{overallProgress}%</span>
-          </div>
-          <button className="ogsm-audit-btn" style={s.auditBtn} onClick={() => onAudit(draft)} title="查看審計報告">📊 審計報告</button>
-          <button className="ogsm-todo-btn" style={{ ...s.auditBtn, position: 'relative' }} onClick={() => setShowTodoPanel(true)} title="MP 檢核步驟管理">
-            ☑ MP 檢核步驟
-            {pendingTodos > 0 && (
-              <span style={{ position: 'absolute', top: '-6px', right: '-6px', minWidth: '17px', height: '17px', background: '#e05252', color: '#fff', fontSize: '9px', fontFamily: '"DM Mono", monospace', fontWeight: 700, borderRadius: '99px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
-                {pendingTodos > 99 ? '99+' : pendingTodos}
-              </span>
-            )}
-          </button>
-          <button className="ogsm-edit-btn" style={{ ...s.editBtn, ...(editMode ? s.editBtnActive : {}) }} onClick={() => setEditMode(!editMode)}>
-            {editMode ? '✓ 完成編輯' : '✏️ 編輯'}
-          </button>
-          <button className="ogsm-save-btn" style={{ ...s.saveBtn, ...(saving || !dirty ? s.saveBtnDim : {}) }} onClick={handleSave} disabled={saving || !dirty}>
-            {saving ? '儲存中…' : dirty ? '💾 儲存' : '✓ 已儲存'}
-          </button>
-        </div>
-      </div>
 
-      {/* ── Objective ── */}
-      <div style={s.objectiveWrap}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-          <div style={{ flex: 1 }}>
-            <div style={s.sectionTag}>O — Objective</div>
-            <textarea style={s.objectiveArea} value={draft.objective} onChange={e => setField('objective', e.target.value)} placeholder="輸入核心目標…" rows={2} />
-          </div>
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', paddingTop: '2px' }}>
-            <div style={{ fontSize: '10px', color: darkMode ? '#8a95ae' : '#7a8ca8', fontFamily: '"DM Mono", monospace', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 600 }}>計畫期限</div>
-            <input type="date" style={s.projectDeadlineInput} value={draft.deadline || ''} onChange={e => setField('deadline', e.target.value)} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Table ── */}
-      <div
-        ref={scrollRef}
-        style={s.tableScroll}
-        onDragOver={handleScrollZoneDragOver}
-        onDragEnd={handleScrollZoneDragEnd}
-        onDrop={handleScrollZoneDragEnd}
-      >
-        <div style={{ ...s.tableWrap, minWidth: totalMinW }}>
-
-          {/* Header — no 類型 column */}
-          <div style={s.tableHeader}>
-            {[
-              { label: 'G — Goals',      w: COL_G      },
-              { label: 'S — Strategies', w: COL_S      },
-              { label: 'MD 定量指標',    w: kpiW       },
-              { label: '目標值',          w: COL_VALT   },
-              { label: '實際值',          w: COL_VALP   },
-              { label: '負責人',          w: COL_OWNER  },
-              { label: '期限',            w: COL_DL     },
-              { label: '狀態',            w: COL_STATUS },
-              { label: '進度',            w: COL_PROG   },
-              { label: 'MP 檢核指標',    w: COL_ACT    },
-            ].map((col, i) => (
-              <div key={i} style={{ ...s.colHead, width: col.w, ...(i >= 7 ? { borderRight: 'none' } : {}), ...(i <= 2 ? { paddingLeft: editMode ? '20px' : '12px' } : {}) }}>
-                {col.label}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, color: dark ? '#fff' : '#000' }}>進度</span>
+              <div style={{ width: '100px', height: '6px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden', border: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}` }}>
+                <div style={{ height: '100%', width: `${overallProgress}%`, background: `linear-gradient(90deg, ${B_YELLOW}, ${B_GREEN})`, transition: 'width 0.4s' }} />
               </div>
-            ))}
+              <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 900, fontStyle: 'italic', color: dark ? '#fff' : '#000' }}>{overallProgress}%</span>
+            </div>
           </div>
 
-          {draft.goals.length === 0 && (
-            <div style={s.emptyTable}>尚無 Goals，點擊下方「+ 新增 Goal」</div>
-          )}
+          <button className="b-header-btn b-action-btn" onClick={() => setShowLocalAudit(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#f9fafb'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+            <Icons.FileText /> 審計報告
+          </button>
+          
+          <button className="b-header-btn b-action-btn" onClick={() => setShowTodoPanel(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#f9fafb'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+            <Icons.CheckCircle /> MP 總覽
+            {pendingTodos > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: B_PINK, color: '#fff', fontSize: '9px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: `1px solid ${dark ? '#2a2a2a' : '#fff'}` }}>{pendingTodos > 99 ? '99' : pendingTodos}</span>}
+          </button>
 
-          {draft.goals.map((goal, gi) => {
-            const isGDragging = dragGoal === gi
-            const isGDragOver = dragOverGoal === gi && dragGoal !== gi
-            return (
-              <div
-                key={goal.id ?? `g-${gi}`}
-                className="ogsm-goal-drag-block"
-                data-dragging={isGDragging ? 'true' : 'false'}
-                data-dragover={isGDragOver ? 'true' : 'false'}
-                style={{ ...s.goalSection, ...(gi % 2 === 1 ? s.goalSectionAlt : {}), cursor: editMode ? 'grab' : 'default' }}
-                draggable={editMode}
-                onDragStart={editMode ? e => handleGoalDragStart(e, gi) : undefined}
-                onDragOver={editMode ? e => handleGoalDragOver(e, gi) : undefined}
-                onDrop={editMode ? e => handleGoalDrop(e, gi) : undefined}
-                onDragEnd={editMode ? handleGoalDragEnd : undefined}
-              >
-                <div style={s.goalRow}>
+          <button className="b-header-btn b-action-btn" onClick={() => setEditMode(!editMode)} style={{ padding: '6px 12px', background: editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'), color: editMode ? (dark ? '#000' : '#fff') : B_BLUE }} onMouseEnter={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'); e.currentTarget.style.color = editMode ? (dark ? '#000' : '#fff') : B_BLUE }}>
+            <Icons.Edit /> {editMode ? '停止編輯' : '編輯'}
+          </button>
+          
+          <button className="b-header-btn b-action-btn" onClick={handleSave} disabled={saving || !dirty} style={{ padding: '6px 12px', background: dirty && !saving ? B_GREEN : (dark ? '#2a2a2a' : '#f3f4f6'), color: dirty && !saving ? '#000' : (dark ? 'rgba(255,255,255,0.4)' : '#9ca3af'), cursor: dirty && !saving ? 'pointer' : 'not-allowed' }} onMouseEnter={e => { if(dirty && !saving) e.currentTarget.style.background = '#fff' }} onMouseLeave={e => { if(dirty && !saving) e.currentTarget.style.background = B_GREEN }}>
+            <Icons.Check /> {saving ? '儲存中' : dirty ? '儲存' : '已儲存'}
+          </button>
+        </div>
+      </div>
 
-                  {/* Goal cell */}
-                  <div style={{ ...s.goalCell, width: COL_G, position: 'relative', paddingLeft: editMode ? '20px' : '12px' }}>
-                    {editMode && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: darkMode ? '#3a4a60' : '#b0bdd0', fontSize: '13px', cursor: 'grab', userSelect: 'none' }} title="拖拉排序">⠿</div>}
-                    <div style={s.goalIndex}>G{gi + 1}</div>
-                    <textarea data-ogsm-autoresize style={{ ...s.measureText, ...s.goalText }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} />
-                    {editMode && (
-                      <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-end' }}>
-                        {goal.id == null && <button style={s.aiBtnSmall} title="AI 生成 Strategies" onClick={() => setAiDialog({ type: 'goal', gi, si: null, mi: null, currentText: goal.text })}>⚡</button>}
-                        <button className="ogsm-remove-btn" style={{ ...s.iconBtn, alignSelf: 'flex-end' }} onClick={() => removeGoal(gi)}>✕</button>
-                      </div>
-                    )}
-                  </div>
+      {/* ── Objective & Deadline ── */}
+      <div style={{ padding: '16px 24px 0 24px', flexShrink: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '12px' }}>
+          <div style={{ padding: '12px 16px', border: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, background: dark ? 'rgba(20,20,20,0.4)' : 'rgba(255,255,255,0.4)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: B_YELLOW, marginBottom: '4px' }}>O - Objective</div>
+            <textarea
+              style={{ width: '100%', background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: 'inherit', fontWeight: 700, fontSize: '14px', lineHeight: 1.4, resize: 'none', outline: 'none' }}
+              value={draft.objective}
+              onChange={e => setField('objective', e.target.value)}
+              placeholder="輸入核心目標…"
+              rows={1}
+              readOnly={!editMode}
+            />
+          </div>
+          <div style={{ padding: '12px 16px', border: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, background: dark ? 'rgba(20,20,20,0.4)' : 'rgba(255,255,255,0.4)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <label style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.5, marginBottom: '4px', color: dark ? '#fff' : '#000' }}>計畫截止期限</label>
+            <input
+              type="date"
+              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontSize: '14px', fontFamily: 'monospace', fontWeight: 900, outline: 'none', colorScheme: dark ? 'dark' : 'light', width: '100%', cursor: editMode ? 'text' : 'default' }}
+              value={draft.deadline || ''}
+              onChange={e => setField('deadline', e.target.value)}
+              readOnly={!editMode}
+            />
+          </div>
+        </div>
+      </div>
 
-                  {/* Strategies */}
-                  <div style={s.strategiesWrap}>
-                    {goal.strategies.map((st, si) => {
-                      const isSDragging = dragStrategy?.gi === gi && dragStrategy?.si === si
-                      const isSDragOver = dragOverStrategy?.gi === gi && dragOverStrategy?.si === si && !isSDragging
-                      return (
-                        <div
-                          key={st.id ?? `s-${si}`}
-                          className="ogsm-strategy-drag-block"
-                          data-dragging={isSDragging ? 'true' : 'false'}
-                          data-dragover={isSDragOver ? 'true' : 'false'}
-                          style={{ ...s.strategyBlock, cursor: editMode ? 'grab' : 'default' }}
-                          draggable={editMode}
-                          onDragStart={editMode ? e => handleStrategyDragStart(e, gi, si) : undefined}
-                          onDragOver={editMode ? e => handleStrategyDragOver(e, gi, si) : undefined}
-                          onDrop={editMode ? e => handleStrategyDrop(e, gi, si) : undefined}
-                          onDragEnd={editMode ? handleStrategyDragEnd : undefined}
-                        >
-                          <div style={s.strategyRow}>
+      {/* ── Table (利用 100% 寬度與 ResizeObserver 動態分配比例) ── */}
+      <div style={{ flex: 1, minHeight: 0, padding: '12px 24px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+        <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', background: dark ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)', border: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, boxShadow: `4px 4px 0 ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }} className="custom-scrollbar" onDragOver={handleScrollZoneDragOver} onDragEnd={handleScrollZoneDragEnd} onDrop={handleScrollZoneDragEnd}>
+          <div style={{ width: '100%', minWidth: baseTotalW }}>
+            
+            {/* Table Header (Sticky) */}
+            <div style={{ display: 'flex', background: dark ? '#2a2a2a' : '#f3f4f6', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, position: 'sticky', top: 0, zIndex: 10 }}>
+              {[
+                { label: 'G - Goals',      w: COL_G      },
+                { label: 'S - Strategies', w: dynS       },
+                { label: 'MD 定量指標',    w: dynKpi     },
+                { label: '目標值',          w: dynTarget  },
+                { label: '實際值',          w: COL_VALP   },
+                { label: '負責人',          w: COL_OWNER  },
+                { label: '期限',            w: COL_DL     },
+                { label: '狀態',            w: COL_STATUS },
+                { label: '進度',            w: COL_PROG   },
+                { label: 'MP 檢核指標',      w: COL_ACT    },
+              ].map((col, i) => (
+                <div key={i} style={{ width: col.w, minWidth: col.w, padding: '12px 16px', fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', borderRight: i < 9 ? `1px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none', flexShrink: 0 }}>
+                  {col.label}
+                </div>
+              ))}
+            </div>
 
+            {/* Table Content */}
+            {draft.goals.length === 0 && (
+              <div style={{ padding: '64px', textAlign: 'center', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.3)', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                尚無 Goals，點擊下方「+ 新增 Goal」
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {draft.goals.map((goal, gi) => {
+                const isGDragging = dragGoal === gi
+                const isGDragOver = dragOverGoal === gi && dragGoal !== gi
+                return (
+                  <div key={goal.id ?? `g-${gi}`} className="ogsm-goal-drag-block" data-dragging={isGDragging ? 'true' : 'false'} data-dragover={isGDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, cursor: editMode ? 'grab' : 'default' }} draggable={editMode} onDragStart={editMode ? e => handleGoalDragStart(e, gi) : undefined} onDragOver={editMode ? e => handleGoalDragOver(e, gi) : undefined} onDrop={editMode ? e => handleGoalDrop(e, gi) : undefined} onDragEnd={editMode ? handleGoalDragEnd : undefined}>
+                    
+                    {/* Goal cell */}
+                    <div style={{ width: COL_G, minWidth: COL_G, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
+                      {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
+                      <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: B_YELLOW, marginBottom: '6px' }}>G{gi + 1}</div>
+                      <textarea data-ogsm-autoresize style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', paddingLeft: editMode ? '12px' : '0' }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} readOnly={!editMode} />
+                      {editMode && (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                          {goal.id == null && <button style={s.aiBtnSmall} title="AI 生成 Strategies" className="ogsm-ai-btn" onClick={() => setAiDialog({ type: 'goal', gi, si: null, mi: null, currentText: goal.text })}>⚡</button>}
+                          <button className="ogsm-remove-btn" style={s.iconBtn} onClick={() => removeGoal(gi)}>✕</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Strategies wrapper */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      {goal.strategies.map((st, si) => {
+                        const isSDragging = dragStrategy?.gi === gi && dragStrategy?.si === si
+                        const isSDragOver = dragOverStrategy?.gi === gi && dragOverStrategy?.si === si && !isSDragging
+                        return (
+                          <div key={st.id ?? `s-${si}`} className="ogsm-strategy-drag-block" data-dragging={isSDragging ? 'true' : 'false'} data-dragover={isSDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: si < goal.strategies.length - 1 ? `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none' }} draggable={editMode} onDragStart={editMode ? e => handleStrategyDragStart(e, gi, si) : undefined} onDragOver={editMode ? e => handleStrategyDragOver(e, gi, si) : undefined} onDrop={editMode ? e => handleStrategyDrop(e, gi, si) : undefined} onDragEnd={editMode ? handleStrategyDragEnd : undefined}>
+                            
                             {/* Strategy cell */}
-                            <div style={{ ...s.stratCell, width: COL_S, position: 'relative', paddingLeft: editMode ? '20px' : '12px' }}>
-                              {editMode && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: darkMode ? '#3a4a60' : '#b0bdd0', fontSize: '13px', cursor: 'grab', userSelect: 'none' }} title="拖拉排序">⠿</div>}
-                              <div style={s.stratIndex}>S{gi + 1}.{si + 1}</div>
-                              <textarea data-ogsm-autoresize style={s.measureText} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} />
+                            <div style={{ width: dynS, minWidth: dynS, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
+                              {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
+                              <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px' }}>S{gi + 1}.{si + 1}</div>
+                              <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0' }} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} readOnly={!editMode} />
                               {editMode && (
-                                <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-end' }}>
-                                  {st.id == null && <button style={s.aiBtnSmall} title="AI 生成 Measures" onClick={() => setAiDialog({ type: 'strategy', gi, si, mi: null, currentText: st.text })}>⚡</button>}
-                                  <button className="ogsm-remove-btn" style={{ ...s.iconBtn, alignSelf: 'flex-end' }} onClick={() => removeStrategy(gi, si)}>✕</button>
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                                  {st.id == null && <button style={s.aiBtnSmall} title="AI 生成 Measures" className="ogsm-ai-btn" onClick={() => setAiDialog({ type: 'strategy', gi, si, mi: null, currentText: st.text })}>⚡</button>}
+                                  <button className="ogsm-remove-btn" style={s.iconBtn} onClick={() => removeStrategy(gi, si)}>✕</button>
                                 </div>
                               )}
                             </div>
 
-                            {/* Measures */}
-                            <div style={s.measuresCol}>
+                            {/* Measures wrapper */}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                               {st.measures.map((m, mi) => {
                                 const sc = STATUS_CONFIG[m.status] || STATUS_CONFIG.NotStarted
                                 const isMDragging = dragMeasure?.gi === gi && dragMeasure?.si === si && dragMeasure?.mi === mi
                                 const isMDragOver = dragOverMeasure?.gi === gi && dragOverMeasure?.si === si && dragOverMeasure?.mi === mi && !isMDragging
+                                
                                 const todoKey = `${gi}-${si}-${mi}`
                                 const todoOpen = openTodos.has(todoKey)
                                 const todos = m.todos || []
                                 const doneCount = todos.filter(t => t.done).length
-                                const todoProgressColor = !todos.length ? (darkMode ? '#6e7d94' : '#8a9ab8')
-                                  : doneCount === 0 ? (darkMode ? '#8a96a8' : '#9aaaba')
-                                  : doneCount === todos.length ? (darkMode ? '#4caf7d' : '#2a9060')
-                                  : (darkMode ? '#3b9ede' : '#1a7bbf')
 
                                 return (
-                                  <div
-                                    key={m.id ?? `m-${mi}`}
-                                    className="ogsm-measure-drag-row"
-                                    data-dragging={isMDragging ? 'true' : 'false'}
-                                    data-dragover={isMDragOver ? 'true' : 'false'}
-                                    draggable={editMode}
-                                    onDragStart={editMode ? e => handleMeasureDragStart(e, gi, si, mi) : undefined}
-                                    onDragOver={editMode ? e => handleMeasureDragOver(e, gi, si, mi) : undefined}
-                                    onDrop={editMode ? e => handleMeasureDrop(e, gi, si, mi) : undefined}
-                                    onDragEnd={editMode ? handleMeasureDragEnd : undefined}
-                                    style={{ overflow: 'hidden', minWidth: 0 }}
-                                  >
-                                    <div style={{ ...s.measureRow, cursor: editMode ? 'grab' : 'default' }} data-measure-row="1">
-
-                                      {/* MD 定量指標 cell — action buttons (edit mode) + kpi textarea */}
-                                      <div style={{ ...s.measureCell, width: kpiW, alignItems: 'flex-start', flexDirection: 'column', gap: '4px', padding: '7px 8px', position: 'relative', paddingLeft: editMode ? '20px' : '8px' }}>
-                                        {editMode && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: darkMode ? '#3a4a60' : '#b0bdd0', fontSize: '13px', cursor: 'grab', userSelect: 'none' }} title="拖拉排序">⠿</div>}
+                                  <div key={m.id ?? `m-${mi}`} className="ogsm-measure-drag-row ogsm-table-row" data-dragging={isMDragging ? 'true' : 'false'} data-dragover={isMDragOver ? 'true' : 'false'} draggable={editMode} onDragStart={editMode ? e => handleMeasureDragStart(e, gi, si, mi) : undefined} onDragOver={editMode ? e => handleMeasureDragOver(e, gi, si, mi) : undefined} onDrop={editMode ? e => handleMeasureDrop(e, gi, si, mi) : undefined} onDragEnd={editMode ? handleMeasureDragEnd : undefined}>
+                                    <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: mi < st.measures.length - 1 ? `1px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none', minHeight: '64px' }}>
+                                      
+                                      {/* KPI */}
+                                      <div style={{ width: dynKpi, minWidth: dynKpi, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, position: 'relative' }}>
+                                        {editMode && <div style={{ position: 'absolute', left: '4px', top: '12px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
+                                        <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px', paddingLeft: editMode ? '12px' : '0' }}>D{gi+1}.{si+1}.{mi+1}</div>
+                                        <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} readOnly={!editMode} />
                                         {editMode && (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%' }}>
-                                            {m.id == null && (
-                                              <button
-                                                className="ogsm-ai-btn"
-                                                style={s.aiBtnSmall}
-                                                title="AI 生成 MP 檢核指標"
-                                                onClick={() => setAiDialog({ type: 'measure', gi, si, mi, currentText: m.kpi })}
-                                              >⚡</button>
-                                            )}
-                                            <button
-                                              className="ogsm-remove-btn"
-                                              style={s.iconBtn}
-                                              onClick={() => removeMeasure(gi, si, mi)}
-                                            >✕</button>
+                                          <div style={{ display: 'flex', gap: '4px', marginTop: '8px', paddingLeft: '12px' }}>
+                                            {m.id == null && <button className="ogsm-ai-btn" style={s.aiBtnSmall} title="AI 生成 MP 檢核指標" onClick={() => setAiDialog({ type: 'measure', gi, si, mi, currentText: m.kpi })}>⚡</button>}
+                                            <button className="ogsm-remove-btn" style={s.iconBtn} onClick={() => removeMeasure(gi, si, mi)}>✕</button>
                                           </div>
                                         )}
-                                        <div style={s.stratIndex}>D{gi+1}.{si+1}.{mi+1}</div>
-                                        <textarea
-                                          data-ogsm-autoresize
-                                          style={{ ...s.measureText, width: '100%' }}
-                                          value={m.kpi}
-                                          onChange={e => setMField(gi, si, mi, 'kpi', e.target.value)}
-                                          onInput={autoResize}
-                                          ref={initResize}
-                                          placeholder="MD 定量指標名稱"
-                                          rows={1}
-                                        />
                                       </div>
 
-                                      {/* 目標值 */}
-                                      <div style={{ ...s.measureCell, width: COL_VALT, alignItems: 'flex-start' }}>
-                                        <textarea data-ogsm-autoresize style={{ ...s.measureText, ...s.targetInput }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} />
+                                      {/* Target */}
+                                      <div style={{ width: dynTarget, minWidth: dynTarget, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        <textarea data-ogsm-autoresize style={{ ...s.measureText, color: B_YELLOW, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} readOnly={!editMode} />
                                       </div>
 
-                                      {/* 實際值 */}
-                                      <div style={{ ...s.measureCell, width: COL_VALP, alignItems: 'flex-start' }}>
-                                        <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, ...s.actualInput }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
+                                      {/* Actual */}
+                                      <div style={{ width: COL_VALP, minWidth: COL_VALP, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, color: B_GREEN, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} readOnly={!editMode} />
                                       </div>
 
-                                      {/* 負責人 */}
-                                      <div style={{ ...s.measureCell, width: COL_OWNER }}>
-                                        <select
-                                          style={{ ...s.ownerInput, cursor: 'pointer' }}
-                                          value={m.assignee || ''}
-                                          onChange={e => setMField(gi,si,mi,'assignee',e.target.value)}
-                                        >
-                                          <option value=''>—</option>
-                                          {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
-                                        </select>
+                                      {/* Assignee */}
+                                      <div style={{ width: COL_OWNER, minWidth: COL_OWNER, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        {editMode ? (
+                                          <select style={{ width: '100%', background: dark ? '#222' : '#f9fafb', border: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, color: dark ? '#fff' : '#000', fontSize: '11px', fontWeight: 700, padding: '4px', outline: 'none' }} value={m.assignee || ''} onChange={e => setMField(gi,si,mi,'assignee',e.target.value)}>
+                                            <option value=''>—</option>
+                                            {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
+                                          </select>
+                                        ) : (
+                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#fff' : '#000' }}>{m.assignee || '—'}</span>
+                                        )}
                                       </div>
 
-                                      {/* 期限 */}
-                                      <div style={{ ...s.measureCell, width: COL_DL }}>
-                                        <input type="date" style={s.deadlineInput} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
+                                      {/* Deadline */}
+                                      <div style={{ width: COL_DL, minWidth: COL_DL, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        {editMode ? (
+                                          <input type="date" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: '10px', fontFamily: 'monospace', outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light' }} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
+                                        ) : (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, opacity: 0.6, color: dark ? '#fff' : '#000' }}>
+                                            {m.deadline || '—'}
+                                          </div>
+                                        )}
                                       </div>
 
-                                      {/* 狀態 */}
-                                      <div style={{ ...s.measureCell, width: COL_STATUS }}>
-                                        <select
-                                          style={{ ...s.statusSelect, color: sc.color, borderColor: sc.border, background: sc.bg }}
-                                          value={m.status}
-                                          onChange={e => setMField(gi,si,mi,'status',e.target.value)}
-                                        >
-                                          {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                                            <option key={k} value={k}>{v.label}</option>
-                                          ))}
-                                        </select>
+                                      {/* Status */}
+                                      <div style={{ width: COL_STATUS, minWidth: COL_STATUS, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        {editMode ? (
+                                          <select style={{ width: '100%', background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color, fontSize: '9px', fontWeight: 900, padding: '4px', outline: 'none' }} value={m.status} onChange={e => setMField(gi,si,mi,'status',e.target.value)}>
+                                            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                                          </select>
+                                        ) : (
+                                          <span style={{ fontSize: '10px', fontWeight: 900, color: sc.color }}>{sc.label}</span>
+                                        )}
                                       </div>
 
-                                      {/* 進度 */}
-                                      <div style={{ ...s.measureCell, width: COL_PROG, flexDirection: 'column', gap: '4px', alignItems: 'stretch', justifyContent: 'center', padding: '8px 12px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                          <span style={{ fontSize: '18px', fontFamily: '"DM Mono", monospace', fontWeight: 700, color: progressColor(m.progress) }}>{m.progress}%</span>
+                                      {/* Progress */}
+                                      <div style={{ width: COL_PROG, minWidth: COL_PROG, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic', color: dark ? '#fff' : '#000' }}>{m.progress}%</span>
                                         </div>
-                                        <div style={s.miniBarTrack}>
-                                          <div style={{ ...s.miniBarFill, width: `${m.progress}%`, background: progressColor(m.progress) }} />
+                                        <div style={{ height: '4px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
+                                          <div style={{ height: '100%', width: `${m.progress}%`, background: B_BLUE, transition: 'width 0.3s' }} />
                                         </div>
                                       </div>
 
-                                      {/* 待辦展開按鈕 */}
-                                      <div data-todo-zone style={{ ...s.measureCell, width: COL_ACT, justifyContent: 'center', alignItems: 'center', flexDirection: 'column', gap: '2px', borderRight: 'none', padding: '4px 2px' }}>
-                                        <button
-                                          onClick={() => toggleTodoRow(todoKey)}
-                                          title="展開/收起 MP 檢核指標"
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: todoOpen ? '#f0a500' : todoProgressColor, padding: '2px 4px', lineHeight: 1, transition: 'color 0.15s', borderRadius: '3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}
-                                        >
-                                          <span style={{ fontSize: '23px', lineHeight: 1 }}>{todoOpen ? '▾' : '▸'}</span>
-                                          {todos.length > 0 && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', lineHeight: 1, color: todoProgressColor }}>{doneCount}/{todos.length} 已完成</span>}
-                                        </button>
+                                      {/* MP Column */}
+                                      <div data-todo-zone style={{ width: COL_ACT, minWidth: COL_ACT, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <button onClick={() => toggleTodoRow(todoKey)} title="展開/收起 MP 檢核步驟" style={{ background: 'none', border: 'none', color: todoOpen ? B_YELLOW : B_BLUE, cursor: 'pointer', transition: 'transform 0.15s', fontSize: '16px', fontWeight: 900 }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                                            {todoOpen ? '▾' : '▸'}
+                                          </button>
+                                          <span style={{ fontSize: '10px', fontWeight: 700, opacity: 0.4, color: dark ? '#fff' : '#000' }}>{doneCount}/{todos.length}</span>
+                                        </div>
                                       </div>
                                     </div>
 
-                                    {/* MP 檢核步驟展開區 */}
-                                    {openTodos.has(`${gi}-${si}-${mi}`) && (() => {
+                                    {/* MP 檢核步驟展開列 */}
+                                    {openTodos.has(todoKey) && (() => {
                                       const today = new Date().toISOString().slice(0, 10)
-                                      const updateTodo = (tid, field, val) =>
-                                        setMTodos(gi, si, mi, (m.todos || []).map(t => t.id === tid ? { ...t, [field]: val } : t))
-                                      const removeTodo = (tid) =>
-                                        setMTodos(gi, si, mi, (m.todos || []).filter(t => t.id !== tid))
-                                      const addTodo = () =>
-                                        setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignee: '', deadline: '', createdAt: new Date().toISOString() }])
+                                      const updateTodo = (tid, field, val) => setMTodos(gi, si, mi, (m.todos || []).map(t => t.id === tid ? { ...t, [field]: val } : t))
+                                      const removeTodo = (tid) => setMTodos(gi, si, mi, (m.todos || []).filter(t => t.id !== tid))
+                                      const addTodo = () => setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignee: '', deadline: '', createdAt: new Date().toISOString() }])
                                       return (
-                                        <div data-todo-zone style={{ ...s.measureTodoWrap, borderLeft: `3px solid rgba(59,158,222,0.3)`, padding: '8px 12px 10px', width: kpiW + COL_VALT + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
-                                          {(m.todos || []).length === 0 && !editMode
-                                            ? null
-                                            : (m.todos || []).map((t, ti) => {
-                                              const tOverdue = t.deadline && t.deadline < today && !t.done
-                                              const isTDragging = dragTodo?.gi === gi && dragTodo?.si === si && dragTodo?.mi === mi && dragTodo?.ti === ti
-                                              const isTDragOver = dragOverTodo?.gi === gi && dragOverTodo?.si === si && dragOverTodo?.mi === mi && dragOverTodo?.ti === ti && !isTDragging
-                                              return (
-                                                <div
-                                                  key={t.id ?? ti}
-                                                  draggable={editMode}
-                                                  onDragStart={editMode ? e => handleTodoDragStart(e, gi, si, mi, ti) : undefined}
-                                                  onDragOver={editMode ? e => handleTodoDragOver(e, gi, si, mi, ti) : undefined}
-                                                  onDrop={editMode ? e => handleTodoDrop(e, gi, si, mi, ti) : undefined}
-                                                  onDragEnd={editMode ? handleTodoDragEnd : undefined}
-                                                  style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '5px', minHeight: '24px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${darkMode ? '#3b9ede' : '#1a7bbf'}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}
-                                                >
-                                                  {/* Drag handle (edit mode only) */}
-                                                  {editMode && <span style={{ fontSize: '11px', color: darkMode ? '#3a4a60' : '#b0bdd0', cursor: 'grab', flexShrink: 0, marginTop: '2px', lineHeight: 1.5, userSelect: 'none' }} title="拖拉排序">⠿</span>}
-                                                  {/* Checkbox */}
-                                                  <button
-                                                    style={{ width: '15px', height: '15px', flexShrink: 0, border: `1.5px solid ${t.done ? '#4caf7d' : (darkMode ? '#334060' : '#8a9ab8')}`, borderRadius: '3px', background: t.done ? '#4caf7d' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, outline: 'none', alignSelf: 'flex-start', marginTop: '2px' }}
-                                                    onClick={() => updateTodo(t.id, 'done', !t.done)}
-                                                  >
-                                                    {t.done && <span style={{ fontSize: '9px', color: '#000', fontWeight: 700, lineHeight: 1 }}>✓</span>}
-                                                  </button>
-                                                  {/* Text — editable or plain */}
-                                                  {editMode ? (
-                                                    <>
-                                                      <span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: darkMode ? '#5a8aae' : '#4a7aae', flexShrink: 0, marginTop: '3px', lineHeight: 1.5 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
-                                                      <textarea
-                                                        style={{ flex: 1, background: 'none', border: 'none', borderBottom: `1px solid ${darkMode ? '#2a3347' : '#d1d9e8'}`, color: t.done ? (darkMode ? '#5a7090' : '#9aabbd') : (darkMode ? '#c8d4e8' : '#445069'), fontSize: '11px', fontFamily: '"Noto Sans TC", sans-serif', outline: 'none', padding: '1px 0', textDecoration: t.done ? 'line-through' : 'none', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, wordBreak: 'break-word' }}
-                                                        value={t.text}
-                                                        rows={1}
-                                                        onChange={e => { updateTodo(t.id, 'text', e.target.value); e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                                                        onFocus={e => { e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                                                        placeholder="輸入檢核步驟…"
-                                                      />
-                                                    </>
-                                                  ) : (
-                                                    <span
-                                                      style={{ flex: 1, fontSize: '11px', lineHeight: 1.5, color: t.done ? (darkMode ? '#5a7090' : '#9aabbd') : (darkMode ? '#c8d4e8' : '#445069'), textDecoration: t.done ? 'line-through' : 'none', wordBreak: 'break-word', overflowWrap: 'anywhere', minWidth: 0, cursor: 'pointer' }}
-                                                      onClick={() => updateTodo(t.id, 'done', !t.done)}
-                                                    ><span style={{ fontSize: '10px', fontFamily: '"DM Mono", monospace', color: darkMode ? '#5a8aae' : '#4a7aae', marginRight: '3px' }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>{t.text}</span>
-                                                  )}
-                                                  {/* Badges — right side, aligned to first text line */}
-                                                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
-                                                    {editMode ? (
-                                                      <>
-                                                        <select
-                                                          style={{ width: '80px', background: darkMode ? '#1a2030' : '#f3f7fd', border: `1px solid ${darkMode ? '#2a3347' : '#c8d4e8'}`, borderRadius: '3px', color: darkMode ? '#8a95ae' : '#5a6e88', fontSize: '10px', fontFamily: '"Noto Sans TC", sans-serif', padding: '1px 4px', outline: 'none', cursor: 'pointer' }}
-                                                          value={t.assignee || ''}
-                                                          onChange={e => updateTodo(t.id, 'assignee', e.target.value)}
-                                                        >
-                                                          <option value=''>— 負責人 —</option>
-                                                          {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
-                                                        </select>
-                                                        <input
-                                                          type="date"
-                                                          style={{ width: '106px', background: darkMode ? '#1a2030' : '#f3f7fd', border: `1px solid ${tOverdue ? 'rgba(239,68,68,0.4)' : (darkMode ? '#2a3347' : '#c8d4e8')}`, borderRadius: '3px', color: tOverdue ? '#ef4444' : (darkMode ? '#8a95ae' : '#5a6e88'), fontSize: '10px', fontFamily: '"DM Mono", monospace', padding: '1px 4px', outline: 'none', colorScheme: darkMode ? 'dark' : 'light' }}
-                                                          value={t.deadline || ''}
-                                                          max={m.deadline || undefined}
-                                                          onChange={e => updateTodo(t.id, 'deadline', e.target.value)}
-                                                        />
-                                                        <button className="ogsm-remove-btn" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontSize: '10px', padding: '2px 5px', borderRadius: '3px', lineHeight: 1, fontWeight: 600, flexShrink: 0 }} onClick={() => removeTodo(t.id)}>✕</button>
-                                                      </>
-                                                    ) : (
-                                                      <>
-                                                        {t.assignee && <span style={{ fontSize: '9px', fontFamily: '"Noto Sans TC", sans-serif', color: darkMode ? '#8a95ae' : '#6b7280', background: darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)', border: `1px solid ${darkMode ? '#2a3347' : '#e5e7eb'}`, borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>👤 {t.assignee}</span>}
-                                                        {t.deadline && <span style={{ fontSize: '9px', fontFamily: '"DM Mono", monospace', color: tOverdue ? '#ef4444' : (darkMode ? '#8a95ae' : '#6b7280'), background: tOverdue ? 'rgba(239,68,68,0.08)' : (darkMode ? 'rgba(138,149,174,0.1)' : 'rgba(0,0,0,0.05)'), border: `1px solid ${tOverdue ? 'rgba(239,68,68,0.3)' : (darkMode ? '#2a3347' : '#e5e7eb')}`, borderRadius: '3px', padding: '1px 5px', whiteSpace: 'nowrap' }}>{tOverdue ? '⚠ ' : '📅 '}{t.deadline}</span>}
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              )
-                                            })
-                                          }
+                                        <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '12px 24px', borderLeft: `4px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
+                                          {(m.todos || []).length === 0 && !editMode ? null : (m.todos || []).map((t, ti) => {
+                                            const tOverdue = t.deadline && t.deadline < today && !t.done
+                                            const isTDragging = dragTodo?.gi === gi && dragTodo?.si === si && dragTodo?.mi === mi && dragTodo?.ti === ti
+                                            const isTDragOver = dragOverTodo?.gi === gi && dragOverTodo?.si === si && dragOverTodo?.mi === mi && dragOverTodo?.ti === ti && !isTDragging
+                                            return (
+                                              <div key={t.id ?? ti} draggable={editMode} onDragStart={editMode ? e => handleTodoDragStart(e, gi, si, mi, ti) : undefined} onDragOver={editMode ? e => handleTodoDragOver(e, gi, si, mi, ti) : undefined} onDrop={editMode ? e => handleTodoDrop(e, gi, si, mi, ti) : undefined} onDragEnd={editMode ? handleTodoDragEnd : undefined}
+                                                style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', minHeight: '28px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${B_BLUE}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}>
+                                                {editMode && <span style={{ fontSize: '11px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', cursor: 'grab', flexShrink: 0, marginTop: '4px', lineHeight: 1.5, userSelect: 'none' }}>⠿</span>}
+                                                <button style={{ width: '18px', height: '18px', flexShrink: 0, border: `2px solid ${t.done ? B_GREEN : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')}`, borderRadius: 0, background: t.done ? B_GREEN : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, outline: 'none', alignSelf: 'flex-start', marginTop: '2px' }} onClick={() => updateTodo(t.id, 'done', !t.done)}>
+                                                  {t.done && <span style={{ fontSize: '10px', color: '#000', fontWeight: 900 }}><Icons.Check /></span>}
+                                                </button>
+                                                {editMode ? (
+                                                  <>
+                                                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: B_BLUE, flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
+                                                    <textarea style={{ flex: 1, background: 'none', border: 'none', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)'}`, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), fontSize: '12px', fontFamily: 'inherit', fontWeight: 700, outline: 'none', padding: '1px 0', textDecoration: t.done ? 'line-through' : 'none', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, wordBreak: 'break-word' }} value={t.text} rows={1} onChange={e => { updateTodo(t.id, 'text', e.target.value); e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} onFocus={e => { e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} placeholder="輸入檢核步驟…" />
+                                                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
+                                                      <select style={{ width: '90px', background: dark ? '#222' : '#f0f0f0', border: `1px solid ${dark ? 'rgba(255,255,255,0.2)' : '#000'}`, color: dark ? '#fff' : '#000', fontSize: '11px', fontFamily: 'inherit', fontWeight: 700, padding: '2px 4px', outline: 'none', cursor: 'pointer' }} value={t.assignee || ''} onChange={e => updateTodo(t.id, 'assignee', e.target.value)}>
+                                                        <option value=''>— 負責人 —</option>
+                                                        {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
+                                                      </select>
+                                                      <input type="date" style={{ width: '110px', background: dark ? '#222' : '#f0f0f0', border: `1px solid ${tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.2)' : '#000')}`, color: tOverdue ? B_PINK : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'monospace', padding: '2px 4px', outline: 'none', colorScheme: dark ? 'dark' : 'light' }} value={t.deadline || ''} max={m.deadline || undefined} onChange={e => updateTodo(t.id, 'deadline', e.target.value)} />
+                                                      <button className="ogsm-remove-btn" style={{ background: 'rgba(255,0,255,0.12)', border: '1px solid rgba(255,0,255,0.4)', color: B_PINK, cursor: 'pointer', fontSize: '12px', padding: '2px 6px', fontWeight: 900 }} onClick={() => removeTodo(t.id)}><Icons.X /></button>
+                                                    </div>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: B_BLUE, flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
+                                                    <span style={{ fontSize: '12px', lineHeight: 1.5, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), textDecoration: t.done ? 'line-through' : 'none', cursor: 'pointer', flex: 1, wordBreak: 'break-word', fontWeight: 700 }} onClick={() => updateTodo(t.id, 'done', !t.done)}>{t.text}</span>
+                                                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
+                                                      {t.assignee && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#fff' : '#000', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap' }}>👤 {t.assignee}</span>}
+                                                      {t.deadline && <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'), background: tOverdue ? 'rgba(255,0,255,0.1)' : 'transparent', border: `1px solid ${tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)')}`, padding: '2px 6px', whiteSpace: 'nowrap' }}>{tOverdue ? '⚠ ' : '📅 '}{t.deadline}</span>}
+                                                    </div>
+                                                  </>
+                                                )}
+                                              </div>
+                                            )
+                                          })}
                                           {editMode && (
-                                            <button
-                                              className="ogsm-add-btn"
-                                              style={{ background: 'none', border: 'none', color: darkMode ? '#4a5568' : '#8a9ab8', cursor: 'pointer', fontSize: '11px', fontFamily: '"DM Mono", monospace', padding: '4px 0', transition: 'color 0.15s' }}
-                                              onClick={addTodo}
-                                            >+ 新增檢核步驟</button>
+                                            <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)', cursor: 'pointer', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '8px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addTodo}>+ 新增檢核步驟</button>
                                           )}
                                         </div>
                                       )
@@ -812,222 +639,112 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], onM
                                 )
                               })}
                               {editMode && (
-                                <button className="ogsm-add-btn" style={{ ...s.addMiniBtn}} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
+                                <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px 16px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
                               )}
                             </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                    {editMode && <button className="ogsm-add-btn" style={s.addStratBtn} onClick={() => addStrategy(gi)}>+ 新增 Strategy</button>}
+                        )
+                      })}
+                      {editMode && (
+                        <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px', textAlign: 'left', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, width: '100%', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addStrategy(gi)}>+ 新增 Strategy</button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            )
-          })}
-
-          {editMode && (
-            <div style={s.addGoalRow}>
-              <button className="ogsm-add-btn" style={s.addGoalBtn} onClick={addGoal}>+ 新增 Goal</button>
+                )
+              })}
             </div>
-          )}
+
+            {editMode && (
+              <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}>
+                <button className="ogsm-add-btn" style={{ width: '100%', background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '20px 16px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addGoal}>+ 新增 Goal</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* AI Loading overlay */}
+      {/* ─── SLIDE-IN PANELS (Audit & Todo) ─── */}
+      {showLocalAudit && (
+        <SlidePanel title="審計報告" icon={<Icons.FileText />} onClose={() => setShowLocalAudit(false)} dark={dark} width="480px">
+          <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ border: `4px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, padding: '24px', background: dark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '24px', color: dark ? '#fff' : '#000' }}>AI 審計分析</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(76,175,125,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: B_GREEN }}><Icons.Check /></div>
+                  <div>
+                    <p style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 8px', color: dark ? '#fff' : '#000' }}>目標一致性良好</p>
+                    <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>策略與目標 (G1) 的關聯度極高，有助於達成核心指標。目前的規劃路徑非常清晰。</p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: B_YELLOW }}><Icons.Zap /></div>
+                  <div>
+                    <p style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 8px', color: dark ? '#fff' : '#000' }}>資源分配建議</p>
+                    <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>策略 S1.2 的進度落後，建議增加支援資源，或重新評估該項目的優先級。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ border: `4px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, padding: '24px', background: dark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '24px', color: dark ? '#fff' : '#000' }}>風險評估</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: dark ? '#fff' : '#000' }}>時間風險</span>
+                  <span style={{ fontSize: '10px', fontWeight: 900, padding: '4px 12px', background: B_PINK, color: '#000', textTransform: 'uppercase' }}>High Risk</span>
+                </div>
+                <div style={{ width: '100%', height: '12px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: '85%', background: B_PINK }} />
+                </div>
+                <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, fontStyle: 'italic', lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>距離截止日期接近，目前進度 {overallProgress}% 略顯緊迫，需注意關鍵路徑的延遲。</p>
+              </div>
+            </div>
+            <button style={{ width: '100%', padding: '16px', background: B_BLUE, color: '#fff', border: `4px solid ${dark ? '#fff' : '#000'}`, fontSize: '16px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#000'; e.currentTarget.style.color = dark ? '#000' : '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }}>
+              重新產生報告
+            </button>
+          </div>
+        </SlidePanel>
+      )}
+
+      {showTodoPanel && draft && (
+        <SlidePanel title="MP 檢核總覽" icon={<Icons.CheckCircle />} onClose={() => setShowTodoPanel(false)} dark={darkMode} width="500px">
+          <TodoManagerPanel project={draft} onClose={() => setShowTodoPanel(false)} onToggleTodo={toggleTodoById} onUpdateTodo={updateTodoById} members={members} darkMode={darkMode} />
+        </SlidePanel>
+      )}
+
+      {/* AI Loading & Dialog */}
       {aiLoading && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ width: '36px', height: '36px', border: '3px solid #2a3347', borderTopColor: '#f0a500', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-          <div style={{ color: '#f0a500', fontFamily: '"DM Mono", monospace', fontSize: '13px' }}>AI 生成中…</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ width: '48px', height: '48px', border: `6px solid rgba(255,255,255,0.1)`, borderTopColor: B_YELLOW, animation: 'b-spin 0.7s linear infinite' }} />
+          <div style={{ color: B_YELLOW, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>AI 生成中…</div>
         </div>
       )}
 
-      {/* AI Confirm Dialog */}
       {aiDialog && !aiLoading && (
-        <AiConfirmDialog
-          type={aiDialog.type}
-          currentText={aiDialog.currentText}
-          onConfirm={handleAiConfirm}
-          onCancel={() => setAiDialog(null)}
-          darkMode={darkMode}
-        />
-      )}
-
-      {/* Todo Manager Panel */}
-      {showTodoPanel && draft && (
-        <TodoManagerPanel
-          project={draft}
-          onClose={() => setShowTodoPanel(false)}
-          onToggleTodo={toggleTodoById}
-          onUpdateTodo={updateTodoById}
-          members={members}
-          darkMode={darkMode}
-        />
+        <AiConfirmDialog type={aiDialog.type} currentText={aiDialog.currentText} onConfirm={handleAiConfirm} onCancel={() => setAiDialog(null)} darkMode={darkMode} />
       )}
     </div>
   )
 }
 
-// Column widths — 類型 column removed; assignee column added
-const COL_G      = 200
-const COL_S      = 200
-const COL_KPI    = 200   // MD 定量指標欄
-const COL_VALT   = 120
-const COL_VALP   = 75
-const COL_OWNER  = 100    // 負責人
-const COL_DL     = 110
-const COL_STATUS = 96
-const COL_PROG   = 150
-const COL_ACT    = 88   // MP 檢核指標欄
-
 function buildStyles(dark) {
-  const T = dark ? {
-    border:        '#2a3347',
-    borderAlt:     '#161b27',
-    headerBg:      '#1e2535',
-    altRowBg:      '#0c1018',
-    text:          '#e8ecf4',
-    textSec:       '#8a95ae',
-    textMut:       '#4a5568',
-    barTrack:      '#3a4357',
-    progressBg:    '#1e2535',
-    progressBorder:'#2a3347',
-    objAreaBg:     'rgba(240,165,0,0.04)',
-    objAreaBorder: 'rgba(240,165,0,0.2)',
-    saveDimBg:     '#1e2535',
-    saveDimColor:  '#4a5568',
-    editBg:        '#2a3347',
-    editColor:     '#8a95ae',
-    editBorder:    '#3a4357',
-    auditBorder:   '#334060',
-    auditColor:    '#8a95ae',
-    metaDate:      '#b0bac9',
-    dashedBorder:  '#1e2535',
-    addBtnColor:   '#4a5568',
-    targetColor:   '#f0a500',
-    actualColor:   '#4caf7d',
-    ownerInputBg:  '#1e2840',
-    ownerInputBorder: '#3d5080',
-    ownerInputColor: '#c8d8f0',
-  } : {
-    border:        '#c8d4e8',
-    borderAlt:     '#dde8f2',
-    headerBg:      '#e8f0fa',
-    altRowBg:      '#f4f7fd',
-    text:          '#1a2133',
-    textSec:       '#5a6e88',
-    textMut:       '#8a9ab8',
-    barTrack:      '#d4dde8',
-    progressBg:    '#eaf0f8',
-    progressBorder:'#c8d4e8',
-    objAreaBg:     'rgba(204,119,0,0.04)',
-    objAreaBorder: 'rgba(204,119,0,0.28)',
-    saveDimBg:     '#eaf0f8',
-    saveDimColor:  '#8a9ab8',
-    editBg:        '#eaf0f8',
-    editColor:     '#5a6e88',
-    editBorder:    '#c8d4e8',
-    auditBorder:   '#c8d4e8',
-    auditColor:    '#6a7e98',
-    metaDate:      '#7a8fa8',
-    dashedBorder:  '#c8d4e8',
-    addBtnColor:   '#8a9ab8',
-    targetColor:   '#b86800',
-    actualColor:   '#1d8054',
-    ownerInputBg:  '#f3f7fd',
-    ownerInputBorder: '#c8d4e8',
-    ownerInputColor: '#5a6e88',
-  }
   return {
-    wrap: { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' },
-    topBar: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 28px 14px', borderBottom: `1px solid ${T.border}`, gap: '16px', flexShrink: 0 },
-    topLeft: { flex: 1, minWidth: 0 },
-    titleInput: { background: 'none', border: 'none', fontFamily: '"Syne", sans-serif', fontSize: '22px', fontWeight: 800, color: T.text, width: '100%', outline: 'none', marginBottom: '5px' },
-    metaRow: { display: 'flex', alignItems: 'center', gap: '10px' },
-    metaBadge: { fontSize: '10px', fontFamily: '"DM Mono", monospace', background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.3)', color: '#f0a500', padding: '2px 7px', borderRadius: '3px', letterSpacing: '0.8px' },
-    metaDate: { fontSize: '11px', fontFamily: '"DM Mono", monospace', color: T.metaDate, fontWeight: 500 },
-    topActions: { display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' },
-    overallWrap: { display: 'flex', alignItems: 'center', gap: '10px' },
-    overallLabel: { fontSize: '12px', fontFamily: '"DM Mono", monospace', color: '#d4a855', whiteSpace: 'nowrap', fontWeight: 600 },
-    overallBarTrack: { width: '100px', height: '7px', background: T.barTrack, borderRadius: '4px', overflow: 'hidden' },
-    overallBarFill: { height: '100%', background: 'linear-gradient(90deg, #f0a500, #4caf7d)', borderRadius: '4px', transition: 'width 0.4s ease', boxShadow: '0 0 6px rgba(240,165,0,0.5)' },
-    overallPct: { fontSize: '13px', fontFamily: '"DM Mono", monospace', color: '#f0a500', minWidth: '42px', fontWeight: 700 },
-    auditBtn: { padding: '8px 14px', background: 'transparent', border: `1px solid ${T.auditBorder}`, borderRadius: '6px', color: T.auditColor, cursor: 'pointer', fontSize: '12px', fontFamily: '"Noto Sans TC", sans-serif', fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap' },
-    editBtn: { padding: '8px 16px', background: T.editBg, color: T.editColor, border: `1px solid ${T.editBorder}`, borderRadius: '6px', fontWeight: 600, fontSize: '12px', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s', fontFamily: '"Noto Sans TC", sans-serif', whiteSpace: 'nowrap' },
-    editBtnActive: { background: 'rgba(76,175,125,0.15)', color: '#4caf7d', borderColor: 'rgba(76,175,125,0.3)' },
-    saveBtn: { padding: '8px 18px', background: '#f0a500', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: '"Noto Sans TC", sans-serif', whiteSpace: 'nowrap' },
-    saveBtnDim: { background: T.saveDimBg, color: T.saveDimColor, cursor: 'default' },
-    objectiveWrap: { padding: '14px 28px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 },
-    sectionTag: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: '#f0a500', letterSpacing: '1px', marginBottom: '7px' },
-    objectiveArea: { width: '100%', background: T.objAreaBg, border: `1px solid ${T.objAreaBorder}`, borderRadius: '6px', padding: '10px 14px', color: T.text, fontSize: '14px', fontFamily: '"Noto Sans TC", sans-serif', lineHeight: 1.6, resize: 'vertical', outline: 'none' },
-    tableScroll: { flex: 1, overflow: 'auto', padding: '20px 28px 40px' },
-    tableWrap: { width: 'max-content', border: `1px solid ${T.border}`, borderRadius: '8px', overflow: 'hidden' },
-    tableHeader: { display: 'flex', background: T.headerBg, borderBottom: `1px solid ${T.border}` },
-    colHead: { padding: '10px 12px', flexShrink: 0, fontSize: '10px', fontFamily: '"DM Mono", monospace', color: '#d4a855', letterSpacing: '0.8px', textTransform: 'uppercase', borderRight: `1px solid ${T.border}`, fontWeight: 600 },
-    goalSection:    { borderBottom: `1px solid ${T.border}` },
-    goalSectionAlt: { background: T.altRowBg },
-    goalRow:        { display: 'flex' },
-    goalCell: { flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', borderRight: `1px solid ${T.border}` },
-    goalIndex: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: '#f0a500', letterSpacing: '0.8px' },
-    goalText:  { minHeight: '56px', fontWeight: 600, fontSize: '13px' },
-    strategiesWrap: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
-    strategyBlock:  { borderBottom: `2px solid ${T.border}`, overflow: 'hidden' },
-    strategyRow:    { display: 'flex', minWidth: 0 },
-    stratCell: { flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px 12px', borderRight: `1px solid ${T.border}` },
-    stratIndex: { fontSize: '10px', fontFamily: '"DM Mono", monospace', color: T.textSec, letterSpacing: '0.8px' },
-    measuresCol: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' },
-    measureRow: { display: 'flex', alignItems: 'stretch', borderBottom: `1px solid ${T.borderAlt}`, minHeight: '44px' },
-    measureCell: { flexShrink: 0, padding: '8px 10px', borderRight: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', alignSelf: 'stretch' },
     measureText: {
-      background: 'none', border: 'none', color: T.text,
-      fontSize: '12px', fontFamily: '"Noto Sans TC", sans-serif',
+      background: 'none', border: 'none', color: dark ? '#fff' : '#000',
+      fontSize: '12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
       outline: 'none', width: '100%', resize: 'none', lineHeight: 1.5,
       overflowY: 'hidden', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
       minHeight: '22px', height: 'auto', display: 'block',
     },
-    targetInput: { color: T.targetColor, fontFamily: '"DM Mono", monospace' },
-    actualInput: { color: T.actualColor, fontFamily: '"DM Mono", monospace' },
-    statusSelect: {
-      width: '100%', background: dark ? 'rgba(74,85,104,0.15)' : 'rgba(100,120,160,0.08)',
-      border: `1px solid ${dark ? '#4a5568' : '#c8d4e8'}`, borderRadius: '4px',
-      fontSize: '11px', fontFamily: '"Noto Sans TC", sans-serif',
-      padding: '3px 4px', outline: 'none', cursor: 'pointer', transition: 'all 0.15s',
-    },
-    miniBarTrack: { height: '5px', background: T.barTrack, borderRadius: '3px', overflow: 'hidden', width: '100%' },
-    miniBarFill: { height: '100%', borderRadius: '3px', transition: 'width 0.2s ease, background 0.2s', boxShadow: '0 0 4px currentColor' },
-    iconBtn: { background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '4px 7px', borderRadius: '3px', transition: 'all 0.2s', fontWeight: 600 },
-    addMiniBtn: { background: 'none', border: 'none', color: T.addBtnColor,cursor: 'pointer', fontSize: '11px', fontFamily: '"DM Mono", monospace', padding: '6px 12px', textAlign: 'left', transition: 'color 0.15s' },
-    addStratBtn: { background: 'none', border: 'none', color: T.addBtnColor, cursor: 'pointer', fontSize: '12px', fontFamily: '"DM Mono", monospace', padding: '10px 12px', textAlign: 'left', borderTop: `1px dashed ${T.dashedBorder}`, width: '100%', transition: 'color 0.15s' },
-    addGoalRow: { borderTop: `1px dashed ${T.dashedBorder}` },
-    addGoalBtn: { width: '100%', background: 'none', border: 'none', color: T.addBtnColor, cursor: 'pointer', fontSize: '12px', fontFamily: '"DM Mono", monospace', padding: '12px', textAlign: 'left', transition: 'color 0.15s' },
-    measureTodoWrap: { borderTop: '1px dashed #1e2535', background: 'rgba(0,0,0,0.1)', overflow: 'hidden', boxSizing: 'border-box' },
-
-    deadlineInput: {
-      background: 'none', border: 'none', color: dark ? '#c8d8f0' : '#445069',
-      fontSize: '10px', fontFamily: '"DM Mono", monospace',
-      outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light', cursor: 'pointer',
-    },
-    ownerInput: {
-      background: T.ownerInputBg,
-      border: `1px solid ${T.ownerInputBorder}`,
-      borderRadius: '4px',
-      color: T.ownerInputColor,
-      fontSize: '11px',
-      fontFamily: '"Noto Sans TC", sans-serif',
-      padding: '3px 6px',
-      outline: 'none',
-      width: '100%',
-    },
-    projectDeadlineInput: {
-      background: dark ? '#1e2535' : '#f3f7fd', border: `1px solid ${dark ? '#2a3347' : '#d1d9e8'}`, borderRadius: '5px',
-      color: dark ? '#e8ecf4' : '#1a2133', fontSize: '13px', fontFamily: '"DM Mono", monospace',
-      padding: '7px 10px', outline: 'none', colorScheme: dark ? 'dark' : 'light',
+    iconBtn: {
+      background: 'rgba(255,0,255,0.12)', border: `1px solid ${dark ? 'rgba(255,0,255,0.4)' : 'rgba(255,0,255,0.2)'}`,
+      color: '#FF00FF', cursor: 'pointer', fontSize: '9px', padding: '3px 7px',
+      fontWeight: 900, transition: 'all 0.15s',
     },
     aiBtnSmall: {
-      background: 'rgba(240,165,0,0.12)', border: '1px solid rgba(240,165,0,0.3)', color: '#f0a500',
-      cursor: 'pointer', fontSize: '11px', padding: '4px 7px', borderRadius: '3px',
-      transition: 'all 0.15s', fontWeight: 700,
+      background: 'rgba(255,255,0,0.12)', border: `1px solid ${dark ? 'rgba(255,255,0,0.4)' : 'rgba(255,255,0,0.2)'}`, color: '#FFFF00',
+      cursor: 'pointer', fontSize: '10px', padding: '3px 7px',
+      transition: 'all 0.15s', fontWeight: 900,
     },
-    emptyTable: { padding: '32px', textAlign: 'center', color: T.addBtnColor, fontFamily: '"DM Mono", monospace', fontSize: '12px' },
   }
 }

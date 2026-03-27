@@ -1,671 +1,294 @@
-import { useState, useEffect, useCallback } from 'react'
-import { api } from './services/api.js'
-import ProjectList from './components/ProjectList.jsx'
-import OgsmEditor from './components/OgsmEditor.jsx'
-import GenerateModal from './components/GenerateModal.jsx'
-import AuditPanel from './components/AuditPanel.jsx'
-import MemberSettings from './components/MemberSettings.jsx'
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Zap, Users, Sun, Moon, PanelLeftClose, Menu } from 'lucide-react';
+import HomePage from './components/HomePage.jsx';
+import SwitchHome from './components/SwitchHome.jsx';
+import ProjectList, { calcProgress } from './components/ProjectList.jsx';
+import OgsmEditor from './components/OgsmEditor.jsx';
+import GenerateModal from './components/GenerateModal.jsx';
+import MemberSettings from './components/MemberSettings.jsx';
+import AuditPanel from './components/AuditPanel.jsx';
+import BrutalistBackground from './components/BrutalistBackground.jsx'; 
+
+// ─── VIBRANT BRUTALIST DESIGN TOKENS & CSS ──────────────────────────────────
+const ACCENT_BLUE   = "#0000FF";
+const ACCENT_PINK   = "#FF00FF";
+const ACCENT_YELLOW = "#FFFF00";
+const ACCENT_GREEN  = "#00FF00";
+
+const BRUTALIST_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;900&family=Inter:wght@400;700;900&family=Noto+Sans+TC:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg-light: #f8f9fa; --bg-dark: #121212; }
+  html, body, #root { height: 100%; }
+  body { font-family: "Inter", "Noto Sans TC", ui-sans-serif, sans-serif; background: var(--bg-light); color: #000; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .dark body { background: var(--bg-dark); color: #fff; }
+  a, button, [role="button"], .cursor-pointer { cursor: pointer; }
+  input[type="text"], input[type="date"], textarea, select { cursor: text; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes click-burst { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+  @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-click-burst { animation: click-burst 0.5s ease-out forwards; }
+  .animate-slide-up { animation: slide-up 0.8s cubic-bezier(0.16,1,0.3,1) both; }
+  .animate-scale-in { animation: scale-in 0.2s ease; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+  .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+
+  /* Hover Effects for Brutalist Buttons */
+  .b-action-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 #000 !important; }
+  .b-action-hover:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #000 !important; }
+  .dark .b-action-hover:hover { box-shadow: 6px 6px 0 0 #fff !important; }
+  .dark .b-action-hover:active { box-shadow: 2px 2px 0 0 #fff !important; }
+`;
+
+function EmptyState({ onNewProject, dark }) { return null; }
+function Toast({ toast }) { return null; }
+function ClickBurst({ x, y, id }) { return null; }
 
 export default function App() {
-  const [projects, setProjects]       = useState([])
-  const [activeId, setActiveId]       = useState(null)
-  const [activeProject, setActiveProject] = useState(null)
-  const [loadingList, setLoadingList] = useState(true)
-  const [loadingDetail, setLoadingDetail] = useState(false)
-  const [showGenerate, setShowGenerate] = useState(false)
-  const [auditProject, setAuditProject] = useState(null)
-  const [toast, setToast]             = useState(null)
-  const [darkMode, setDarkMode]         = useState(true)
-  const [members, setMembers]           = useState([])
-  const [showMemberSettings, setShowMemberSettings] = useState(false)
+  const [page, setPage] = useState("home");
+  const [dark, setDark] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [activeProject, setActiveProject] = useState(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [members, setMembers] = useState([]);
+  
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [showMembers, setShowMembers]   = useState(false);
+  const [showAudit, setShowAudit]       = useState(false);
+  const [auditProject, setAuditProject] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [clickEffect, setClickEffect] = useState(null);
 
-  const showToast = useCallback((msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
-  const handleMembersChange = useCallback(async (newMembers) => {
-    setMembers(newMembers)
-    try {
-      await api.saveMembers(newMembers)
-    } catch (e) {
-      showToast('負責人儲存失敗：' + e.message, 'error')
-    }
-  }, [showToast])
-
-  // 載入清單
-  const loadList = useCallback(async () => {
-    try {
-      setLoadingList(true)
-      const data = await api.getAll()
-      setProjects(data)
-      // 背景補抓完整巢狀資料，用於前端計算進度
-      Promise.allSettled(data.map(p => api.getById(p.id))).then(results => {
-        setProjects(prev => prev.map((p, i) =>
-          results[i].status === 'fulfilled' ? results[i].value : p
-        ))
-      })
-    } catch (e) {
-      showToast('無法載入專案清單：' + e.message, 'error')
-    } finally {
-      setLoadingList(false)
-    }
-  }, [showToast])
-
-  // 載入負責人清單
   useEffect(() => {
-    api.getMembers().then(setMembers).catch(() => {})
-  }, [])
+    import("./services/api.js").then(({ api }) => {
+      api.getAll().then(data => {
+        setProjects(data);
+        setLoadingList(false);
+        Promise.allSettled(data.map(p => api.getById(p.id))).then(results => {
+          setProjects(prev => prev.map((p, i) => results[i].status === "fulfilled" ? results[i].value : p));
+        });
+      }).catch(() => setLoadingList(false));
+      api.getMembers().then(setMembers).catch(() => {});
+    });
+  }, []);
 
-  useEffect(() => { loadList() }, [loadList])
-
-  // 選取專案，載入完整內容
   const selectProject = useCallback(async (id) => {
-    if (id === activeId) return
-    setActiveId(id)
-    setActiveProject(null)
-    setLoadingDetail(true)
+    if (id === activeId && page === "editor") return;
+    setActiveId(id); setActiveProject(null); setLoadingDetail(true); setPage("editor");
     try {
-      const data = await api.getById(id)
-      setActiveProject(data)
-    } catch (e) {
-      showToast('載入失敗：' + e.message, 'error')
-    } finally {
-      setLoadingDetail(false)
-    }
-  }, [activeId, showToast])
+      const { api } = await import("./services/api.js");
+      const data = await api.getById(id);
+      setActiveProject(data);
+    } catch (e) { showToast("載入失敗：" + e.message, "error"); } finally { setLoadingDetail(false); }
+  }, [activeId, page, showToast]);
 
-  // 儲存更新
+  const handleDeleteProject = useCallback(async (id) => {
+    if (!window.confirm("確定要刪除這個專案嗎？")) return;
+    try {
+      const { api } = await import("./services/api.js");
+      await api.delete(id);
+      setProjects(ps => ps.filter(p => p.id !== id));
+      if (activeId === id) { setActiveId(null); setActiveProject(null); }
+      showToast("專案已刪除");
+    } catch (e) { showToast("刪除失敗：" + e.message, "error"); }
+  }, [activeId, showToast]);
+
   const handleSave = useCallback(async (updated) => {
     try {
-      const saved = await api.update(updated.id, updated)
-      setActiveProject(saved)
-      setProjects(ps => ps.map(p => p.id === saved.id ? saved : p))
-      showToast('已儲存')
-    } catch (e) {
-      showToast('儲存失敗：' + e.message, 'error')
-    }
-  }, [showToast])
+      const { api } = await import("./services/api.js");
+      const saved = await api.update(updated.id, updated);
+      setActiveProject(saved);
+      setProjects(ps => ps.map(p => p.id === saved.id ? saved : p));
+      showToast("已儲存");
+    } catch (e) { showToast("儲存失敗：" + e.message, "error"); }
+  }, [showToast]);
 
-  // 刪除
-  const handleDelete = useCallback(async (id) => {
-    if (!confirm('確定要刪除這個 OGSM 嗎？')) return
-    try {
-      await api.delete(id)
-      setProjects(ps => ps.filter(p => p.id !== id))
-      if (activeId === id) { setActiveId(null); setActiveProject(null) }
-      showToast('已刪除')
-    } catch (e) {
-      showToast('刪除失敗：' + e.message, 'error')
-    }
-  }, [activeId, showToast])
-
-  // AI 生成完成
   const handleGenerated = useCallback((project) => {
-    setProjects(ps => [project, ...ps])
-    setActiveId(project.id)
-    setActiveProject(project)
-    setShowGenerate(false)
-    showToast('OGSM 已生成！')
-  }, [showToast])
+    setProjects(ps => [project, ...ps]);
+    setActiveId(project.id); 
+    setActiveProject(project);
+    setShowGenerate(false); 
+    setPage("editor");
+    showToast("OGSM 已生成！");
+  }, [showToast]);
+
+  const handleMembersChange = useCallback(async (newMembers) => {
+    setMembers(newMembers);
+    try {
+      const { api } = await import("./services/api.js");
+      await api.saveMembers(newMembers);
+    } catch (e) { showToast("負責人儲存失敗", "error"); }
+  }, [showToast]);
+
+  const handleGlobalClick = (e) => {
+    if(e.target.tagName !== 'BUTTON') setClickEffect({ x: e.clientX, y: e.clientY, id: Date.now() });
+  };
+
+  const renderSidebar = () => (
+    <div style={{
+      width: sidebarOpen ? "340px" : "0px",
+      minWidth: sidebarOpen ? "340px" : "0px",
+      height: "100%", display: "flex", flexDirection: "column",
+      borderRight: `1px solid ${dark ? '#666363' : '#c5bebe'}`,
+      background: "transparent",
+      transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+      position: "relative", zIndex: 30, overflow: "hidden"
+    }}>
+      <div style={{ width: "340px", height: "100%", display: "flex", flexDirection: "column" }}>
+        
+        <div style={{ padding: "24px 24px 15px", marginBottom: "10px", borderBottom: `1px solid ${dark ? '#c4c2c2' : '#d3cccc'}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div onClick={() => setPage("home")} className="cursor-pointer">
+            <h1 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "24px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000" }}>
+              STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
+            </h1>
+          </div>
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="b-action-hover"
+            style={{ 
+              width: '36px', height: '36px', background: dark ? '#222' : '#fff', border: `3px solid ${dark ? '#fff' : '#000'}`, 
+              boxShadow: dark ? '3px 3px 0 0 #fff' : '3px 3px 0 0 #000', color: dark ? '#fff' : '#000', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' 
+            }}
+            title="收起側邊欄"
+          >
+            <PanelLeftClose size={18} />
+          </button>
+        </div>
+
+        <div style={{ padding: "0 24px 15px", display: "flex", gap: "16px" }}>
+          <button 
+            className="b-action-hover"
+            onClick={() => setShowGenerate(true)} 
+            style={{ 
+              flex: 1, height: "52px", background: ACCENT_YELLOW, color: "#000", border: "4px solid #000", 
+              boxShadow: "4px 4px 0 0 #000", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, 
+              fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' 
+            }}
+          >
+            <Zap size={20} fill="currentColor" /> AI 生成 OGSM
+          </button>
+          <button 
+            className="b-action-hover"
+            onClick={() => setShowMembers(true)} 
+            style={{ 
+              width: "52px", height: "52px", flexShrink: 0, background: dark ? "#222" : "#fff", 
+              border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000', 
+              display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: dark ? '#fff' : '#000', transition: 'all 0.15s' 
+            }}
+            title="負責人管理"
+          >
+            <Users size={22} />
+            <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: "2px solid #fff", borderRadius: "12px" }}>
+              {members.length > 0 ? members.length : '12'}
+            </span>
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <ProjectList 
+            projects={projects} 
+            loading={loadingList} 
+            activeId={activeId} 
+            onSelect={selectProject} 
+            onDelete={handleDeleteProject}
+            darkMode={dark} 
+          />
+        </div>
+
+        <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#666363' : '#c5bebe'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
+          <span style={{ fontSize: "12px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontStyle: 'italic', letterSpacing: "0.08em", opacity: 0.4, color: dark ? '#fff' : '#000' }}>
+            POWERED BY AI
+          </span>
+          <button 
+            className="b-action-hover"
+            onClick={() => setDark(d => !d)} 
+            style={{ 
+              width: "40px", height: "35px", background: dark ? '#222' : "#fff", color: dark ? '#fff' : "#000", 
+              border: `4px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000', 
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' 
+            }}
+          >
+            {dark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
-      <style>{globalStyles}</style>
-<div className={`app-shell${darkMode ? '' : ' light-mode'}`}>
+      <style>{BRUTALIST_CSS}</style>
+      <div className={dark ? "dark" : ""} style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }} onClick={handleGlobalClick}>
+        <BrutalistBackground dark={dark} />
 
-        {/* ── Sidebar ── */}
-        <aside className="sidebar">
-          <div
-            className="sidebar-header"
-            onClick={() => { setActiveId(null); setActiveProject(null) }}
-            style={{ cursor: 'pointer' }}
-            title="回到首頁"
-          >
-            <div className="logo-mark">OS</div>
-            <div className="logo-text">
-              <span className="logo-title">OGSM</span>
-              <span className="logo-sub">策略規劃工具</span>
-            </div>
+        {page === "home" ? (
+          <div style={{ flex: 1, position: "relative", zIndex: 10, overflow: "hidden" }}>
+            <HomePage onNewProject={() => setShowGenerate(true)} onManageProjects={() => setPage("projects")} dark={dark} />
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 14px 8px' }}>
-            <button className="btn-generate btn-generate--flex" onClick={() => setShowGenerate(true)}>
-              <span className="btn-generate-icon">⚡</span>
-              AI 生成 OGSM
-            </button>
-            <button className="btn-members" onClick={() => setShowMemberSettings(true)} title="管理負責人">
-              👥
-              {members.length > 0 && <span className="members-count">{members.length}</span>}
-            </button>
+        ) : page === "projects" ? (
+          <div style={{ flex: 1, position: "relative", zIndex: 10, overflow: "hidden" }}>
+            <SwitchHome projects={projects} onSelect={(p) => selectProject(p.id)} onNewProject={() => setShowGenerate(true)} onBack={() => setPage("home")} dark={dark} onToggleDark={() => setDark(d => !d)} />
           </div>
-
-          <ProjectList
-            projects={projects}
-            loading={loadingList}
-            activeId={activeId}
-            onSelect={selectProject}
-            onDelete={handleDelete}
-            darkMode={darkMode}
-          />
-
-          <div className="sidebar-footer">
-            <span className="powered-by">Powered by AI</span>
-            <button
-              className="theme-toggle"
-              onClick={() => setDarkMode(d => !d)}
-              title={darkMode ? '切換至明亮模式' : '切換至暗黑模式'}
-            >
-              {darkMode ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5"/>
-                  <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                  <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
+        ) : (
+          <div style={{ flex: 1, display: "flex", position: "relative", zIndex: 10, overflow: "hidden" }}>
+            {renderSidebar()}
+            
+            <div style={{ flex: 1, overflow: "hidden", position: "relative", minWidth: 0 }}>
+              {!sidebarOpen && page === "editor" && (
+                <button 
+                  onClick={() => setSidebarOpen(true)}
+                  style={{
+                    position: 'absolute', top: '24px', left: '24px', zIndex: 40,
+                    width: '44px', height: '44px', background: dark ? '#222' : '#fff',
+                    border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: dark ? '#fff' : '#000'
+                  }}
+                >
+                  <Menu size={24} />
+                </button>
               )}
-            </button>
-          </div>
-        </aside>
-
-        {/* ── Main Content ── */}
-        <main className="main-content">
-          {loadingDetail ? (
-            <div className="empty-state">
-              <div className="spinner" />
-              <p>載入中…</p>
+              {loadingDetail ? (
+                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "20px" }}>
+                  <div style={{ width: "64px", height: "64px", border: "8px solid rgba(0,0,0,0.1)", borderTopColor: ACCENT_BLUE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                  <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: "uppercase", fontSize: "14px", letterSpacing: "0.1em", opacity: 0.6 }}>載入中…</span>
+                </div>
+              ) : activeProject ? (
+                <OgsmEditor 
+                  project={activeProject} 
+                  onSave={handleSave} 
+                  onAudit={(p) => { setAuditProject(p); setShowAudit(true); }}
+                  members={members} 
+                  darkMode={dark} 
+                  sidebarOpen={sidebarOpen} 
+                />
+              ) : (
+                <EmptyState onNewProject={() => setShowGenerate(true)} dark={dark} />
+              )}
             </div>
-          ) : activeProject ? (
-            <OgsmEditor project={activeProject} onSave={handleSave} onAudit={setAuditProject} members={members} onMembersChange={handleMembersChange} darkMode={darkMode} />
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">◈</div>
-              <h2>選擇或建立 OGSM</h2>
-              <p>從左側選取專案，或點擊「AI 生成 OGSM」開始</p>
-              <button className="btn-generate-hero" onClick={() => setShowGenerate(true)}>
-                ⚡ 以 AI 生成新的 OGSM
-              </button>
-            </div>
-          )}
-        </main>
-
-        {/* ── Member Settings ── */}
-        {showMemberSettings && (
-          <MemberSettings
-            members={members}
-            onChange={handleMembersChange}
-            onClose={() => setShowMemberSettings(false)}
-            darkMode={darkMode}
-          />
-        )}
-
-        {/* ── Generate Modal ── */}
-        {showGenerate && (
-          <GenerateModal
-            onClose={() => setShowGenerate(false)}
-            onGenerated={handleGenerated}
-            showToast={showToast}
-          />
-        )}
-
-        {/* ── Audit Panel ── */}
-        {auditProject && (
-          <AuditPanel project={auditProject} onClose={() => setAuditProject(null)} darkMode={darkMode} />
-        )}
-
-        {/* ── Toast ── */}
-        {toast && (
-          <div className={`toast toast--${toast.type}`}>
-            {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
           </div>
         )}
+
+        {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} />}
+        {showMembers && <MemberSettings members={members} onChange={handleMembersChange} onClose={() => setShowMembers(false)} darkMode={dark} />}
+        {showAudit && <AuditPanel project={auditProject} onClose={() => setShowAudit(false)} darkMode={dark} />}
+
+        <Toast toast={toast} />
+        {clickEffect && <ClickBurst {...clickEffect} />}
       </div>
     </>
-  )
+  );
 }
-
-const globalStyles = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg-base:     #0f1117;
-    --bg-surface:  #161b27;
-    --bg-elevated: #1e2535;
-    --bg-hover:    #252d3d;
-    --border:      #2a3347;
-    --border-light:#334060;
-    --accent:      #f0a500;
-    --accent-dim:  #c07e00;
-    --accent-glow: rgba(240,165,0,0.15);
-    --text-primary:#e8ecf4;
-    --text-secondary:#8a95ae;
-    --text-muted:  #4a5568;
-    --red:         #e05252;
-    --green:       #4caf7d;
-    --font-display:"Syne", sans-serif;
-    --font-body:   "Noto Sans TC", sans-serif;
-    --font-mono:   "DM Mono", monospace;
-    --radius:      6px;
-    --radius-lg:   12px;
-  }
-
-  html, body, #root { height: 100%; }
-
-  body {
-    font-family: var(--font-body);
-    background: var(--bg-base);
-    color: var(--text-primary);
-    font-size: 14px;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* 隱藏 number input 的上下箭頭 */
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  input[type="number"] {
-    -moz-appearance: textfield;
-  }
-
-  .app-shell {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* ── Sidebar ── */
-  .sidebar {
-    width: 260px;
-    min-width: 260px;
-    background: var(--bg-surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .sidebar-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 24px 20px 20px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .logo-mark {
-    width: 36px; height: 36px;
-    background: var(--accent);
-    color: #000;
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 13px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 4px;
-    letter-spacing: 0.5px;
-    flex-shrink: 0;
-  }
-
-  .logo-text { display: flex; flex-direction: column; line-height: 1.2; }
-  .logo-title {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--text-primary);
-    letter-spacing: 1px;
-  }
-  .logo-sub { font-size: 10px; color: #d4a855; letter-spacing: 0.5px; font-weight: 500; }
-
-  .btn-generate {
-    padding: 10px 14px;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    border-radius: var(--radius);
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.15s, transform 0.1s;
-    letter-spacing: 0.3px;
-  }
-  .btn-generate--flex { flex: 1; }
-  .btn-generate:hover { background: #ffc233; transform: translateY(-1px); }
-  .btn-generate:active { transform: translateY(0); }
-  .btn-generate-icon { font-size: 15px; }
-
-  .btn-members {
-    padding: 0;
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
-    position: relative;
-  }
-  .btn-members:hover { border-color: var(--border-light); color: var(--text-primary); background: var(--bg-hover); }
-  .members-count {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background: var(--accent);
-    color: #000;
-    font-size: 9px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    padding: 1px 4px;
-    border-radius: 99px;
-    min-width: 16px;
-    text-align: center;
-    line-height: 1.4;
-  }
-
-  .sidebar-footer {
-    padding: 14px 20px;
-    border-top: 1px solid var(--border);
-    font-size: 10px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    letter-spacing: 0.5px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .powered-by {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    background: linear-gradient(90deg, #a78bfa, #c084fc, #e879f9);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    filter: drop-shadow(0 0 4px rgba(192,132,252,0.45));
-  }
-
-  .theme-toggle {
-    background: rgba(139,92,246,0.18);
-    border: 1.5px solid rgba(192,132,252,0.55);
-    border-radius: 6px;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    color: #c084fc;
-    transition: background 0.2s, border-color 0.2s, transform 0.1s, box-shadow 0.2s, color 0.2s;
-    flex-shrink: 0;
-    box-shadow: 0 0 8px rgba(139,92,246,0.35);
-  }
-  .theme-toggle:hover {
-    background: rgba(139,92,246,0.32);
-    border-color: rgba(192,132,252,0.9);
-    color: #e0aaff;
-    transform: scale(1.12);
-    box-shadow: 0 0 14px rgba(192,132,252,0.6);
-  }
-  .theme-toggle:active { transform: scale(0.96); }
-
-  /* ── Main content ── */
-  .main-content {
-    flex: 1;
-    overflow-y: auto;
-    background: var(--bg-base);
-  }
-
-  /* ── Empty / loading state ── */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 16px;
-    color: var(--text-secondary);
-    text-align: center;
-    padding: 40px;
-  }
-  .empty-icon {
-    font-size: 56px;
-    color: var(--border-light);
-    line-height: 1;
-    margin-bottom: 8px;
-  }
-  .empty-state h2 {
-    font-family: var(--font-display);
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-  .empty-state p { color: var(--text-secondary); max-width: 300px; }
-
-  .btn-generate-hero {
-    margin-top: 8px;
-    padding: 12px 24px;
-    background: transparent;
-    border: 1.5px solid var(--accent);
-    color: var(--accent);
-    border-radius: var(--radius);
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 14px;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-  .btn-generate-hero:hover { background: var(--accent); color: #000; }
-
-  /* ── Spinner ── */
-  .spinner {
-    width: 32px; height: 32px;
-    border: 2.5px solid var(--border-light);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── Toast ── */
-  .toast {
-    position: fixed;
-    bottom: 28px; right: 28px;
-    padding: 12px 20px;
-    border-radius: var(--radius);
-    font-size: 13px;
-    font-weight: 500;
-    z-index: 9999;
-    animation: slideUp 0.25s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    backdrop-filter: blur(8px);
-  }
-  .toast--success {
-    background: rgba(76,175,125,0.15);
-    border: 1px solid var(--green);
-    color: var(--green);
-  }
-  .toast--error {
-    background: rgba(224,82,82,0.15);
-    border: 1px solid var(--red);
-    color: var(--red);
-  }
-  @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(40px); }
-    to   { opacity: 1; transform: translateX(0); }
-  }
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── Modal backdrop ── */
-  .modal-backdrop {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(4px);
-    z-index: 500;
-    display: flex; align-items: center; justify-content: center;
-    animation: fadeIn 0.2s ease;
-  }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-  .modal {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-lg);
-    padding: 32px;
-    width: 520px;
-    max-width: 90vw;
-    animation: scaleIn 0.2s ease;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
-  }
-  @keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.96); }
-    to   { opacity: 1; transform: scale(1); }
-  }
-
-  /* ── Shared form styles ── */
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
-  .field label {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-  }
-  .field input,
-  .field textarea {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text-primary);
-    font-family: var(--font-body);
-    font-size: 14px;
-    padding: 10px 12px;
-    outline: none;
-    resize: vertical;
-    transition: border-color 0.15s;
-  }
-  .field input:focus,
-  .field textarea:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
-  }
-  .field textarea { min-height: 88px; }
-
-  /* ── Buttons ── */
-  .btn { 
-    padding: 9px 18px;
-    border-radius: var(--radius);
-    border: none;
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: inline-flex; align-items: center; gap: 6px;
-  }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover { background: #ffc233; }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-ghost {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-  }
-  .btn-ghost:hover { border-color: var(--border-light); color: var(--text-primary); }
-  .btn-danger { background: transparent; color: var(--red); border: 1px solid transparent; }
-  .btn-danger:hover { border-color: var(--red); background: rgba(224,82,82,0.1); }
-  
-  /* ── Audit Panel Goal Header Hover ── */
-  div[data-role="goal-header"]:hover {
-    background: rgba(42, 51, 71, 0.3);
-  }
-
-  /* ── Light Mode ── */
-  .light-mode {
-    --bg-base:       #eef2f8;
-    --bg-surface:    #ffffff;
-    --bg-elevated:   #f3f7fd;
-    --bg-hover:      #e4ecf7;
-    --border:        #c8d4e8;
-    --border-light:  #aabace;
-    --accent:        #cc7700;
-    --accent-dim:    #995500;
-    --accent-glow:   rgba(204,119,0,0.15);
-    --text-primary:  #1a2133;
-    --text-secondary:#445069;
-    --text-muted:    #7a8ca8;
-    --red:           #c73030;
-    --green:         #1a7d4d;
-  }
-  .light-mode { color: var(--text-primary); }
-  .light-mode .sidebar { background: var(--bg-surface); border-right-color: var(--border); }
-  .light-mode .sidebar-header { border-bottom-color: var(--border); }
-  .light-mode .main-content { background: var(--bg-base); }
-  .light-mode .logo-title { color: var(--text-primary); }
-  .light-mode .logo-sub { color: #9a6000; }
-  .light-mode .logo-mark { box-shadow: 0 2px 8px rgba(204,119,0,0.25); }
-  .light-mode .btn-generate { color: #000; box-shadow: 0 2px 8px rgba(204,119,0,0.2); }
-  .light-mode .btn-generate:hover { background: #e08800; }
-  .light-mode .theme-toggle { background: var(--bg-elevated); border-color: var(--border); color: var(--text-secondary); }
-  .light-mode .theme-toggle:hover { background: var(--bg-hover); border-color: var(--border-light); }
-  .light-mode .modal {
-    background: var(--bg-surface);
-    border-color: var(--border-light);
-    box-shadow: 0 24px 80px rgba(60,80,120,0.15);
-  }
-  .light-mode .modal-backdrop { background: rgba(60,80,120,0.35); }
-  .light-mode .field input,
-  .light-mode .field textarea {
-    background: var(--bg-elevated);
-    border-color: var(--border);
-    color: var(--text-primary);
-  }
-  .light-mode .field label { color: var(--text-muted); }
-  .light-mode .btn-ghost { color: var(--text-secondary); border-color: var(--border); }
-  .light-mode .btn-ghost:hover { color: var(--text-primary); border-color: var(--border-light); }
-  .light-mode .btn-primary:hover { background: #e08800; }
-  .light-mode .btn-primary:disabled { opacity: 0.45; }
-  .light-mode .spinner { border-color: var(--border-light); border-top-color: var(--accent); }
-  .light-mode .empty-icon { color: var(--border-light); }
-  .light-mode .empty-state h2 { color: var(--text-primary); }
-  .light-mode .empty-state p { color: var(--text-secondary); }
-  .light-mode .btn-generate-hero { border-color: var(--accent); color: var(--accent); }
-  .light-mode .btn-generate-hero:hover { background: var(--accent); color: #fff; }
-  .light-mode .toast--success {
-    background: rgba(26,125,77,0.10);
-    border-color: var(--green);
-    color: var(--green);
-  }
-  .light-mode .toast--error {
-    background: rgba(199,48,48,0.10);
-    border-color: var(--red);
-    color: var(--red);
-  }
-  .light-mode select option { background: #ffffff; color: #1a2133; }
-  .light-mode div[data-role="goal-header"]:hover { background: rgba(200,212,232,0.35); }
-`
