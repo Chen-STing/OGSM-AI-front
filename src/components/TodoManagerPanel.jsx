@@ -30,11 +30,8 @@ function flattenTodos(project) {
             measureStatus: m.status,
             goalText:      goal.text,
             stratText:     st.text,
-            // 是否逾期（依 MP 步驟自身期限，或超過 MD 期限）
-            isOverdue: !t.done && (
-              (t.deadline && t.deadline < today) ||
-              (t.deadline && m.deadline && t.deadline > m.deadline)
-            ),
+            // 是否逾期（依 MP 步驟自身期限早於今日）
+            isOverdue: !t.done && !!(t.deadline && t.deadline < today),
             isDueToday: !t.done && t.deadline === today,
             // 向下相容保留
             todoOverdue: t.deadline && t.deadline < today && !t.done,

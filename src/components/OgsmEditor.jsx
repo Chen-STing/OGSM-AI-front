@@ -782,6 +782,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], onM
                                                           type="date"
                                                           style={{ width: '106px', background: darkMode ? '#1a2030' : '#f3f7fd', border: `1px solid ${tOverdue ? 'rgba(239,68,68,0.4)' : (darkMode ? '#2a3347' : '#c8d4e8')}`, borderRadius: '3px', color: tOverdue ? '#ef4444' : (darkMode ? '#8a95ae' : '#5a6e88'), fontSize: '10px', fontFamily: '"DM Mono", monospace', padding: '1px 4px', outline: 'none', colorScheme: darkMode ? 'dark' : 'light' }}
                                                           value={t.deadline || ''}
+                                                          max={m.deadline || undefined}
                                                           onChange={e => updateTodo(t.id, 'deadline', e.target.value)}
                                                         />
                                                         <button className="ogsm-remove-btn" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', cursor: 'pointer', fontSize: '10px', padding: '2px 5px', borderRadius: '3px', lineHeight: 1, fontWeight: 600, flexShrink: 0 }} onClick={() => removeTodo(t.id)}>✕</button>
