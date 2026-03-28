@@ -1,4 +1,11 @@
 import { useState } from 'react'
+import BrutalistSelect from './BrutalistSelect.jsx'
+
+const TODOLIST_CSS = `
+  .tl-date::-webkit-calendar-picker-indicator {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
+  }
+`
 
 export default function TodoList({ todos = [], onChange, editMode, members = [], darkMode = true, noHeader = false }) {
   const [inputVal, setInputVal] = useState('')
@@ -44,7 +51,7 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
 
   if (todos.length === 0 && !editMode) return null
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
 
   const content = (
     <>
@@ -72,19 +79,18 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
 
               {/* Meta: assignee + deadline */}
               <div style={s.todoMeta}>
-                <select
-                  style={s.assigneeInput}
+                <BrutalistSelect
                   value={t.assignee || ''}
-                  onChange={e => updateTodoField(t.id, 'assignee', e.target.value)}
-                  title="負責人"
-                >
-                  <option value=''>— 負責人 —</option>
-                  {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
-                </select>
+                  onChange={v => updateTodoField(t.id, 'assignee', v)}
+                  options={[{ value: '', label: '— 負責人 —' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                  darkMode={darkMode}
+                  style={{ ...s.assigneeInput, padding: '1px 4px' }}
+                />
 
                 {editMode ? (
                   <input
                     type="date"
+                    className="tl-date"
                     style={{ ...s.todoDeadlineInput, ...(isOverdue ? s.todoDeadlineOverdue : {}) }}
                     value={t.deadline || ''}
                     onChange={e => updateTodoField(t.id, 'deadline', e.target.value)}
@@ -129,11 +135,12 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
   )
 
   if (noHeader) {
-    return <div style={s.wrap}>{content}</div>
+    return <div style={s.wrap}><style>{TODOLIST_CSS}</style>{content}</div>
   }
 
   return (
     <div style={s.wrap}>
+      <style>{TODOLIST_CSS}</style>
       {/* Header — click to toggle */}
       <div style={s.header} onClick={() => setOpen(o => !o)}>
         <span style={s.headerLabel}>

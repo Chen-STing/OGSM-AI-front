@@ -128,7 +128,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark }) {
                 padding: "20px 48px", fontSize: "22px",
                 fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
                 textTransform: "uppercase", letterSpacing: "0.04em",
-                background: "#000", color: "#fff",
+                background: "#696969ff", color: "#fff",
                 border: "6px solid #000",
                 boxShadow: "10px 10px 0 0 rgba(0,0,0,1)",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "16px",
@@ -145,7 +145,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark }) {
               onMouseLeave={e => {
                 e.currentTarget.style.transform = "translate(0, 0)";
                 e.currentTarget.style.boxShadow = "10px 10px 0 0 rgba(0,0,0,1)";
-                e.currentTarget.style.background = "#000"; // 離開時恢復黑色
+                e.currentTarget.style.background = "#696969ff"; // 離開時恢復黑色
                 e.currentTarget.style.color = "#fff";
               }}
               onMouseDown={e => {

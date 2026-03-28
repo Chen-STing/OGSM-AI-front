@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TodoManagerPanel from './TodoManagerPanel.jsx'
 import AiConfirmDialog from './AiConfirmDialog.jsx'
+import BrutalistSelect from './BrutalistSelect.jsx'
 import { api } from '../services/api.js'
 
 const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignee: '', todos: [], sortOrder: 0 })
@@ -14,10 +15,10 @@ const STATUS_CONFIG = {
   Overdue:    { label: '已逾期', color: '#e05252', bg: 'rgba(224,82,82,0.12)',  border: '#e05252' },
 }
 
-const B_YELLOW = '#FFFF00'
+const B_YELLOW = '#aeae20ff'
 const B_BLUE   = '#0000FF'
-const B_PINK   = '#FF00FF'
-const B_GREEN  = '#00FF00'
+const B_PINK   = 'rgb(255, 15, 15)'
+const B_GREEN  = '#16ca16ff'
 
 const COL_G      = 200
 const COL_S      = 200
@@ -38,7 +39,7 @@ function autoStatus(m) {
 }
 
 function applyOverdueStatus(d) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
   d.goals.forEach(g => g.strategies.forEach(s => s.measures.forEach(m => {
     if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
   })))
@@ -54,6 +55,10 @@ function progressColor(pct) {
 
 const autoResize = (e) => {
   const el = e.target
+  // 找到最近的 scroll container，儲存 scrollTop 避免跳位
+  const scrollContainer = el.closest('.custom-scrollbar') || el.closest('[data-scroll-container]')
+  const savedScrollTop = scrollContainer ? scrollContainer.scrollTop : null
+
   el.style.height = '0px'
   el.style.height = el.scrollHeight + 'px'
   const row = el.closest('[data-measure-row]')
@@ -61,6 +66,11 @@ const autoResize = (e) => {
     const siblings = row.querySelectorAll('textarea')
     const maxH = Math.max(...Array.from(siblings).map(t => { t.style.height = '0px'; return t.scrollHeight }))
     siblings.forEach(t => { t.style.height = maxH + 'px' })
+  }
+
+  // 還原 scrollTop，避免因高度重算而跳到頂端
+  if (scrollContainer && savedScrollTop !== null) {
+    scrollContainer.scrollTop = savedScrollTop
   }
 }
 const initResize = (el) => { if (!el) return; el.style.height = '0px'; el.style.height = el.scrollHeight + 'px' }
@@ -74,32 +84,58 @@ const Icons = {
   Zap: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>,
   More: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>,
   X: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  ArrowRight: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
-  Menu: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
-  PanelLeftClose: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+  ArrowRight: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 }
 
 // ─── SLIDE PANEL WRAPPER ─────────────────────────────────────────────────────
-function SlidePanel({ title, icon, onClose, children, dark, width = "480px" }) {
+function SlidePanel({ title, icon, onClose, children, dark, width = "480px", originRect = null, showHeader = true }) {
+  const vw = window.innerWidth
+  const panelW = parseInt(width)
+  const originX = originRect
+    ? `${Math.max(0, originRect.left + originRect.width / 2 - (vw - panelW))}px`
+    : `${panelW}px`
+  const originY = originRect
+    ? `${originRect.top + originRect.height / 2}px`
+    : '50px'
+
   return (
     <>
       <div className="ogsm-slide-overlay" onClick={onClose} />
-      <div className="ogsm-slide-panel" style={{ width, background: dark ? '#1a1a1a' : '#fff', borderLeft: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
-        <div style={{ padding: '24px 32px', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : '#000'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ background: B_YELLOW, color: '#000', padding: '8px', borderRadius: '2px' }}>
-              {icon}
+      {/* 動畫層：只負責 scale 動畫，不設 overflow */}
+      <div
+        className="ogsm-slide-panel ogsm-slide-panel-morph"
+        style={{
+          width,
+          maxWidth: '92vw',
+          transformOrigin: `${originX} ${originY}`,
+        }}
+      >
+        {/* 佈局層：負責實際佈局和 overflow，不參與動畫 */}
+        <div style={{
+          width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column',
+          background: 'transparent',
+          borderLeft: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : '#000'}`,
+          overflow: 'hidden',
+        }}>
+          {showHeader && (
+            <div style={{ padding: '24px 32px', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : '#000'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: dark ? '#1a1a1a' : '#fff', position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ background: B_YELLOW, color: '#000', padding: '8px', borderRadius: '2px' }}>
+                  {icon}
+                </div>
+                <h3 style={{ fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, letterSpacing: '-0.02em', color: dark ? '#fff' : '#000' }}>
+                  {title}
+                </h3>
+              </div>
+              <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', padding: '8px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = B_PINK} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}>
+                <Icons.X />
+              </button>
             </div>
-            <h3 style={{ fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, letterSpacing: '-0.02em', color: dark ? '#fff' : '#000' }}>
-              {title}
-            </h3>
+          )}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {children}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', padding: '8px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = B_PINK} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}>
-            <Icons.X />
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {children}
         </div>
       </div>
     </>
@@ -107,14 +143,15 @@ function SlidePanel({ title, icon, onClose, children, dark, width = "480px" }) {
 }
 
 // ─── MAIN EDITOR COMPONENT ───────────────────────────────────────────────────
-export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen, onToggleSidebar }) {
+export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen }) {
   const [draft, setDraft]   = useState(null)
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
   
   const [showTodoPanel, setShowTodoPanel] = useState(false)
-  const [showLocalAudit, setShowLocalAudit] = useState(false) 
+  const [todoPanelOrigin, setTodoPanelOrigin] = useState(null)
+  const [auditOrigin, setAuditOrigin] = useState(null)
 
   const [aiDialog, setAiDialog] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -140,7 +177,16 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   useEffect(() => {
     if (openTodos.size === 0) return
-    const handler = (e) => { if (!e.target.closest('[data-todo-zone]') && !e.target.closest('.b-action-btn')) setOpenTodos(new Set()) }
+    const handler = (e) => {
+      // 點 todo 區、header 按鈕、sidebar toggle、dark mode toggle 時不收起
+      if (
+        e.target.closest('[data-todo-zone]') ||
+        e.target.closest('.b-action-btn') ||
+        e.target.closest('.b-header-btn') ||
+        e.target.closest('[data-sidebar-toggle]')
+      ) return
+      setOpenTodos(new Set())
+    }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [openTodos])
@@ -167,30 +213,45 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   // ─── DYNAMIC WIDTH CALCULATION ───
   const baseKpiW = editMode ? 220 : COL_KPI
   const baseTotalW = COL_G + COL_S + baseKpiW + COL_VALT + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT
-  
+
+  const baseTotalWRef = useRef(baseTotalW)
+  useEffect(() => { baseTotalWRef.current = baseTotalW }, [baseTotalW])
+
   const [extraW, setExtraW] = useState(0)
 
+  // 重算 extraW 的通用函式，直接讀 ref 取得最新 baseTotalW
+  const recalcExtraW = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const width = el.getBoundingClientRect().width
+    const base = baseTotalWRef.current
+    setExtraW(width > base + 2 ? Math.floor(width - base - 2) : 0)
+  }, [])
+
+  // ResizeObserver：只建立一次，callback 透過 ref 拿最新 baseTotalW
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const { width } = entry.contentRect
-        if (width > baseTotalW + 2) {
-          setExtraW(Math.floor(width - baseTotalW - 2))
-        } else {
-          setExtraW(0)
-        }
-      }
-    })
+    const observer = new ResizeObserver(() => recalcExtraW())
     observer.observe(el)
     return () => observer.disconnect()
-  }, [baseTotalW])
+  }, [recalcExtraW])
 
-  // 分配剩餘寬度: S(50%), 目標值(30%), KPI(20%)
+  // sidebarOpen 改變時，等 CSS transition (300ms) 結束後強制重算
+  useEffect(() => {
+    const timer = setTimeout(recalcExtraW, 320)
+    return () => clearTimeout(timer)
+  }, [sidebarOpen, recalcExtraW])
+
+  // baseTotalW 改變時（editMode 切換）也立即重算
+  useEffect(() => {
+    recalcExtraW()
+  }, [baseTotalW, recalcExtraW])
+
+  // 分配剩餘寬度: S(50%), MD 定量指標(30%), 目標值(20%)
   const dynS = Math.floor(COL_S + extraW * 0.5)
-  const dynTarget = Math.floor(COL_VALT + extraW * 0.3)
-  const dynKpi = baseKpiW + extraW - Math.floor(extraW * 0.5) - Math.floor(extraW * 0.3)
+  const dynKpi = Math.floor(baseKpiW + extraW * 0.3)
+  const dynTarget = COL_VALT + extraW - Math.floor(extraW * 0.5) - Math.floor(extraW * 0.3)
 
   const toggleTodoById = useCallback((gi, si, mi, todoId) => {
     update(d => {
@@ -199,7 +260,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
       const updated = d.goals[gi].strategies[si].measures[mi].todos
       const done = updated.filter(t => t.done).length
       d.goals[gi].strategies[si].measures[mi].progress = updated.length ? Math.round((done / updated.length) * 100) : 0
-      const today = new Date().toISOString().slice(0, 10)
+      const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
       const isOverdue = d.goals[gi].strategies[si].measures[mi].deadline && d.goals[gi].strategies[si].measures[mi].deadline < today
       if (updated.length > 0 && done === updated.length) d.goals[gi].strategies[si].measures[mi].status = 'Completed'
       else if (isOverdue) d.goals[gi].strategies[si].measures[mi].status = 'Overdue'
@@ -267,7 +328,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const addStrategy    = (gi)            => update(d => { d.goals[gi].strategies.push(emptyStrategy()); return d })
   const removeStrategy = (gi,si)         => update(d => { d.goals[gi].strategies.splice(si,1); return d })
   const setMField      = (gi,si,mi,f,v)  => update(d => {
-    d.goals[gi].strategies[si].measures[mi][f] = v; const m = d.goals[gi].strategies[si].measures[mi]; const today = new Date().toISOString().slice(0, 10)
+    d.goals[gi].strategies[si].measures[mi][f] = v; const m = d.goals[gi].strategies[si].measures[mi]; const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
     if (f === 'deadline') {
       if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
       else if ((!m.deadline || m.deadline >= today) && m.status === 'Overdue') m.status = autoStatus(m)
@@ -281,7 +342,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const removeMeasure  = (gi,si,mi)      => update(d => { d.goals[gi].strategies[si].measures.splice(mi,1); return d })
   const setMTodos      = (gi,si,mi,todos) => update(d => {
     d.goals[gi].strategies[si].measures[mi].todos = todos; const done = todos.filter(t => t.done).length; const pct = todos.length ? Math.round((done / todos.length) * 100) : 0
-    d.goals[gi].strategies[si].measures[mi].progress = pct; const m = d.goals[gi].strategies[si].measures[mi]; const today = new Date().toISOString().slice(0, 10)
+    d.goals[gi].strategies[si].measures[mi].progress = pct; const m = d.goals[gi].strategies[si].measures[mi]; const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
     if (m.deadline && m.deadline < today && pct < 100) m.status = 'Overdue'; else m.status = autoStatus(m)
     return d
   })
@@ -306,6 +367,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
   const overallProgress = allMeasures.length ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length) : 0
+  const isCompleted = allMeasures.length > 0 && overallProgress >= 100
+  const isProjectOverdue = draft.deadline && draft.deadline < (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })() && !isCompleted
   const dark = darkMode
 
   return (
@@ -316,7 +379,14 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         @keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
         .ogsm-slide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 9998; animation: ogsm-fade-in 0.2s ease-out forwards; }
-        .ogsm-slide-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 9999; box-shadow: -10px 0 40px rgba(0,0,0,0.4); display: flex; flex-direction: column; animation: slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .ogsm-slide-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 9999; box-shadow: -10px 0 40px rgba(0,0,0,0.4); display: flex; flex-direction: column; height: 100%; }
+        .ogsm-slide-panel-morph {
+          animation: slidePanelMorph 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        @keyframes slidePanelMorph {
+          0%   { transform: scale(0.08); opacity: 0.6; }
+          100% { transform: scale(1);    opacity: 1; }
+        }
         
         .b-header-btn { border: 2px solid #000; box-shadow: 2px 2px 0 rgba(0,0,0,1); transition: transform 0.1s, box-shadow 0.1s, background 0.15s, color 0.15s; cursor: pointer; display: flex; alignItems: center; gap: 8px; font-weight: 900; text-transform: uppercase; font-size: 11px; font-family: "Space Grotesk", sans-serif; letter-spacing: 0.04em; }
         .dark .b-header-btn { border-color: rgba(255,255,255,0.2); box-shadow: 2px 2px 0 rgba(255,255,255,0.1); }
@@ -326,7 +396,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         .ogsm-table-row { transition: background 0.15s; }
         .ogsm-table-row:hover { background: ${dark ? 'rgba(0,0,255,0.04)' : 'rgba(0,0,255,0.02)'}; }
 
-        .ogsm-remove-btn:hover { background: ${B_PINK} !important; border-color: #000 !important; color: #000 !important; transform: scale(1.05); box-shadow: 2px 2px 0 #000; }
+        .ogsm-remove-btn:hover { background: ${B_PINK} !important; border-color: rgba(0,0,0,0.35) !important; color: #000 !important; transform: scale(1.05); box-shadow: 2px 2px 0 rgba(80,80,80,0.5); }
         .ogsm-add-btn:hover { color: ${B_YELLOW} !important; }
         .ogsm-ai-btn:hover { background: ${B_YELLOW} !important; border-color: #000 !important; color: #000 !important; box-shadow: 2px 2px 0 #000; transform: scale(1.05); }
         .ogsm-measure-drag-row[data-dragging='true'], .ogsm-goal-drag-block[data-dragging='true'], .ogsm-strategy-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
@@ -335,27 +405,38 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         /* 改為取消文字選中或聚焦時的藍色外框 */
         textarea:focus, input:focus, select:focus { outline: none !important; box-shadow: none !important; }
         ::selection { background: ${B_YELLOW}; color: #000; }
+        .ogsm-date::-webkit-calendar-picker-indicator { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important; }
+        .ogsm-date-overdue::-webkit-calendar-picker-indicator { filter: brightness(0) saturate(100%) invert(12%) sepia(90%) saturate(6000%) hue-rotate(0deg) brightness(85%); cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important; }
       `}</style>
 
       {/* ── Top Header ── */}
-      <div style={{ padding: '12px 24px', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 20, background: dark ? 'rgba(20,20,20,0.3)' : 'rgba(255,255,255,0.3)', backdropFilter: 'blur(16px)', flexShrink: 0 }}>
+      <div style={{ padding: sidebarOpen ? '12px 24px' : '12px 24px 12px 84px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 20, background: 'transparent', flexShrink: 0, transition: 'padding 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          
-          <button onClick={onToggleSidebar} title="收合/展開側邊欄" style={{ background: 'transparent', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', cursor: 'pointer', padding: '4px', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = dark ? '#fff' : '#000'} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'}>
-            {sidebarOpen ? <Icons.PanelLeftClose /> : <Icons.Menu />}
-          </button>
 
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <input
-              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '24px', letterSpacing: '-0.02em', textTransform: 'uppercase', fontStyle: 'italic', outline: 'none', width: '300px', marginBottom: '4px', lineHeight: 1 }}
+              type="text"
+              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '24px', letterSpacing: '-0.02em', textTransform: 'uppercase', fontStyle: 'italic', outline: 'none', width: '135%', marginBottom: '4px', lineHeight: 1 }}
               value={draft.title}
               onChange={e => setField('title', e.target.value)}
               placeholder="專案標題"
               readOnly={!editMode}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ background: dark ? B_BLUE : '#000', color: dark ? '#fff' : B_YELLOW, fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '2px 6px' }}>OGSM</span>
-              <span style={{ fontSize: '9px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>更新：{new Date(draft.updatedAt).toLocaleDateString('zh-TW')}</span>
+              {isCompleted && (
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: B_GREEN, color: '#000', padding: '2px 8px', border: '1.5px solid rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  計畫已完成
+                </span>
+              )}
+              {isProjectOverdue && (
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: B_PINK, color: '#fff', padding: '2px 8px', border: '1.5px solid rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  計畫已逾期
+                </span>
+              )}
+              <span style={{ fontSize: '9px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>更新：{new Date(draft.updatedAt).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
             </div>
           </div>
         </div>
@@ -363,7 +444,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, color: dark ? '#fff' : '#000' }}>進度</span>
+              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, color: dark ? '#fff' : '#000' }}>整體進度</span>
               <div style={{ width: '100px', height: '6px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden', border: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}` }}>
                 <div style={{ height: '100%', width: `${overallProgress}%`, background: `linear-gradient(90deg, ${B_YELLOW}, ${B_GREEN})`, transition: 'width 0.4s' }} />
               </div>
@@ -371,16 +452,16 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
             </div>
           </div>
 
-          <button className="b-header-btn b-action-btn" onClick={() => setShowLocalAudit(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#f9fafb'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+          <button className="b-header-btn b-action-btn" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setAuditOrigin(r); onAudit(draft, r); }} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
             <Icons.FileText /> 審計報告
           </button>
           
-          <button className="b-header-btn b-action-btn" onClick={() => setShowTodoPanel(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#f9fafb'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+          <button className="b-header-btn b-action-btn" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTodoPanelOrigin(r); setShowTodoPanel(true); }} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
             <Icons.CheckCircle /> MP 總覽
             {pendingTodos > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: B_PINK, color: '#fff', fontSize: '9px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: `1px solid ${dark ? '#2a2a2a' : '#fff'}` }}>{pendingTodos > 99 ? '99' : pendingTodos}</span>}
           </button>
 
-          <button className="b-header-btn b-action-btn" onClick={() => setEditMode(!editMode)} style={{ padding: '6px 12px', background: editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'), color: editMode ? (dark ? '#000' : '#fff') : B_BLUE }} onMouseEnter={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'); e.currentTarget.style.color = editMode ? (dark ? '#000' : '#fff') : B_BLUE }}>
+          <button className="b-header-btn b-action-btn" onClick={() => setEditMode(!editMode)} style={{ padding: '6px 12px', background: editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'), color: editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }} onMouseEnter={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'); e.currentTarget.style.color = editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }}>
             <Icons.Edit /> {editMode ? '停止編輯' : '編輯'}
           </button>
           
@@ -391,7 +472,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
       </div>
 
       {/* ── Objective & Deadline ── */}
-      <div style={{ padding: '16px 24px 0 24px', flexShrink: 0 }}>
+      <div style={{ padding: '6px 24px 0 24px', flexShrink: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '12px' }}>
           <div style={{ padding: '12px 16px', border: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, background: dark ? 'rgba(20,20,20,0.4)' : 'rgba(255,255,255,0.4)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: B_YELLOW, marginBottom: '4px' }}>O - Objective</div>
@@ -408,6 +489,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
             <label style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.5, marginBottom: '4px', color: dark ? '#fff' : '#000' }}>計畫截止期限</label>
             <input
               type="date"
+              className="ogsm-date"
               style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontSize: '14px', fontFamily: 'monospace', fontWeight: 900, outline: 'none', colorScheme: dark ? 'dark' : 'light', width: '100%', cursor: editMode ? 'text' : 'default' }}
               value={draft.deadline || ''}
               onChange={e => setField('deadline', e.target.value)}
@@ -419,11 +501,11 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {/* ── Table (利用 100% 寬度與 ResizeObserver 動態分配比例) ── */}
       <div style={{ flex: 1, minHeight: 0, padding: '12px 24px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', background: dark ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)', border: `2px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, boxShadow: `4px 4px 0 ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }} className="custom-scrollbar" onDragOver={handleScrollZoneDragOver} onDragEnd={handleScrollZoneDragEnd} onDrop={handleScrollZoneDragEnd}>
-          <div style={{ width: '100%', minWidth: baseTotalW }}>
+        <div ref={scrollRef} data-scroll-container="" style={{ flex: 1, overflow: 'auto', background: dark ? 'rgba(10,10,10,0.35)' : 'rgba(255,255,255,0.35)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`, boxShadow: `4px 4px 0 ${dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }} className="custom-scrollbar" onDragOver={handleScrollZoneDragOver} onDragEnd={handleScrollZoneDragEnd} onDrop={handleScrollZoneDragEnd}>
+          <div style={{ width: '100%', minWidth: `${baseTotalW}px` }}>
             
             {/* Table Header (Sticky) */}
-            <div style={{ display: 'flex', background: dark ? '#2a2a2a' : '#f3f4f6', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'flex', background: dark ? 'rgba(20,20,20,0.85)' : 'rgba(243,244,246,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, position: 'sticky', top: 0, zIndex: 10 }}>
               {[
                 { label: 'G - Goals',      w: COL_G      },
                 { label: 'S - Strategies', w: dynS       },
@@ -507,7 +589,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                     <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: mi < st.measures.length - 1 ? `1px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none', minHeight: '64px' }}>
                                       
                                       {/* KPI */}
-                                      <div style={{ width: dynKpi, minWidth: dynKpi, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, position: 'relative' }}>
+                                      <div style={{ width: dynKpi, minWidth: dynKpi, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' }}>
                                         {editMode && <div style={{ position: 'absolute', left: '4px', top: '12px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                                         <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px', paddingLeft: editMode ? '12px' : '0' }}>D{gi+1}.{si+1}.{mi+1}</div>
                                         <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} readOnly={!editMode} />
@@ -532,19 +614,22 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       {/* Assignee */}
                                       <div style={{ width: COL_OWNER, minWidth: COL_OWNER, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
-                                          <select style={{ width: '100%', background: dark ? '#222' : '#f9fafb', border: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, color: dark ? '#fff' : '#000', fontSize: '11px', fontWeight: 700, padding: '4px', outline: 'none' }} value={m.assignee || ''} onChange={e => setMField(gi,si,mi,'assignee',e.target.value)}>
-                                            <option value=''>—</option>
-                                            {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
-                                          </select>
+                                          <BrutalistSelect
+                                            value={m.assignee || ''}
+                                            onChange={v => setMField(gi,si,mi,'assignee',v)}
+                                            options={[{ value: '', label: '—' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                                            darkMode={dark}
+                                            style={{ width: '100%', fontSize: '11px', fontWeight: 700, height: '22px', boxSizing: 'border-box' }}
+                                          />
                                         ) : (
-                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#fff' : '#000' }}>{m.assignee || '—'}</span>
+                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#a0b8ff' : '#000' }}>{m.assignee || '—'}</span>
                                         )}
                                       </div>
 
                                       {/* Deadline */}
                                       <div style={{ width: COL_DL, minWidth: COL_DL, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
-                                          <input type="date" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: '10px', fontFamily: 'monospace', outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light' }} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
+                                          <input type="date" className="ogsm-date" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: '10px', fontFamily: 'monospace', outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light' }} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
                                         ) : (
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, opacity: 0.6, color: dark ? '#fff' : '#000' }}>
                                             {m.deadline || '—'}
@@ -555,9 +640,13 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       {/* Status */}
                                       <div style={{ width: COL_STATUS, minWidth: COL_STATUS, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
-                                          <select style={{ width: '100%', background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color, fontSize: '9px', fontWeight: 900, padding: '4px', outline: 'none' }} value={m.status} onChange={e => setMField(gi,si,mi,'status',e.target.value)}>
-                                            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                                          </select>
+                                          <BrutalistSelect
+                                            value={m.status}
+                                            onChange={v => setMField(gi,si,mi,'status',v)}
+                                            options={Object.entries(STATUS_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))}
+                                            darkMode={dark}
+                                            style={{ width: '100%', fontSize: '12px', fontWeight: 900, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, height: '22px', boxSizing: 'border-box' }}
+                                          />
                                         ) : (
                                           <span style={{ fontSize: '10px', fontWeight: 900, color: sc.color }}>{sc.label}</span>
                                         )}
@@ -569,60 +658,66 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                           <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic', color: dark ? '#fff' : '#000' }}>{m.progress}%</span>
                                         </div>
                                         <div style={{ height: '4px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
-                                          <div style={{ height: '100%', width: `${m.progress}%`, background: B_BLUE, transition: 'width 0.3s' }} />
+                                          <div style={{ height: '100%', width: `${m.progress}%`, background: m.progress >= 100 ? B_GREEN : m.progress >= 60 ? B_BLUE : m.progress >= 30 ? B_YELLOW : B_PINK, transition: 'width 0.3s, background 0.3s' }} />
                                         </div>
                                       </div>
 
                                       {/* MP Column */}
                                       <div data-todo-zone style={{ width: COL_ACT, minWidth: COL_ACT, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <button onClick={() => toggleTodoRow(todoKey)} title="展開/收起 MP 檢核步驟" style={{ background: 'none', border: 'none', color: todoOpen ? B_YELLOW : B_BLUE, cursor: 'pointer', transition: 'transform 0.15s', fontSize: '16px', fontWeight: 900 }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                                          <button onClick={() => toggleTodoRow(todoKey)} title="展開/收起 MP 檢核步驟" style={{ background: 'none', border: 'none', color: todoOpen ? '#ff9d00' : B_BLUE, cursor: 'pointer', transition: 'transform 0.15s', fontSize: '16px', fontWeight: 900 }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
                                             {todoOpen ? '▾' : '▸'}
                                           </button>
-                                          <span style={{ fontSize: '10px', fontWeight: 700, opacity: 0.4, color: dark ? '#fff' : '#000' }}>{doneCount}/{todos.length}</span>
+                                          <span onClick={() => toggleTodoRow(todoKey)} title="展開/收起 MP 檢核步驟" style={{ fontSize: '10px', fontWeight: 700, opacity: 0.4, cursor: 'pointer', color: dark ? '#fff' : '#000' }}>{doneCount}/{todos.length} 完成</span>
                                         </div>
                                       </div>
                                     </div>
 
                                     {/* MP 檢核步驟展開列 */}
                                     {openTodos.has(todoKey) && (() => {
-                                      const today = new Date().toISOString().slice(0, 10)
+                                      const now = new Date(); const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
                                       const updateTodo = (tid, field, val) => setMTodos(gi, si, mi, (m.todos || []).map(t => t.id === tid ? { ...t, [field]: val } : t))
                                       const removeTodo = (tid) => setMTodos(gi, si, mi, (m.todos || []).filter(t => t.id !== tid))
                                       const addTodo = () => setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignee: '', deadline: '', createdAt: new Date().toISOString() }])
                                       return (
-                                        <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '12px 24px', borderLeft: `4px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
+                                        <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '6px 10px 6px 10px', borderLeft: `3px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
                                           {(m.todos || []).length === 0 && !editMode ? null : (m.todos || []).map((t, ti) => {
                                             const tOverdue = t.deadline && t.deadline < today && !t.done
                                             const isTDragging = dragTodo?.gi === gi && dragTodo?.si === si && dragTodo?.mi === mi && dragTodo?.ti === ti
                                             const isTDragOver = dragOverTodo?.gi === gi && dragOverTodo?.si === si && dragOverTodo?.mi === mi && dragOverTodo?.ti === ti && !isTDragging
                                             return (
                                               <div key={t.id ?? ti} draggable={editMode} onDragStart={editMode ? e => handleTodoDragStart(e, gi, si, mi, ti) : undefined} onDragOver={editMode ? e => handleTodoDragOver(e, gi, si, mi, ti) : undefined} onDrop={editMode ? e => handleTodoDrop(e, gi, si, mi, ti) : undefined} onDragEnd={editMode ? handleTodoDragEnd : undefined}
-                                                style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', minHeight: '28px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${B_BLUE}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}>
+                                                style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', marginBottom: '1px', minHeight: '16px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${B_BLUE}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}>
                                                 {editMode && <span style={{ fontSize: '11px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', cursor: 'grab', flexShrink: 0, marginTop: '4px', lineHeight: 1.5, userSelect: 'none' }}>⠿</span>}
-                                                <button style={{ width: '18px', height: '18px', flexShrink: 0, border: `2px solid ${t.done ? B_GREEN : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')}`, borderRadius: 0, background: t.done ? B_GREEN : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, outline: 'none', alignSelf: 'flex-start', marginTop: '2px' }} onClick={() => updateTodo(t.id, 'done', !t.done)}>
+                                                <button style={{ width: '10px', height: '10px', flexShrink: 0, border: `2px solid ${t.done ? B_GREEN : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')}`, borderRadius: 0, background: t.done ? B_GREEN : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, outline: 'none', alignSelf: 'flex-start', marginTop: '3px' }} onClick={() => updateTodo(t.id, 'done', !t.done)}>
                                                   {t.done && <span style={{ fontSize: '10px', color: '#000', fontWeight: 900 }}><Icons.Check /></span>}
                                                 </button>
                                                 {editMode ? (
                                                   <>
                                                     <span style={{ fontSize: '11px', fontFamily: 'monospace', color: B_BLUE, flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
-                                                    <textarea style={{ flex: 1, background: 'none', border: 'none', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)'}`, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), fontSize: '12px', fontFamily: 'inherit', fontWeight: 700, outline: 'none', padding: '1px 0', textDecoration: t.done ? 'line-through' : 'none', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, wordBreak: 'break-word' }} value={t.text} rows={1} onChange={e => { updateTodo(t.id, 'text', e.target.value); e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} onFocus={e => { e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} placeholder="輸入檢核步驟…" />
-                                                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
-                                                      <select style={{ width: '90px', background: dark ? '#222' : '#f0f0f0', border: `1px solid ${dark ? 'rgba(255,255,255,0.2)' : '#000'}`, color: dark ? '#fff' : '#000', fontSize: '11px', fontFamily: 'inherit', fontWeight: 700, padding: '2px 4px', outline: 'none', cursor: 'pointer' }} value={t.assignee || ''} onChange={e => updateTodo(t.id, 'assignee', e.target.value)}>
-                                                        <option value=''>— 負責人 —</option>
-                                                        {members.map(mb => <option key={mb} value={mb}>{mb}</option>)}
-                                                      </select>
-                                                      <input type="date" style={{ width: '110px', background: dark ? '#222' : '#f0f0f0', border: `1px solid ${tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.2)' : '#000')}`, color: tOverdue ? B_PINK : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'monospace', padding: '2px 4px', outline: 'none', colorScheme: dark ? 'dark' : 'light' }} value={t.deadline || ''} max={m.deadline || undefined} onChange={e => updateTodo(t.id, 'deadline', e.target.value)} />
-                                                      <button className="ogsm-remove-btn" style={{ background: 'rgba(255,0,255,0.12)', border: '1px solid rgba(255,0,255,0.4)', color: B_PINK, cursor: 'pointer', fontSize: '12px', padding: '2px 6px', fontWeight: 900 }} onClick={() => removeTodo(t.id)}><Icons.X /></button>
+                                                    <textarea style={{ flex: 1, background: 'none', border: 'none', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)'}`, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'inherit', fontWeight: 700, outline: 'none', padding: '1px 0', textDecoration: t.done ? 'line-through' : 'none', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, wordBreak: 'break-word' }} value={t.text} rows={1} onChange={e => { updateTodo(t.id, 'text', e.target.value); e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} onFocus={e => { e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} placeholder="輸入檢核步驟…" />
+                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
+                                                      <BrutalistSelect
+                                                        value={t.assignee || ''}
+                                                        onChange={v => updateTodo(t.id, 'assignee', v)}
+                                                        options={[{ value: '', label: '— 負責人 —' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                                                        darkMode={dark}
+                                                        overdue={tOverdue}
+                                                        style={{ width: '90px', fontSize: '11px', fontWeight: 700, height: '22px', boxSizing: 'border-box' }}
+                                                      />
+                                                      <div style={{ display: 'flex', alignItems: 'center', height: '22px', boxSizing: 'border-box', border: `1px solid ${tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.2)' : '#000')}`, background: dark ? '#222' : '#f0f0f0', padding: '0 4px' }}>
+                                                        <input type="date" className={`ogsm-date${tOverdue ? ' ogsm-date-overdue' : ''}`} style={{ width: '96px', background: 'none', border: 'none', color: tOverdue ? '#cc0000' : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'monospace', padding: 0, outline: 'none', colorScheme: dark ? 'dark' : 'light', height: '20px' }} value={t.deadline || ''} max={m.deadline || undefined} onChange={e => updateTodo(t.id, 'deadline', e.target.value)} />
+                                                      </div>
+                                                      <button className="ogsm-remove-btn" style={{ background: 'rgba(255,0,255,0.12)', border: '1px solid rgba(255,0,255,0.4)', color: B_PINK, cursor: 'pointer', padding: 0, width: '22px', height: '22px', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} onClick={() => removeTodo(t.id)}><Icons.X /></button>
                                                     </div>
                                                   </>
                                                 ) : (
                                                   <>
                                                     <span style={{ fontSize: '11px', fontFamily: 'monospace', color: B_BLUE, flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
-                                                    <span style={{ fontSize: '12px', lineHeight: 1.5, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), textDecoration: t.done ? 'line-through' : 'none', cursor: 'pointer', flex: 1, wordBreak: 'break-word', fontWeight: 700 }} onClick={() => updateTodo(t.id, 'done', !t.done)}>{t.text}</span>
+                                                    <span style={{ fontSize: '11px', lineHeight: 1.5, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), textDecoration: t.done ? 'line-through' : 'none', cursor: 'pointer', flex: 1, wordBreak: 'break-word', fontWeight: 700 }} onClick={() => updateTodo(t.id, 'done', !t.done)}>{t.text}</span>
                                                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
-                                                      {t.assignee && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#fff' : '#000', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap' }}>👤 {t.assignee}</span>}
-                                                      {t.deadline && <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'), background: tOverdue ? 'rgba(255,0,255,0.1)' : 'transparent', border: `1px solid ${tOverdue ? B_PINK : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)')}`, padding: '2px 6px', whiteSpace: 'nowrap' }}>{tOverdue ? '⚠ ' : '📅 '}{t.deadline}</span>}
+                                                      {t.assignee && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#ffffff' : '#000', background: dark ? 'rgba(80,110,255,0.35)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(140,170,255,0.6)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>{t.assignee}</span>}
+                                                      {t.deadline && <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'), background: tOverdue ? 'rgba(204,0,0,0.08)' : 'transparent', border: `1px solid ${tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.2)')}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>{tOverdue ? <span style={{ fontSize: '11px' }}>⚠</span> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0 }}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}{t.deadline}</span>}
                                                     </div>
                                                   </>
                                                 )}
@@ -630,7 +725,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                             )
                                           })}
                                           {editMode && (
-                                            <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)', cursor: 'pointer', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '8px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addTodo}>+ 新增檢核步驟</button>
+                                            <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '5px 0 0 0', marginTop: '4px', width: '100%', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addTodo}>+ 新增檢核步驟</button>
                                           )}
                                         </div>
                                       )
@@ -639,7 +734,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                 )
                               })}
                               {editMode && (
-                                <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px 16px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
+                                <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px 16px', textAlign: 'left', width: '100%', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
                               )}
                             </div>
                           </div>
@@ -663,53 +758,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         </div>
       </div>
 
-      {/* ─── SLIDE-IN PANELS (Audit & Todo) ─── */}
-      {showLocalAudit && (
-        <SlidePanel title="審計報告" icon={<Icons.FileText />} onClose={() => setShowLocalAudit(false)} dark={dark} width="480px">
-          <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ border: `4px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, padding: '24px', background: dark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '24px', color: dark ? '#fff' : '#000' }}>AI 審計分析</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(76,175,125,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: B_GREEN }}><Icons.Check /></div>
-                  <div>
-                    <p style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 8px', color: dark ? '#fff' : '#000' }}>目標一致性良好</p>
-                    <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>策略與目標 (G1) 的關聯度極高，有助於達成核心指標。目前的規劃路徑非常清晰。</p>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: B_YELLOW }}><Icons.Zap /></div>
-                  <div>
-                    <p style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 8px', color: dark ? '#fff' : '#000' }}>資源分配建議</p>
-                    <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>策略 S1.2 的進度落後，建議增加支援資源，或重新評估該項目的優先級。</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ border: `4px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, padding: '24px', background: dark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.4, marginBottom: '24px', color: dark ? '#fff' : '#000' }}>風險評估</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: dark ? '#fff' : '#000' }}>時間風險</span>
-                  <span style={{ fontSize: '10px', fontWeight: 900, padding: '4px 12px', background: B_PINK, color: '#000', textTransform: 'uppercase' }}>High Risk</span>
-                </div>
-                <div style={{ width: '100%', height: '12px', background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: '85%', background: B_PINK }} />
-                </div>
-                <p style={{ fontSize: '12px', opacity: 0.6, margin: 0, fontStyle: 'italic', lineHeight: 1.6, color: dark ? '#fff' : '#000' }}>距離截止日期接近，目前進度 {overallProgress}% 略顯緊迫，需注意關鍵路徑的延遲。</p>
-              </div>
-            </div>
-            <button style={{ width: '100%', padding: '16px', background: B_BLUE, color: '#fff', border: `4px solid ${dark ? '#fff' : '#000'}`, fontSize: '16px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#fff' : '#000'; e.currentTarget.style.color = dark ? '#000' : '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }}>
-              重新產生報告
-            </button>
-          </div>
-        </SlidePanel>
-      )}
-
       {showTodoPanel && draft && (
-        <SlidePanel title="MP 檢核總覽" icon={<Icons.CheckCircle />} onClose={() => setShowTodoPanel(false)} dark={darkMode} width="500px">
-          <TodoManagerPanel project={draft} onClose={() => setShowTodoPanel(false)} onToggleTodo={toggleTodoById} onUpdateTodo={updateTodoById} members={members} darkMode={darkMode} />
-        </SlidePanel>
+        <TodoManagerPanel project={draft} onClose={() => setShowTodoPanel(false)} onToggleTodo={toggleTodoById} onUpdateTodo={updateTodoById} members={members} darkMode={darkMode} originRect={todoPanelOrigin} />
       )}
 
       {/* AI Loading & Dialog */}
@@ -738,7 +788,7 @@ function buildStyles(dark) {
     },
     iconBtn: {
       background: 'rgba(255,0,255,0.12)', border: `1px solid ${dark ? 'rgba(255,0,255,0.4)' : 'rgba(255,0,255,0.2)'}`,
-      color: '#FF00FF', cursor: 'pointer', fontSize: '9px', padding: '3px 7px',
+      color: '#ff0000', cursor: 'pointer', fontSize: '9px', padding: '3px 7px',
       fontWeight: 900, transition: 'all 0.15s',
     },
     aiBtnSmall: {

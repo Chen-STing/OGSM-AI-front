@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { Zap, Users, Sun, Moon, PanelLeftClose, Menu } from 'lucide-react';
 import HomePage from './components/HomePage.jsx';
 import SwitchHome from './components/SwitchHome.jsx';
@@ -7,7 +7,7 @@ import OgsmEditor from './components/OgsmEditor.jsx';
 import GenerateModal from './components/GenerateModal.jsx';
 import MemberSettings from './components/MemberSettings.jsx';
 import AuditPanel from './components/AuditPanel.jsx';
-import BrutalistBackground from './components/BrutalistBackground.jsx'; 
+import BrutalistBackground from './components/BrutalistBackground.jsx';
 
 // ─── VIBRANT BRUTALIST DESIGN TOKENS & CSS ──────────────────────────────────
 const ACCENT_BLUE   = "#0000FF";
@@ -22,11 +22,39 @@ const BRUTALIST_CSS = `
   html, body, #root { height: 100%; }
   body { font-family: "Inter", "Noto Sans TC", ui-sans-serif, sans-serif; background: var(--bg-light); color: #000; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   .dark body { background: var(--bg-dark); color: #fff; }
-  a, button, [role="button"], .cursor-pointer { cursor: pointer; }
-  input[type="text"], input[type="date"], textarea, select { cursor: text; }
+  /* ⚡ BRUTALIST CURSORS ⚡ */
+  /* 1. 全域預設：霓虹黃箭頭 */
+  html, body, body * {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="6,6 16,28 20,20 28,16" fill="%23000000" /><polygon points="2,2 12,24 16,16 24,12" fill="%23FFFF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 2 2, auto !important;
+  }
+  /* 2. 可點擊元素：粉紅像素手指
+        — 涵蓋語意標籤、class、以及 inline style 含 "pointer" 的元素 */
+  body button, body a, body [role="button"],
+  body .cursor-pointer, body .clickable, body select,
+  body button *, body a *, body [role="button"] *,
+  body .cursor-pointer *, body .clickable *,
+  body [style*="cursor: pointer"], body [style*="cursor:pointer"],
+  body [style*="cursor: pointer"] *, body [style*="cursor:pointer"] * {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
+  }
+  /* 3. 文字輸入：青色 I-Beam（只在可編輯時） */
+  body textarea:not([readonly]), body input[type="text"]:not([readonly]),
+  body input[type="search"]:not([readonly]), body input[type="email"]:not([readonly]),
+  body input[type="password"]:not([readonly]), body input[type="date"]:not([readonly]),
+  body input[type="number"]:not([readonly]) {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M10 6 h16 v4 h-6 v12 h6 v4 h-16 v-4 h6 v-12 h-6 z" fill="%23000000" /><path d="M6 2 h16 v4 h-6 v12 h6 v4 h-16 v-4 h6 v-12 h-6 z" fill="%2300FFFF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 14 16, text !important;
+  }
+  /* 唯讀的 textarea/input（預覽模式表格文字）：顯示預設箭頭 */
+  body textarea[readonly], body input[readonly] {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="6,6 16,28 20,20 28,16" fill="%23000000" /><polygon points="2,2 12,24 16,16 24,12" fill="%23FFFF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 2 2, auto !important;
+  }
+  /* 4. 載入／停用：藍色旋轉星芒 */
+  body .loading, body [disabled] {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%230044FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
+  }
 
   @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes click-burst { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+  @keyframes click-burst { 0% { transform: scale(0) translate(0,0); opacity: 1; } 100% { transform: scale(4) translate(0,0); opacity: 0; } }
   @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   .animate-click-burst { animation: click-burst 0.5s ease-out forwards; }
   .animate-slide-up { animation: slide-up 0.8s cubic-bezier(0.16,1,0.3,1) both; }
@@ -39,26 +67,82 @@ const BRUTALIST_CSS = `
   /* Hover Effects for Brutalist Buttons */
   .b-action-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 #000 !important; }
   .b-action-hover:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #000 !important; }
-  .dark .b-action-hover:hover { box-shadow: 6px 6px 0 0 #fff !important; }
-  .dark .b-action-hover:active { box-shadow: 2px 2px 0 0 #fff !important; }
+  .dark .b-action-hover:hover { box-shadow: 6px 6px 0 0 rgba(255,255,255,0.2) !important; }
+  .dark .b-action-hover:active { box-shadow: 2px 2px 0 0 rgba(255,255,255,0.2) !important; }
+  /* AI生成hover */
+  .ai-action-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 #000 !important; }
+  .ai-action-hover:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #000 !important; }
+  .dark .ai-action-hover:hover { box-shadow: 6px 6px 0 0 rgb(0, 0, 0) !important; }
+  .dark .ai-action-hover:active { box-shadow: 2px 2px 0 0 rgb(0, 0, 0) !important; }
 `;
 
-function EmptyState({ onNewProject, dark }) { return null; }
-function Toast({ toast }) { return null; }
-function ClickBurst({ x, y, id }) { return null; }
+// ─── ROUTER HELPERS ──────────────────────────────────────────────────────────
+/**
+ * Parse the current URL into a route descriptor.
+ * /                    → { page: 'home' }
+ * /management          → { page: 'projects' }
+ * /management/:id      → { page: 'editor', id }
+ */
+function parseRoute(pathname = window.location.pathname) {
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  if (clean === '/') return { page: 'home' };
+  if (clean === '/management') return { page: 'projects' };
+  const match = clean.match(/^\/management\/(.+)$/);
+  if (match) return { page: 'editor', id: decodeURIComponent(match[1]) };
+  return { page: 'home' };
+}
 
+function navigate(path, replace = false) {
+  if (replace) {
+    window.history.replaceState(null, '', path);
+  } else {
+    window.history.pushState(null, '', path);
+  }
+  // Dispatch a custom event so the App can react
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+// ─── STUB COMPONENTS ─────────────────────────────────────────────────────────
+function EmptyState() { return null; }
+function Toast({ toast }) { return null; }
+
+/**
+ * ClickBurst — 與 App.tsx 完全一致的粉紅色圓圈擴散效果
+ * x, y: 點擊座標; id: 唯一 key
+ */
+function ClickBurst({ x, y }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: x - 20,
+        top: y - 20,
+        width: 40,
+        height: 40,
+        borderRadius: '50%',
+        border: '4px solid #FF00FF',
+        pointerEvents: 'none',
+        zIndex: 9999,
+        animation: 'click-burst 0.5s ease-out forwards',
+      }}
+    />
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState("home");
+  // Derive initial route from the URL
+  const [route, setRoute] = useState(() => parseRoute());
+
   const [dark, setDark] = useState(false);
   const [projects, setProjects] = useState([]);
-  const [activeId, setActiveId] = useState(null);
   const [activeProject, setActiveProject] = useState(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [members, setMembers] = useState([]);
-  
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
+
   const [showGenerate, setShowGenerate] = useState(false);
   const [showMembers, setShowMembers]   = useState(false);
   const [showAudit, setShowAudit]       = useState(false);
@@ -66,44 +150,77 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [clickEffect, setClickEffect] = useState(null);
 
-  const showToast = useCallback((msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+  // ── Listen to browser back/forward ──────────────────────────────────────
+  useEffect(() => {
+    const onPop = () => setRoute(parseRoute());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // ── Load data on mount ───────────────────────────────────────────────────
   useEffect(() => {
     import("./services/api.js").then(({ api }) => {
       api.getAll().then(data => {
         setProjects(data);
         setLoadingList(false);
         Promise.allSettled(data.map(p => api.getById(p.id))).then(results => {
-          setProjects(prev => prev.map((p, i) => results[i].status === "fulfilled" ? results[i].value : p));
+          setProjects(prev =>
+            prev.map((p, i) => results[i].status === "fulfilled" ? results[i].value : p)
+          );
         });
       }).catch(() => setLoadingList(false));
       api.getMembers().then(setMembers).catch(() => {});
     });
   }, []);
 
-  const selectProject = useCallback(async (id) => {
-    if (id === activeId && page === "editor") return;
-    setActiveId(id); setActiveProject(null); setLoadingDetail(true); setPage("editor");
-    try {
-      const { api } = await import("./services/api.js");
-      const data = await api.getById(id);
-      setActiveProject(data);
-    } catch (e) { showToast("載入失敗：" + e.message, "error"); } finally { setLoadingDetail(false); }
-  }, [activeId, page, showToast]);
+  // ── When URL has a project id, load that project ─────────────────────────
+  useEffect(() => {
+    if (route.page !== 'editor' || !route.id) return;
 
+    // If we already have the right project loaded, skip
+    if (activeProject && activeProject.id === route.id) return;
+
+    setActiveProject(null);
+    setLoadingDetail(true);
+
+    import("./services/api.js").then(({ api }) =>
+      api.getById(route.id)
+        .then(data => setActiveProject(data))
+        .catch(e => showToast("載入失敗：" + e.message, "error"))
+        .finally(() => setLoadingDetail(false))
+    );
+  }, [route.page, route.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Toast helper ─────────────────────────────────────────────────────────
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // ── Navigation helpers ───────────────────────────────────────────────────
+  const goHome = useCallback(() => navigate('/'), []);
+
+  const goProjects = useCallback(() => navigate('/management'), []);
+
+  const selectProject = useCallback(async (id) => {
+    if (route.page === 'editor' && route.id === id) return;
+    navigate(`/management/${encodeURIComponent(id)}`);
+  }, [route]);
+
+  // ── CRUD handlers ────────────────────────────────────────────────────────
   const handleDeleteProject = useCallback(async (id) => {
     if (!window.confirm("確定要刪除這個專案嗎？")) return;
     try {
       const { api } = await import("./services/api.js");
       await api.delete(id);
       setProjects(ps => ps.filter(p => p.id !== id));
-      if (activeId === id) { setActiveId(null); setActiveProject(null); }
+      if (route.id === id) {
+        setActiveProject(null);
+        navigate('/management', true);
+      }
       showToast("專案已刪除");
     } catch (e) { showToast("刪除失敗：" + e.message, "error"); }
-  }, [activeId, showToast]);
+  }, [route.id, showToast]);
 
   const handleSave = useCallback(async (updated) => {
     try {
@@ -117,10 +234,9 @@ export default function App() {
 
   const handleGenerated = useCallback((project) => {
     setProjects(ps => [project, ...ps]);
-    setActiveId(project.id); 
     setActiveProject(project);
-    setShowGenerate(false); 
-    setPage("editor");
+    setShowGenerate(false);
+    navigate(`/management/${encodeURIComponent(project.id)}`);
     showToast("OGSM 已生成！");
   }, [showToast]);
 
@@ -133,9 +249,12 @@ export default function App() {
   }, [showToast]);
 
   const handleGlobalClick = (e) => {
-    if(e.target.tagName !== 'BUTTON') setClickEffect({ x: e.clientX, y: e.clientY, id: Date.now() });
+    if (e.target.tagName !== 'BUTTON')
+      setClickEffect({ x: e.clientX, y: e.clientY, id: Date.now() });
+    setTimeout(() => setClickEffect(null), 520);
   };
 
+  // ── Sidebar ──────────────────────────────────────────────────────────────
   const renderSidebar = () => (
     <div style={{
       width: sidebarOpen ? "340px" : "0px",
@@ -147,20 +266,21 @@ export default function App() {
       position: "relative", zIndex: 30, overflow: "hidden"
     }}>
       <div style={{ width: "340px", height: "100%", display: "flex", flexDirection: "column" }}>
-        
+
         <div style={{ padding: "24px 24px 15px", marginBottom: "10px", borderBottom: `1px solid ${dark ? '#c4c2c2' : '#d3cccc'}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div onClick={() => setPage("home")} className="cursor-pointer">
+          <div onClick={goHome} className="cursor-pointer">
             <h1 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "24px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000" }}>
               STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
             </h1>
           </div>
-          <button 
+          <button
             onClick={() => setSidebarOpen(false)}
+            data-sidebar-toggle=""
             className="b-action-hover"
-            style={{ 
-              width: '36px', height: '36px', background: dark ? '#222' : '#fff', border: `3px solid ${dark ? '#fff' : '#000'}`, 
-              boxShadow: dark ? '3px 3px 0 0 #fff' : '3px 3px 0 0 #000', color: dark ? '#fff' : '#000', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' 
+            style={{
+              width: '36px', height: '36px', background: dark ? '#222' : '#fff', border: `3px solid ${dark ? '#fff' : '#000'}`,
+              boxShadow: dark ? '3px 3px 0 0 rgba(255,255,255,0.2)' : '3px 3px 0 0 #000', color: dark ? '#fff' : '#000',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s'
             }}
             title="收起側邊欄"
           >
@@ -169,24 +289,24 @@ export default function App() {
         </div>
 
         <div style={{ padding: "0 24px 15px", display: "flex", gap: "16px" }}>
-          <button 
-            className="b-action-hover"
-            onClick={() => setShowGenerate(true)} 
-            style={{ 
-              flex: 1, height: "52px", background: ACCENT_YELLOW, color: "#000", border: "4px solid #000", 
-              boxShadow: "4px 4px 0 0 #000", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, 
-              fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' 
+          <button
+            className="ai-action-hover"
+            onClick={() => setShowGenerate(true)}
+            style={{
+              flex: 1, height: "52px", background: ACCENT_YELLOW, color: "#000", border: "4px solid #000",
+              boxShadow: "4px 4px 0 0 #000", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
+              fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s'
             }}
           >
             <Zap size={20} fill="currentColor" /> AI 生成 OGSM
           </button>
-          <button 
+          <button
             className="b-action-hover"
-            onClick={() => setShowMembers(true)} 
-            style={{ 
-              width: "52px", height: "52px", flexShrink: 0, background: dark ? "#222" : "#fff", 
-              border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000', 
-              display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: dark ? '#fff' : '#000', transition: 'all 0.15s' 
+            onClick={() => setShowMembers(true)}
+            style={{
+              width: "52px", height: "52px", flexShrink: 0, background: dark ? "#222" : "#fff",
+              border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
+              display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: dark ? '#fff' : '#000', transition: 'all 0.15s'
             }}
             title="負責人管理"
           >
@@ -198,13 +318,14 @@ export default function App() {
         </div>
 
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <ProjectList 
-            projects={projects} 
-            loading={loadingList} 
-            activeId={activeId} 
-            onSelect={selectProject} 
+          <ProjectList
+            projects={projects}
+            loading={loadingList}
+            activeId={route.id ?? null}
+            onSelect={selectProject}
             onDelete={handleDeleteProject}
-            darkMode={dark} 
+            onManage={goProjects}
+            darkMode={dark}
           />
         </div>
 
@@ -212,13 +333,14 @@ export default function App() {
           <span style={{ fontSize: "12px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontStyle: 'italic', letterSpacing: "0.08em", opacity: 0.4, color: dark ? '#fff' : '#000' }}>
             POWERED BY AI
           </span>
-          <button 
+          <button
             className="b-action-hover"
-            onClick={() => setDark(d => !d)} 
-            style={{ 
-              width: "40px", height: "35px", background: dark ? '#222' : "#fff", color: dark ? '#fff' : "#000", 
-              border: `4px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000', 
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' 
+            onClick={() => setDark(d => !d)}
+            data-sidebar-toggle=""
+            style={{
+              width: "35px", height: "35px", background: dark ? '#222' : "#fff", color: dark ? '#fff' : "#000",
+              border: `2px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s'
             }}
           >
             {dark ? <Sun size={20} /> : <Moon size={20} />}
@@ -228,32 +350,53 @@ export default function App() {
     </div>
   );
 
+  // ── Render ───────────────────────────────────────────────────────────────
+  const { page, id: activeId } = route;
+
   return (
     <>
       <style>{BRUTALIST_CSS}</style>
-      <div className={dark ? "dark" : ""} style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }} onClick={handleGlobalClick}>
+      <div
+        className={dark ? "dark" : ""}
+        style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }}
+        onClick={handleGlobalClick}
+      >
         <BrutalistBackground dark={dark} />
 
         {page === "home" ? (
           <div style={{ flex: 1, position: "relative", zIndex: 10, overflow: "hidden" }}>
-            <HomePage onNewProject={() => setShowGenerate(true)} onManageProjects={() => setPage("projects")} dark={dark} />
+            <HomePage
+              onNewProject={() => setShowGenerate(true)}
+              onManageProjects={goProjects}
+              dark={dark}
+            />
           </div>
         ) : page === "projects" ? (
           <div style={{ flex: 1, position: "relative", zIndex: 10, overflow: "hidden" }}>
-            <SwitchHome projects={projects} onSelect={(p) => selectProject(p.id)} onNewProject={() => setShowGenerate(true)} onBack={() => setPage("home")} dark={dark} onToggleDark={() => setDark(d => !d)} />
+            <SwitchHome
+              projects={projects}
+              onSelect={p => selectProject(p.id)}
+              onNewProject={() => setShowGenerate(true)}
+              onBack={goHome}
+              dark={dark}
+              onToggleDark={() => setDark(d => !d)}
+            />
           </div>
         ) : (
+          /* page === "editor" */
           <div style={{ flex: 1, display: "flex", position: "relative", zIndex: 10, overflow: "hidden" }}>
             {renderSidebar()}
-            
+
             <div style={{ flex: 1, overflow: "hidden", position: "relative", minWidth: 0 }}>
-              {!sidebarOpen && page === "editor" && (
-                <button 
+              {!sidebarOpen && (
+                <button
+                  className="b-action-hover"
                   onClick={() => setSidebarOpen(true)}
+                  data-sidebar-toggle=""
                   style={{
                     position: 'absolute', top: '24px', left: '24px', zIndex: 40,
                     width: '44px', height: '44px', background: dark ? '#222' : '#fff',
-                    border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 #fff' : '4px 4px 0 0 #000',
+                    border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: dark ? '#fff' : '#000'
                   }}
@@ -261,19 +404,20 @@ export default function App() {
                   <Menu size={24} />
                 </button>
               )}
+
               {loadingDetail ? (
                 <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "20px" }}>
                   <div style={{ width: "64px", height: "64px", border: "8px solid rgba(0,0,0,0.1)", borderTopColor: ACCENT_BLUE, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
                   <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: "uppercase", fontSize: "14px", letterSpacing: "0.1em", opacity: 0.6 }}>載入中…</span>
                 </div>
               ) : activeProject ? (
-                <OgsmEditor 
-                  project={activeProject} 
-                  onSave={handleSave} 
-                  onAudit={(p) => { setAuditProject(p); setShowAudit(true); }}
-                  members={members} 
-                  darkMode={dark} 
-                  sidebarOpen={sidebarOpen} 
+                <OgsmEditor
+                  project={activeProject}
+                  onSave={handleSave}
+                  onAudit={p => { setAuditProject(p); setShowAudit(true); }}
+                  members={members}
+                  darkMode={dark}
+                  sidebarOpen={sidebarOpen}
                 />
               ) : (
                 <EmptyState onNewProject={() => setShowGenerate(true)} dark={dark} />
@@ -282,12 +426,32 @@ export default function App() {
           </div>
         )}
 
-        {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} />}
-        {showMembers && <MemberSettings members={members} onChange={handleMembersChange} onClose={() => setShowMembers(false)} darkMode={dark} />}
-        {showAudit && <AuditPanel project={auditProject} onClose={() => setShowAudit(false)} darkMode={dark} />}
+        {showGenerate && (
+          <GenerateModal
+            onClose={() => setShowGenerate(false)}
+            onGenerated={handleGenerated}
+            showToast={showToast}
+            darkMode={dark}
+          />
+        )}
+        {showMembers && (
+          <MemberSettings
+            members={members}
+            onChange={handleMembersChange}
+            onClose={() => setShowMembers(false)}
+            darkMode={dark}
+          />
+        )}
+        {showAudit && (
+          <AuditPanel
+            project={auditProject}
+            onClose={() => setShowAudit(false)}
+            darkMode={dark}
+          />
+        )}
 
         <Toast toast={toast} />
-        {clickEffect && <ClickBurst {...clickEffect} />}
+        {clickEffect && <ClickBurst key={clickEffect.id} x={clickEffect.x} y={clickEffect.y} />}
       </div>
     </>
   );
