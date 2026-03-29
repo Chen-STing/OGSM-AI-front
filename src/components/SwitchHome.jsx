@@ -78,7 +78,7 @@ function ProjectCard({ project, onSelect, dark, index, size = 260 }) {
       </div>
 
       <div>
-        <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: `${titleSize}px`, lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "-0.02em", marginBottom: "4px", color: hovered ? "#000" : (dark ? "#fff" : "#000"), display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project.objective || project.title || "無標題"}</h3>
+        <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: `${titleSize}px`, lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "-0.02em", marginBottom: "4px", color: hovered ? "#000" : (dark ? "#fff" : "#000"), display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project.title || project.objective || "無標題"}</h3>
         <p style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, letterSpacing: "0.1em", opacity: 0.5, textTransform: "uppercase", color: hovered ? "#000" : undefined }}>{project.deadline || "無截止日期"}</p>
       </div>
     </div>

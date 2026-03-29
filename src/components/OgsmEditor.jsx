@@ -142,6 +142,21 @@ function SlidePanel({ title, icon, onClose, children, dark, width = "480px", ori
   )
 }
 
+// ─── TRANSPARENT DRAG IMAGE SINGLETON (canvas-based, always ready) ──────────
+let _dragCanvas = null
+function getDragImg() {
+  if (!_dragCanvas) {
+    _dragCanvas = document.createElement('canvas')
+    _dragCanvas.width = 1
+    _dragCanvas.height = 1
+    _dragCanvas.style.position = 'fixed'
+    _dragCanvas.style.top = '-10px'
+    _dragCanvas.style.pointerEvents = 'none'
+    document.body.appendChild(_dragCanvas)
+  }
+  return _dragCanvas
+}
+
 // ─── MAIN EDITOR COMPONENT ───────────────────────────────────────────────────
 export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen }) {
   const [draft, setDraft]   = useState(null)
@@ -163,6 +178,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [dragTodo, setDragTodo] = useState(null); const [dragOverTodo, setDragOverTodo] = useState(null)
   const [dragGoal, setDragGoal] = useState(null); const [dragOverGoal, setDragOverGoal] = useState(null)
   const [dragStrategy, setDragStrategy] = useState(null); const [dragOverStrategy, setDragOverStrategy] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const customCursorRef = useRef(null)
   const scrollRef = useRef(null); const scrollRafRef = useRef(null)
 
   const handleScrollZoneDragOver = useCallback((e) => {
@@ -174,6 +191,28 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     if (speed !== 0) { const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }; scrollRafRef.current = requestAnimationFrame(step) }
   }, [])
   const handleScrollZoneDragEnd = useCallback(() => { if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null } }, [])
+
+  useEffect(() => {
+    const onDragOver = (e) => {
+      e.preventDefault()
+      if (customCursorRef.current) {
+        customCursorRef.current.style.left = e.clientX + 'px'
+        customCursorRef.current.style.top = e.clientY + 'px'
+        customCursorRef.current.style.display = 'block'
+      }
+    }
+    const onDragEnd = () => {
+      if (customCursorRef.current) customCursorRef.current.style.display = 'none'
+    }
+    document.addEventListener('dragover', onDragOver)
+    document.addEventListener('dragend', onDragEnd)
+    document.addEventListener('drop', onDragEnd)
+    return () => {
+      document.removeEventListener('dragover', onDragOver)
+      document.removeEventListener('dragend', onDragEnd)
+      document.removeEventListener('drop', onDragEnd)
+    }
+  }, [])
 
   useEffect(() => {
     if (openTodos.size === 0) return
@@ -349,23 +388,27 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     return d
   })
 
+  // Drag helpers
+  const getTransparentImg = () => getDragImg()
+  const setDraggingCursor = (on) => { setIsDragging(on) }
+
   // Drag handlers
-  const handleMeasureDragStart = (e, gi, si, mi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragMeasure({ gi, si, mi }); e.dataTransfer.effectAllowed = 'move' }
+  const handleMeasureDragStart = (e, gi, si, mi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragMeasure({ gi, si, mi }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
   const handleMeasureDragOver  = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si) return; e.dataTransfer.dropEffect = 'move'; if (dragOverMeasure?.mi !== mi) setDragOverMeasure({ gi, si, mi }) }
   const handleMeasureDrop      = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si || dragMeasure.mi === mi) { setDragMeasure(null); setDragOverMeasure(null); return } update(d => { const measures = d.goals[gi].strategies[si].measures; const [removed] = measures.splice(dragMeasure.mi, 1); measures.splice(mi, 0, removed); return d }); setDragMeasure(null); setDragOverMeasure(null) }
-  const handleMeasureDragEnd   = () => { setDragMeasure(null); setDragOverMeasure(null) }
-  const handleTodoDragStart = (e, gi, si, mi, ti) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragTodo({ gi, si, mi, ti }); e.dataTransfer.effectAllowed = 'move' }
+  const handleMeasureDragEnd   = () => { setDragMeasure(null); setDragOverMeasure(null); setDraggingCursor(false) }
+  const handleTodoDragStart = (e, gi, si, mi, ti) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragTodo({ gi, si, mi, ti }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
   const handleTodoDragOver  = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverTodo?.ti !== ti) setDragOverTodo({ gi, si, mi, ti }) }
   const handleTodoDrop      = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi || dragTodo.ti === ti) { setDragTodo(null); setDragOverTodo(null); return } const todos = [...(draft.goals[gi].strategies[si].measures[mi].todos || [])]; const [removed] = todos.splice(dragTodo.ti, 1); todos.splice(ti, 0, removed); setMTodos(gi, si, mi, todos); setDragTodo(null); setDragOverTodo(null) }
-  const handleTodoDragEnd   = () => { setDragTodo(null); setDragOverTodo(null) }
-  const handleGoalDragStart = (e, gi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } setDragGoal(gi); e.dataTransfer.effectAllowed = 'move' }
+  const handleTodoDragEnd   = () => { setDragTodo(null); setDragOverTodo(null); setDraggingCursor(false) }
+  const handleGoalDragStart = (e, gi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } setDragGoal(gi); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
   const handleGoalDragOver  = (e, gi) => { e.preventDefault(); if (dragGoal == null) return; e.dataTransfer.dropEffect = 'move'; if (dragOverGoal !== gi) setDragOverGoal(gi) }
   const handleGoalDrop      = (e, gi) => { e.preventDefault(); if (dragGoal == null || dragGoal === gi) { setDragGoal(null); setDragOverGoal(null); return } update(d => { const [r] = d.goals.splice(dragGoal, 1); d.goals.splice(gi, 0, r); return d }); setDragGoal(null); setDragOverGoal(null) }
-  const handleGoalDragEnd   = () => { setDragGoal(null); setDragOverGoal(null) }
-  const handleStrategyDragStart = (e, gi, si) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move' }
+  const handleGoalDragEnd   = () => { setDragGoal(null); setDragOverGoal(null); setDraggingCursor(false) }
+  const handleStrategyDragStart = (e, gi, si) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
   const handleStrategyDragOver  = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverStrategy?.si !== si) setDragOverStrategy({ gi, si }) }
   const handleStrategyDrop      = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi || dragStrategy.si === si) { setDragStrategy(null); setDragOverStrategy(null); return } update(d => { const strategies = d.goals[gi].strategies; const [r] = strategies.splice(dragStrategy.si, 1); strategies.splice(si, 0, r); return d }); setDragStrategy(null); setDragOverStrategy(null) }
-  const handleStrategyDragEnd   = () => { setDragStrategy(null); setDragOverStrategy(null) }
+  const handleStrategyDragEnd   = () => { setDragStrategy(null); setDragOverStrategy(null); setDraggingCursor(false) }
 
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
   const overallProgress = allMeasures.length ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length) : 0
@@ -375,6 +418,13 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent', position: 'relative' }}>
+      {isDragging && (
+        <div ref={customCursorRef} style={{ position: 'fixed', pointerEvents: 'none', zIndex: 99999, transform: 'translate(-4px, -2px)', transition: 'none', display: 'none' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+            <path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="#000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="#00FF00" stroke="#FFFFFF" strokeWidth="2.5" strokeLinejoin="miter" />
+          </svg>
+        </div>
+      )}
       <style>{`
         @keyframes b-spin { to { transform: rotate(360deg); } }
         @keyframes ogsm-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -403,6 +453,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         .ogsm-ai-btn:hover { background: ${B_YELLOW} !important; border-color: #000 !important; color: #000 !important; box-shadow: 2px 2px 0 #000; transform: scale(1.05); }
         .ogsm-measure-drag-row[data-dragging='true'], .ogsm-goal-drag-block[data-dragging='true'], .ogsm-strategy-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
         .ogsm-measure-drag-row[data-dragover='true'], .ogsm-goal-drag-block[data-dragover='true'], .ogsm-strategy-drag-block[data-dragover='true'] { outline: 2px solid ${B_YELLOW}; outline-offset: -1px; }
+        .ogsm-dragging-active, .ogsm-dragging-active * { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, grabbing !important; }
         
         /* 改為取消文字選中或聚焦時的藍色外框 */
         textarea:focus, input:focus, select:focus { outline: none !important; box-shadow: none !important; }
