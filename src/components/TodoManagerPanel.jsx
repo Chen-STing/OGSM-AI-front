@@ -170,7 +170,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
         </div>
 
         {/* ── Stats ── */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'stretch', padding: '12px 16px', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, flexShrink: 0, gap: '0', background: 'transparent', backdropFilter: dark ? 'none' : 'blur(1px)', WebkitBackdropFilter: dark ? 'none' : 'blur(1px)' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'stretch', padding: '12px 16px', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, flexShrink: 0, gap: '0', background: 'transparent', backdropFilter: dark ? 'blur(2px)' : 'blur(3px)', WebkitBackdropFilter: dark ? 'none' : 'blur(1px)' }}>
           {[
             { label: '總計', value: stats.total, color: dark ? '#fff' : '#000' },
             { label: '完成', value: stats.done, color: CG },
@@ -270,7 +270,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
         </div>
 
         {/* ── Todo list ── */}
-        <div className="b-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0 40px' }}>
+        <div className="b-scroll" data-scroll-container="" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 0 40px' }}>
           {filtered.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', fontSize: '12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               {search || filter !== '全部' ? '沒有符合的待辦事項' : '目前沒有待辦事項'}

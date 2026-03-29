@@ -108,7 +108,6 @@ export default function AiConfirmDialog({
         background: T.backdrop, backdropFilter: 'blur(4px)',
         zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'background 0.3s ease',
-        cursor: 'pointer',
       }}
       onClick={e => e.target === e.currentTarget && onCancel()}
       onKeyDown={handleKey}

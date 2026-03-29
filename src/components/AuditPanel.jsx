@@ -331,7 +331,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                 <tbody>
                   ${st.measures.map((m, mi) => `
                     <tr style="border-bottom:1px solid #f3f4f6;background:${mi % 2 === 1 ? '#fafafa' : '#fff'};">
-                      <td style="padding:8px 10px;color:#374151;">${m.kpi || '—'}</td>
+                      <td style="padding:8px 10px;color:#374151;"><span style="font-size:9px;font-weight:700;color:#d97706;font-family:monospace;margin-right:5px;">D${gi+1}.${si+1}.${mi+1}</span>${m.kpi || '—'}</td>
                       <td style="padding:8px 10px;color:#d97706;font-family:monospace;">${m.target || '—'}</td>
                       <td style="padding:8px 10px;color:#16a34a;font-family:monospace;">${m.actual || '—'}</td>
                       <td style="padding:8px 10px;color:#6b7280;font-size:10px;">${m.assignee || '—'}</td>
@@ -354,10 +354,10 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                     <tr style="background:#f8faff;">
                       <td colspan="7" style="padding:6px 10px 10px 20px;border-bottom:1px solid #f3f4f6;border-left:3px solid rgba(59,158,222,0.4);">
                         <div style="font-size:9px;font-weight:700;color:#3b9ede;letter-spacing:0.5px;margin-bottom:5px;">☑ MP 檢核步驟 ${(m.todos || []).filter(t => t.done).length}/${(m.todos || []).length}</div>
-                        ${(m.todos || []).map(t => `
+                        ${(m.todos || []).map((t, ti) => `
                           <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
                             <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;font-weight:700;align-self:flex-start;line-height:1.5;">${t.done ? '✓' : '○'}</span>
-                            <span style="font-size:10px;flex:1;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;word-break:break-word;">${t.text}</span>
+                            <span style="font-size:10px;flex:1;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;word-break:break-word;"><span style="font-size:9px;font-weight:700;color:#d946ef;font-family:monospace;margin-right:4px;">P${gi+1}.${si+1}.${mi+1}.${ti+1}</span>${t.text}</span>
                             ${(t.assignee || t.deadline) ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center;align-self:center;">${t.assignee ? `<span style="font-size:9px;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">👤 ${t.assignee}</span>` : ''}${t.deadline ? `<span style="font-size:9px;color:#6b7280;font-family:monospace;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">📅 ${t.deadline}</span>` : ''}</div>` : ''}
                           </div>`).join('')}
                       </td>
@@ -947,7 +947,9 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                     }}
                                     onClick={() => hasTodos && toggleMeasureTodo(todoKey)}
                                   >
-                                    <span style={{ ...s.mCell, flex: 2, fontWeight: 700 }}>{m.kpi || '—'}</span>
+                                    <span style={{ ...s.mCell, flex: 2, fontWeight: 700 }}>
+                                      <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", monospace', fontWeight: 900, color: ACCENT_ORANGE, marginRight: '6px', flexShrink: 0 }}>D{gi+1}.{si+1}.{mi+1}</span>{m.kpi || '—'}
+                                    </span>
                                     <span style={{ ...s.mCell, flex: 1.2, color: ACCENT_ORANGE }}>{m.target || '—'}</span>
                                     <span style={{ ...s.mCell, flex: 0.8, color: ACCENT_GREEN }}>{m.actual || '—'}</span>
                                     <span style={{ ...s.mCell, width: '80px' }}>{m.assignee || '—'}</span>
@@ -994,7 +996,9 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                         return (
                                         <div key={t.id ?? ti} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
                                           <span style={{ fontSize: '14px', flexShrink: 0, fontWeight: 900, color: t.done ? ACCENT_GREEN : T.text }}>{t.done ? '✓' : '□'}</span>
-                                          <span style={{ fontSize: '13px', flex: 1, color: t.done ? '#888' : T.text, textDecoration: t.done ? 'line-through' : 'none', fontWeight: 600 }}>{t.text}</span>
+                                          <span style={{ fontSize: '13px', flex: 1, color: t.done ? '#888' : T.text, textDecoration: t.done ? 'line-through' : 'none', fontWeight: 600 }}>
+                                            <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", monospace', fontWeight: 900, color: ACCENT_PINK, marginRight: '6px' }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>{t.text}
+                                          </span>
                                           {(t.assignee || t.deadline) && (
                                             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                               {t.assignee && <span style={{ fontSize: '10px', background: T.border, color: T.bg, padding: '2px 6px', fontWeight: 700 }}>{t.assignee}</span>}

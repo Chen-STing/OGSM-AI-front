@@ -3,7 +3,7 @@ import React from 'react';
 // ─── DESIGN TOKENS ──────────────────────────────────────────────────────────
 const ACCENT_BLUE   = "#0d0dd0ff";
 const ACCENT_PINK   = "#FF00FF";
-const ACCENT_YELLOW = "#FFFF00";
+const ACCENT_YELLOW = "#bcbc31";
 const ACCENT_GREEN  = "#00FF00";
 
 export default function BrutalistBackground({ dark }) {
@@ -60,7 +60,7 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 大星星 ─── */}
       <div style={{ position: "absolute", top: "25%", left: "-40px", color: ACCENT_BLUE, opacity: 0.15, animation: "starRotateScale1 20s infinite linear" }}>
-        <svg width="200" height="200" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" style={{ overflow: "visible" }}>
+        <svg width="230" height="230" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" style={{ overflow: "visible" }}>
           <path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z" />
         </svg>
       </div>
@@ -72,7 +72,7 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 空心圓形 ─── */}
       {[
-        { top: '15%', left: '80%', color: ACCENT_PINK, size: 80, duration: "14s" },
+        { top: '11%', left: '80%', color: ACCENT_PINK, size: 80, duration: "14s" },
         { top: '75%', left: '10%', color: ACCENT_YELLOW, size: 140, duration: "20s" },
         { top: '85%', left: '60%', color: ACCENT_YELLOW, size: 60, duration: "16s" },
       ].map((circle, i) => (
@@ -83,9 +83,10 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 空心三角形 ─── */}
       {[
-        { top: '35%', left: '10%', color: ACCENT_GREEN, size: 100, duration: "18s" },
-        { top: '65%', left: '85%', color: ACCENT_BLUE, size: 80, duration: "22s" },
-        { top: '10%', left: '45%', color: dark ? "#FFF" : "#000", size: 60, duration: "15s" },
+        { top: '35%', left: '15%', color: ACCENT_GREEN, size: 70, duration: "18s" },
+        { top: '65%', left: '80%', color: ACCENT_BLUE, size: 80, duration: "22s" },
+        { top: '41%', left: '53%', color: ACCENT_BLUE, size: 40, duration: "25s" },
+        { top: '6%', left: '46%', color: dark ? "#FFF" : "#000", size: 60, duration: "15s" },
       ].map((tri, i) => (
         <div key={`tri-${i}`} style={{ position: "absolute", top: tri.top, left: tri.left, color: tri.color, opacity: 0.15, animation: `triangleSpinFloat ${tri.duration} infinite linear` }}>
           <svg width={tri.size} height={tri.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter"><polygon points="12,2 22,20 2,20" /></svg>
@@ -95,8 +96,8 @@ export default function BrutalistBackground({ dark }) {
       {/* ─── 漂浮十字架 ─── */}
       {[
         { top: '10%', left: '20%', color: ACCENT_BLUE, size: 40, duration: "15s" },
-        { top: '80%', left: '15%', color: ACCENT_PINK, size: 60, duration: "22s" },
-        { top: '40%', left: '85%', color: ACCENT_YELLOW, size: 50, duration: "18s" },
+        { top: '80%', left: '25%', color: ACCENT_PINK, size: 60, duration: "22s" },
+        { top: '40%', left: '81%', color: ACCENT_YELLOW, size: 50, duration: "18s" },
         { top: '15%', left: '70%', color: ACCENT_GREEN, size: 35, duration: "25s" },
         { top: '60%', left: '45%', color: dark ? "#FFF" : "#000", size: 30, duration: "20s" },
       ].map((cross, i) => (

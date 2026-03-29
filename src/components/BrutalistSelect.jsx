@@ -25,7 +25,7 @@ export default function BrutalistSelect({
   overdue = false,
 }) {
   const [open, setOpen] = useState(false)
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 })
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, maxHeight: 260 })
   const triggerRef = useRef(null)
   const dropRef = useRef(null)
 
@@ -37,29 +37,98 @@ export default function BrutalistSelect({
   const selected = normalised.find(o => o.value === value)
   const displayLabel = selected ? selected.label : placeholder
 
-  // 計算 dropdown 位置
+  // 計算 dropdown 位置（用 viewport 座標，配合 position:fixed）
+  const updatePos = () => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+
+    // 找最近的 scroll container，限制 dropdown 不超出其底部
+    const scrollContainer =
+      triggerRef.current.closest('[data-scroll-container]') ||
+      triggerRef.current.closest('.custom-scrollbar') ||
+      triggerRef.current.closest('.b-scroll')
+
+    // sticky header 高度：從 scroll container 頂端算起
+    const containerRect = scrollContainer
+      ? scrollContainer.getBoundingClientRect()
+      : { top: 0, bottom: window.innerHeight }
+
+    // 找 sticky header 底部作為 dropdown 最小起始位置
+    const stickyHeader = scrollContainer
+      ? scrollContainer.querySelector('[style*="sticky"]') ||
+        scrollContainer.querySelector('[data-sticky-header]')
+      : null
+    const stickyBottom = stickyHeader
+      ? stickyHeader.getBoundingClientRect().bottom
+      : containerRect.top
+
+    // dropdown 起始點：trigger 底部，但不能高於 sticky header 底端
+    const rawTop = rect.bottom + 2
+    const clampedTop = Math.max(rawTop, stickyBottom + 2)
+
+    // trigger 已捲出 container 底部，不應顯示
+    if (clampedTop >= containerRect.bottom) {
+      setOpen(false)
+      return
+    }
+
+    const availableHeight = Math.max(0, containerRect.bottom - clampedTop - 4)
+
+    setDropPos({
+      top: clampedTop,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: availableHeight,
+    })
+  }
+
   const openDrop = () => {
     if (disabled) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    setDropPos({
-      top:   rect.bottom + window.scrollY + 2,
-      left:  rect.left   + window.scrollX,
-      width: rect.width,
-    })
+    updatePos()
     setOpen(o => !o)
   }
 
-  // 點擊外部關閉
+  // 點擊外部關閉 + 滾動時同步位置或自動關閉
   useEffect(() => {
     if (!open) return
-    const handler = (e) => {
+    const handleClick = (e) => {
       if (
         triggerRef.current && !triggerRef.current.contains(e.target) &&
         dropRef.current    && !dropRef.current.contains(e.target)
       ) setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleScroll = () => {
+      if (!triggerRef.current) return
+      const rect = triggerRef.current.getBoundingClientRect()
+      const scrollContainer =
+        triggerRef.current.closest('[data-scroll-container]') ||
+        triggerRef.current.closest('.custom-scrollbar') ||
+        triggerRef.current.closest('.b-scroll')
+      const containerRect = scrollContainer
+        ? scrollContainer.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight }
+      // 找 sticky header 高度，讓 trigger 被它蓋住時才關閉
+      const stickyHeader = scrollContainer
+        ? scrollContainer.querySelector('[style*="sticky"]') ||
+          scrollContainer.querySelector('[data-sticky-header]')
+        : null
+      const stickyBottom = stickyHeader
+        ? stickyHeader.getBoundingClientRect().bottom
+        : containerRect.top
+      // trigger 被 sticky header 蓋住，或捲出 container 底部，都關閉
+      if (rect.bottom <= stickyBottom || rect.top >= containerRect.bottom) {
+        setOpen(false)
+        return
+      }
+      updatePos()
+    }
+    document.addEventListener('mousedown', handleClick)
+    // capture:true 可捕捉所有可滾動容器的 scroll 事件
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
   }, [open])
 
   const T = darkMode
@@ -116,7 +185,7 @@ export default function BrutalistSelect({
           data-todo-zone
           data-brutalist-select-drop
           style={{
-            position: 'absolute',
+            position: 'fixed',
             top: dropPos.top,
             left: dropPos.left,
             width: Math.max(dropPos.width, 140),
@@ -124,7 +193,7 @@ export default function BrutalistSelect({
             border: `2px solid ${T.border}`,
             boxShadow: `4px 4px 0 0 ${darkMode ? 'rgba(255,255,255,0.2)' : '#000'}`,
             zIndex: 99999,
-            maxHeight: '260px',
+            maxHeight: `${dropPos.maxHeight}px`,
             overflowY: 'auto',
           }}
         >

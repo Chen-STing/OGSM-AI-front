@@ -24,7 +24,7 @@ const COL_G      = 200
 const COL_S      = 200
 const COL_KPI    = 200
 const COL_VALT   = 120
-const COL_VALP   = 75
+const COL_VALP   = 85
 const COL_OWNER  = 120
 const COL_DL     = 120
 const COL_STATUS = 100
@@ -216,6 +216,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   const baseTotalWRef = useRef(baseTotalW)
   useEffect(() => { baseTotalWRef.current = baseTotalW }, [baseTotalW])
+
+
 
   const [extraW, setExtraW] = useState(0)
 
@@ -764,7 +766,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {/* AI Loading & Dialog */}
       {aiLoading && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
+        <div className="ogsm-ai-loading-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
           <div style={{ width: '48px', height: '48px', border: `6px solid rgba(255,255,255,0.1)`, borderTopColor: B_YELLOW, animation: 'b-spin 0.7s linear infinite' }} />
           <div style={{ color: B_YELLOW, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>AI 生成中…</div>
         </div>
