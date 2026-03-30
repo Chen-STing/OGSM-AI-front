@@ -112,6 +112,13 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
 
   return (
     <>
+      <style>{`
+        @keyframes ms-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes ms-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes ms-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes ms-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+      `}</style>
+
       {/* ─── Brutalist Backdrop ─── */}
       <div
         style={{
@@ -134,28 +141,34 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
           ? 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)'
           : 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)',
         backgroundSize: '20px 20px',
+        overflow: 'hidden',
         transition: 'background-color 0.3s ease, background-image 0.3s ease, border 0.3s ease'
       }}>
 
-        {/* ─── 面板專屬背景浮水印 ─── */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
-        }}>
-          <h2 style={{
-            transform: 'rotate(-10deg)',
-            opacity: 0.04,
-            fontSize: '120px',
-            fontWeight: 900,
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            margin: 0,
-            fontFamily: '"Space Grotesk", sans-serif',
-            color: T.text,
-            transition: 'color 0.3s ease'
-          }}>
-            MEMBERS
-          </h2>
+        {/* ─── 浮動裝飾圖形（與 GenerateModal 完全一致）─── */}
+        {/* 左下角星星 */}
+        <div style={{ position: 'absolute', bottom: '-60px', left: '-60px', color: '#ff3300', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'ms-starFloat 20s infinite ease-in-out' }}>
+          <svg width="210" height="210" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round">
+            <path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z" />
+          </svg>
+        </div>
+        {/* 右上角十字 */}
+        <div style={{ position: 'absolute', top: '7%', right: '7%', color: '#00ff0d', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'ms-crossFloat 16s infinite ease-in-out' }}>
+          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        {/* 右下角空心圓 */}
+        <div style={{ position: 'absolute', bottom: '30%', right: '35%', color: '#0000FF', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'ms-circleFloat 22s infinite ease-in-out' }}>
+          <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+        </div>
+        {/* 左上角空心三角 */}
+        <div style={{ position: 'absolute', top: '13%', left: '5%', color: '#ff00aa', opacity: 0.2, pointerEvents: 'none', zIndex: 0, animation: 'ms-triFloat 25s infinite ease-in-out' }}>
+          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter">
+            <polygon points="12,2 22,20 2,20" />
+          </svg>
         </div>
 
         {/* ─── Header ─── */}
@@ -280,7 +293,7 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
         )}
 
         {/* ─── Member list ─── */}
-        <div style={{ ...D.list, position: 'relative', zIndex: 1, borderColor: T.border, backgroundColor: T.bg }}>
+        <div style={{ ...D.list, position: 'relative', zIndex: 1, borderColor: T.border, backgroundColor: 'transparent' }}>
           {draft.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: T.textMuted, fontSize: '13px', fontFamily: '"DM Mono", monospace', fontWeight: 600 }}>
               NO MEMBERS FOUND.

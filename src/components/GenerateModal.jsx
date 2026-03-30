@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../services/api.js'
 
 // ─── VIBRANT BRUTALIST DESIGN TOKENS ────────────────────────────────────────
@@ -41,6 +41,24 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
   const [loading,   setLoading]   = useState(false)
   const [progress,  setProgress]  = useState('')
 
+  // loading 時動態注入 cursor style 到 head
+  useEffect(() => {
+    const id = 'gm-loading-cursor'
+    if (loading) {
+      const el = document.createElement('style')
+      el.id = id
+      el.textContent = `
+        .gm-overlay, .gm-overlay * {
+          cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g><animateTransform attributeName='transform' type='rotate' from='0 16 16' to='360 16 16' dur='1.5s' repeatCount='indefinite'/><polygon points='18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14' fill='%23000000'/><polygon points='16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12' fill='%23FF0000' stroke='%23FFFFFF' stroke-width='2.5' stroke-linejoin='miter'/></g></svg>") 16 16, wait !important;
+        }
+      `
+      document.head.appendChild(el)
+    } else {
+      document.getElementById(id)?.remove()
+    }
+    return () => document.getElementById(id)?.remove()
+  }, [loading])
+
   // 完全相同的判斷邏輯
   const T = darkMode ? DARK : LIGHT;
 
@@ -76,23 +94,54 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
 
   return (
     <div 
+      className="gm-overlay"
       style={{
         position: "fixed", inset: 0,
         background: T.backdrop, backdropFilter: "blur(4px)",
         zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center",
         transition: "background 0.3s ease"
       }} 
-      onClick={e => e.target === e.currentTarget && onClose()} 
+      onClick={e => e.target === e.currentTarget && !loading && onClose()} 
       onKeyDown={handleKey}
     >
-      <style>{`.gm-date::-webkit-calendar-picker-indicator { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important; }`}</style>
+      <style>{`.gm-date::-webkit-calendar-picker-indicator { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important; }
+        @keyframes gm-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes gm-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes gm-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes gm-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+      `}</style>
+      <div style={{ position: "relative" }}>
       <div className="b-card animate-scale-in" role="dialog" aria-modal="true" style={{
         background: T.bg, color: T.text, width: "600px", maxWidth: "92vw", maxHeight: "90vh",
         border: `4px solid ${T.border}`,
         boxShadow: `8px 8px 0px ${(darkMode ? "#223fce" : "#7389dd")}`,
-        overflowY: "auto", position: "relative",
+        overflowY: "hidden", position: "relative",
         transition: "background 0.3s ease, color 0.3s ease, border 0.3s ease, box-shadow 0.3s ease"
       }}>
+        {/* 左下角綠色星星 */}
+        <div style={{ position: "absolute", bottom: "-60px", left: "-60px", color: "#00FF00", opacity: 0.18, pointerEvents: "none", zIndex: 0, animation: "gm-starFloat 20s infinite ease-in-out" }}>
+          <svg width="240" height="240" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round">
+            <path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z" />
+          </svg>
+        </div>
+        {/* 右上角粉色十字 */}
+        <div style={{ position: "absolute", top: "15%", right: "7%", color: "#FF00FF", opacity: 0.18, pointerEvents: "none", zIndex: 0, animation: "gm-crossFloat 16s infinite ease-in-out" }}>
+          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        {/* 右下角藍色空心圓 */}
+        <div style={{ position: "absolute", bottom: "30%", right: "35%", color: "#0000FF", opacity: 0.18, pointerEvents: "none", zIndex: 0, animation: "gm-circleFloat 10s infinite ease-in-out" }}>
+          <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+        </div>
+        {/* 左上角黃色空心三角 */}
+        <div style={{ position: "absolute", top: "15%", left: "1%", color: "#FFFF00", opacity: 0.2, pointerEvents: "none", zIndex: 0, animation: "gm-triFloat 25s infinite ease-in-out" }}>
+          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter">
+            <polygon points="12,2 22,20 2,20" />
+          </svg>
+        </div>
         {/* Animated background grid inside dialog */}
         <div style={{
           position: "absolute", inset: 0, pointerEvents: "none",
@@ -130,18 +179,25 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
             }}>生成 OGSM</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={!loading ? onClose : undefined}
             disabled={loading}
             style={{ 
-              background: "none", border: "none", color: T.bg, fontSize: "28px", 
-              lineHeight: 1, transition: "color 0.15s", cursor: "pointer", opacity: loading ? 0.5 : 1 
+              background: "none", border: "none",
+              color: loading ? (darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)') : (darkMode ? '#ffffff' : T.bg),
+              fontSize: "28px", lineHeight: 1,
+              transition: "color 0.2s",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: 1,
+              padding: "2px 6px",
+              textDecoration: "none",
             }}
             onMouseEnter={e => !loading && (e.currentTarget.style.color = ACCENT_PINK)}
-            onMouseLeave={e => !loading && (e.currentTarget.style.color = T.bg)}
+            onMouseLeave={e => !loading && (e.currentTarget.style.color = darkMode ? '#ffffff' : T.bg)}
           >✕</button>
         </div>
 
-        <div style={{ padding: "14px 28px", position: "relative", zIndex: 10 }}>
+        <div style={{ overflowY: "auto", maxHeight: "calc(90vh - 60px)", position: "relative", zIndex: 10 }}>
+        <div style={{ padding: "14px 28px" }}>
           <p style={{
             fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: "16px",
             lineHeight: 1.4, color: T.textSub, marginBottom: "16px", textTransform: "uppercase",
@@ -262,11 +318,15 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
           {/* Actions */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "16px" }}>
             <button
-              onClick={onClose} disabled={loading}
+              onClick={!loading ? onClose : undefined} disabled={loading}
               style={{
                 padding: "10px 20px", fontFamily: '"Space Grotesk", sans-serif',
                 fontWeight: 900, fontSize: "16px", textTransform: "uppercase",
-                background: T.bg, color: T.text, border: `4px solid ${T.border}`, boxShadow: `4px 4px 0 0 ${(darkMode ? "#868686" : "#000000")}`,
+                background: loading ? (darkMode ? "#444" : "#ddd") : T.bg,
+                color: loading ? "#888" : T.text,
+                border: `4px solid ${loading ? (darkMode ? "#555" : "#bbb") : T.border}`,
+                boxShadow: loading ? "none" : `4px 4px 0 0 ${darkMode ? "#868686" : "#000000"}`,
+                textDecoration: "none",
                 transition: "all 0.15s",
                 cursor: loading ? "not-allowed" : "pointer"
               }}
@@ -330,6 +390,8 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
             </button>
           </div>
         </div>
+        </div>
+      </div>
       </div>
     </div>
   )

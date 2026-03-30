@@ -312,7 +312,6 @@ export default function App() {
   }, [route.page, route.id, displayedPage, transition]);
 
   const handleDeleteProject = useCallback(async (id) => {
-    if (!window.confirm("確定要刪除這個專案嗎？")) return;
     try {
       const { api } = await import("./services/api.js");
       await api.delete(id);
@@ -497,6 +496,7 @@ export default function App() {
               projects={projects}
               onSelect={p => selectProject(p.id)}
               onNewProject={() => setShowGenerate(true)}
+              onDeleteProject={handleDeleteProject}
               onBack={goHome}
               dark={dark}
               onToggleDark={() => setDark(d => !d)}

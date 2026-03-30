@@ -26,8 +26,9 @@ const LOCAL_CSS = `
   }
 `;
 
-function ProjectCard({ project, onSelect, dark, index, size = 260 }) {
+function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
   const [hovered, setHovered] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const pct = calcProgress(project);
   const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })();
   const isOverdue = project.deadline && project.deadline < today && pct < 100;
@@ -45,7 +46,7 @@ function ProjectCard({ project, onSelect, dark, index, size = 260 }) {
     <div
       onClick={() => onSelect(project)}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) { setHovered(false); setConfirmDelete(false); } }}
       style={{
         width: `${size}px`, height: `${size}px`,
         flexShrink: 0, boxSizing: "border-box",
@@ -56,7 +57,7 @@ function ProjectCard({ project, onSelect, dark, index, size = 260 }) {
         transform: hovered ? "translate(-6px,-6px)" : "translate(0,0)",
         transition: "all 0.15s ease",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
-        padding: `${pad}px`, position: "relative", overflow: "hidden",
+        padding: `${pad}px`, position: "relative",
         cursor: "pointer",
         animation: `waterfall 0.3s ${index * 0.04}s both`,
       }}
@@ -81,6 +82,48 @@ function ProjectCard({ project, onSelect, dark, index, size = 260 }) {
         <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: `${titleSize}px`, lineHeight: 1.2, textTransform: "uppercase", letterSpacing: "-0.02em", marginBottom: "4px", color: hovered ? "#000" : (dark ? "#fff" : "#000"), display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project.title || project.objective || "無標題"}</h3>
         <p style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, letterSpacing: "0.1em", opacity: 0.5, textTransform: "uppercase", color: hovered ? "#000" : undefined }}>{project.deadline || "無截止日期"}</p>
       </div>
+
+      {/* Delete button — bottom-right corner */}
+      {hovered && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ position: "absolute", bottom: `${Math.round(pad * 0.4)}px`, right: `${Math.round(pad * 0.4)}px` }}
+        >
+          {confirmDelete ? (
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <span style={{ fontSize: "10px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#000" }}>確定？</span>
+              <button
+                onClick={e => { e.stopPropagation(); onDelete && onDelete(project.id); }}
+                style={{ fontSize: "10px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", padding: "4px 8px", background: ACCENT_PINK, color: "#fff", border: "2px solid #000", boxShadow: "2px 2px 0 #000", cursor: "pointer", transition: "all 0.1s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 #000"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "2px 2px 0 #000"; }}
+                onMouseDown={e => { e.currentTarget.style.transform = "translate(1px,1px)"; e.currentTarget.style.boxShadow = "1px 1px 0 #000"; }}
+                onMouseUp={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 #000"; }}
+              >刪除</button>
+              <button
+                onClick={e => { e.stopPropagation(); setConfirmDelete(false); }}
+                style={{ fontSize: "10px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", padding: "4px 8px", background: "#000", color: "#fff", border: "2px solid #000", boxShadow: "2px 2px 0 rgba(0,0,0,0.3)", cursor: "pointer", transition: "all 0.1s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.3)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "2px 2px 0 rgba(0,0,0,0.3)"; }}
+              >取消</button>
+            </div>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
+              title="刪除專案"
+              style={{ width: `${Math.round(28 * scale)}px`, height: `${Math.round(28 * scale)}px`, display: "flex", alignItems: "center", justifyContent: "center", background: "#000", border: "2px solid #000", boxShadow: "2px 2px 0 rgba(0,0,0,0.4)", cursor: "pointer", padding: 0, transition: "all 0.1s", color: "#fff" }}
+              onMouseEnter={e => { e.currentTarget.style.background = ACCENT_PINK; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.4)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#000"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "2px 2px 0 rgba(0,0,0,0.4)"; }}
+              onMouseDown={e => { e.currentTarget.style.transform = "translate(1px,1px)"; e.currentTarget.style.boxShadow = "1px 1px 0 rgba(0,0,0,0.4)"; }}
+              onMouseUp={e => { e.currentTarget.style.background = ACCENT_PINK; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.4)"; }}
+            >
+              <svg width={Math.round(14 * scale)} height={Math.round(14 * scale)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -103,7 +146,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onBack, dark, onToggleDark, entering, exitingTo }) {
+export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -294,7 +337,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onBack,
       </div>
 
       {sorted.length === 0 ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px" }}>
+        <div className="sh-grid-anim" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px" }}>
           <div style={{ fontSize: "120px", fontWeight: 900, fontStyle: "italic", fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1, letterSpacing: "-0.04em", color: dark ? "rgba(255,255,255,0.5)" : "rgba(0, 0, 0, 0.6)" }}>0</div>
           <span style={{ fontSize: "28px", fontWeight: 900, fontFamily: '"Space Grotesk", sans-serif', textTransform: "uppercase", letterSpacing: "0.06em", color: dark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)" }}>找不到符合的專案</span>
           <span style={{ fontSize: "18px", fontWeight: 700, color: dark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)" }}>請嘗試調整搜尋條件或篩選範圍</span>
@@ -302,7 +345,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onBack,
       ) : (
         <div ref={gridRef} className="custom-scrollbar sh-grid-anim" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 24px 48px" }}>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${cardSize}px)`, justifyContent: "center", columnGap: "32px", rowGap: "40px" }}>
-            {sorted.map((p, i) => <ProjectCard key={p.id} project={p} onSelect={onSelect} dark={dark} index={i} size={cardSize} />)}
+            {sorted.map((p, i) => <ProjectCard key={p.id} project={p} onSelect={onSelect} onDelete={onDeleteProject} dark={dark} index={i} size={cardSize} />)}
             {!query && !isFiltering && <NewProjectCard onNewProject={onNewProject} dark={dark} index={sorted.length} size={cardSize} />}
           </div>
         </div>

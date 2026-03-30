@@ -68,6 +68,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const [sortDir, setSortDir] = useState('desc');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
+  const [confirmId, setConfirmId] = useState(null);
   
   const filterRef = useRef(null);
   const popupRef  = useRef(null);
@@ -459,7 +460,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               {/* 移除按鈕 (單純淡入，無風格變形) */}
               <button
                 className="p-delete"
-                onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                onClick={(e) => { e.stopPropagation(); setConfirmId(p.id); }}
                 title="刪除專案"
                 style={{ position: 'absolute', top: '12px', right: '20px', padding: '4px', background: 'transparent', border: 'none', color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', zIndex: 20 }}
               >
@@ -496,6 +497,61 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`, background: 'transparent', color: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.25 : 0.7, fontWeight: 900, fontSize: '14px' }}
           >›</button>
         </div>
+      )}
+
+      {/* ── Brutalist 確認刪除 Modal ── */}
+      {confirmId !== null && createPortal(
+        <div
+          onClick={() => setConfirmId(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: darkMode ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.25)' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'relative', width: '360px', maxWidth: '92vw', padding: '28px',
+              background: darkMode ? '#393939' : '#f8f9fa',
+              border: `3px solid ${darkMode ? '#fff' : '#000'}`,
+              boxShadow: `8px 8px 0 0 ${darkMode ? '#223fce' : '#7389dd'}`,
+              backgroundImage: darkMode
+                ? 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)'
+                : 'linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+              display: 'flex', flexDirection: 'column', gap: '20px',
+            }}
+          >
+            {/* Header */}
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontFamily: '"DM Mono", monospace', color: '#5e5eea', fontWeight: 900, letterSpacing: '1px', marginBottom: '4px' }}>[ CONFIRM ]</div>
+                <div style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '20px', color: darkMode ? '#fff' : '#000' }}>刪除專案</div>
+              </div>
+            </div>
+
+            {/* 訊息 */}
+            <p style={{ position: 'relative', zIndex: 1, fontSize: '13px', color: darkMode ? '#ccc' : '#444', lineHeight: 1.6, fontWeight: 500, borderLeft: '3px solid #ff0000', paddingLeft: '12px', margin: 0 }}>
+              此操作無法復原。<br />確定要刪除這個專案嗎？
+            </p>
+
+            {/* 按鈕列 */}
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmId(null)}
+                style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '8px 20px', background: 'transparent', color: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'}`, cursor: 'pointer', transition: 'all 0.1s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = darkMode ? '#fff' : '#000'; e.currentTarget.style.color = darkMode ? '#fff' : '#000'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'; e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'; }}
+              >取消</button>
+              <button
+                onClick={() => { onDelete(confirmId); setConfirmId(null); }}
+                style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '8px 20px', background: '#ff0000', color: '#fff', border: '3px solid #ff0000', boxShadow: `4px 4px 0 0 ${darkMode ? '#686868' : '#000'}`, cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${darkMode ? '#686868' : '#000'}`; e.currentTarget.style.background = '#cc0000'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${darkMode ? '#686868' : '#000'}`; e.currentTarget.style.background = '#ff0000'; }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'translate(2px,2px)'; e.currentTarget.style.boxShadow = '2px 2px 0 0 #000'; }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${darkMode ? '#686868' : '#000'}`; }}
+              >確認刪除</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

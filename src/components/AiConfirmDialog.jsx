@@ -112,6 +112,12 @@ export default function AiConfirmDialog({
       onClick={e => e.target === e.currentTarget && onCancel()}
       onKeyDown={handleKey}
     >
+      <style>{`
+        @keyframes acd-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes acd-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+        @keyframes acd-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes acd-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
+      `}</style>
       <div
         className="b-card animate-scale-in"
         role="dialog"
@@ -121,11 +127,37 @@ export default function AiConfirmDialog({
           width: '520px', maxWidth: '92vw', maxHeight: '90vh',
           border: `4px solid ${T.border}`,
           boxShadow: `8px 8px 0px ${darkMode ? '#223fce' : '#7389dd'}`,
-          overflowY: 'auto', position: 'relative',
+          position: 'relative',
+          overflow: 'hidden',
           transition: 'background 0.3s ease, color 0.3s ease, border 0.3s ease, box-shadow 0.3s ease',
           cursor: 'default',
         }}
       >
+        {/* ─── 浮動裝飾圖形（與 GenerateModal 完全一致）─── */}
+        {/* 左下角星星 */}
+        <div style={{ position: 'absolute', bottom: '-60px', left: '-60px', color: '#00ccff', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'acd-starFloat 20s infinite ease-in-out' }}>
+          <svg width="200" height="200" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round">
+            <path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z" />
+          </svg>
+        </div>
+        {/* 右上角十字 */}
+        <div style={{ position: 'absolute', top: '15%', right: '7%', color: '#ff0000', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'acd-crossFloat 16s infinite ease-in-out' }}>
+          <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        {/* 右下角空心圓 */}
+        <div style={{ position: 'absolute', bottom: '32%', right: '37%', color: '#00ff2a', opacity: 0.18, pointerEvents: 'none', zIndex: 0, animation: 'acd-circleFloat 22s infinite ease-in-out' }}>
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+        </div>
+        {/* 左上角空心三角 */}
+        <div style={{ position: 'absolute', top: '15%', left: '1%', color: '#d400ff', opacity: 0.2, pointerEvents: 'none', zIndex: 0, animation: 'acd-triFloat 25s infinite ease-in-out' }}>
+          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter">
+            <polygon points="12,2 22,20 2,20" />
+          </svg>
+        </div>
         {/* ── 背景網格 ── */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -176,7 +208,7 @@ export default function AiConfirmDialog({
         </div>
 
         {/* ── Body ── */}
-        <div style={{ padding: '20px 28px', position: 'relative', zIndex: 10 }}>
+        <div style={{ padding: '20px 28px', position: 'relative', zIndex: 10, overflowY: 'auto', maxHeight: 'calc(90vh - 70px)' }}>
 
           {/* Description */}
           <p style={{
