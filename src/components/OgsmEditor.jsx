@@ -289,10 +289,11 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     recalcExtraW()
   }, [baseTotalW, recalcExtraW])
 
-  // 分配剩餘寬度: S(50%), MD 定量指標(30%), 目標值(20%)
-  const dynS = Math.floor(COL_S + extraW * 0.5)
+  // 分配剩餘寬度: S(40%), MD 定量指標(30%), 目標值(20%), 實際值(10%)
+  const dynS = Math.floor(COL_S + extraW * 0.40)
   const dynKpi = Math.floor(baseKpiW + extraW * 0.3)
-  const dynTarget = COL_VALT + extraW - Math.floor(extraW * 0.5) - Math.floor(extraW * 0.3)
+  const dynValP = Math.floor(COL_VALP + extraW * 0.10)
+  const dynTarget = COL_VALT + extraW - Math.floor(extraW * 0.40) - Math.floor(extraW * 0.3) - Math.floor(extraW * 0.10)
 
   const toggleTodoById = useCallback((gi, si, mi, todoId) => {
     update(d => {
@@ -464,12 +465,12 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {/* ── Top Header ── */}
       <div style={{ padding: sidebarOpen ? '12px 24px' : '12px 24px 12px 84px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 20, background: 'transparent', flexShrink: 0, transition: 'padding 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0, marginRight: '16px' }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
             <input
               type="text"
-              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '24px', letterSpacing: '-0.02em', textTransform: 'uppercase', fontStyle: 'italic', outline: 'none', width: '135%', marginBottom: '4px', lineHeight: 1 }}
+              style={{ background: 'transparent', border: 'none', color: dark ? '#fff' : '#000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '24px', letterSpacing: '-0.02em', textTransform: 'uppercase', fontStyle: 'italic', outline: 'none', width: '100%', marginBottom: '4px', lineHeight: 1 }}
               value={draft.title}
               onChange={e => setField('title', e.target.value)}
               placeholder="專案標題"
@@ -564,7 +565,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                 { label: 'S - Strategies', w: dynS       },
                 { label: 'MD 定量指標',    w: dynKpi     },
                 { label: '目標值',          w: dynTarget  },
-                { label: '實際值',          w: COL_VALP   },
+                { label: '實際值',          w: dynValP    },
                 { label: '負責人',          w: COL_OWNER  },
                 { label: '期限',            w: COL_DL     },
                 { label: '狀態',            w: COL_STATUS },
@@ -660,8 +661,12 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       </div>
 
                                       {/* Actual */}
-                                      <div style={{ width: COL_VALP, minWidth: COL_VALP, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                                        <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, color: B_GREEN, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} readOnly={!editMode} />
+                                      <div style={{ width: dynValP, minWidth: dynValP, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                                        {editMode ? (
+                                          <textarea data-ogsm-autoresize className="ogsm-actual-input" style={{ ...s.measureText, color: B_GREEN, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.actual} onChange={e => setMField(gi,si,mi,'actual',e.target.value)} onInput={autoResize} ref={initResize} placeholder="實際" rows={1} />
+                                        ) : (
+                                          <span style={{ color: (m.actual && m.actual.trim()) ? B_GREEN : (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'), fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }}>{(m.actual && m.actual.trim()) ? m.actual : '—'}</span>
+                                        )}
                                       </div>
 
                                       {/* Assignee */}
@@ -733,7 +738,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       const removeTodo = (tid) => setMTodos(gi, si, mi, (m.todos || []).filter(t => t.id !== tid))
                                       const addTodo = () => setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignee: '', deadline: '', createdAt: new Date().toISOString() }])
                                       return (
-                                        <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '6px 10px 6px 10px', borderLeft: `3px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + COL_VALP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
+                                        <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '6px 10px 6px 10px', borderLeft: `3px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + dynValP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
                                           {(m.todos || []).length === 0 && !editMode ? null : (m.todos || []).map((t, ti) => {
                                             const tOverdue = t.deadline && t.deadline < today && !t.done
                                             const isTDragging = dragTodo?.gi === gi && dragTodo?.si === si && dragTodo?.mi === mi && dragTodo?.ti === ti

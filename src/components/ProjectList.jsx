@@ -20,13 +20,7 @@ export function calcProgress(project) {
 function formatTaiwanDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const date = d.getDate();
-  const ampm = d.getHours() >= 12 ? '下午' : '上午';
-  const hours = d.getHours() % 12 || 12;
-  const mins = d.getMinutes().toString().padStart(2, '0');
-  return `${year}年${month}月${date}日 ${ampm}${hours}:${mins}`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 const CURSOR_HAND = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><path d=\"M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z\" fill=\"%23000000\" /><path d=\"M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z\" fill=\"%23FF00FF\" stroke=\"%23FFFFFF\" stroke-width=\"2.5\" stroke-linejoin=\"miter\" /></svg>') 10 2, pointer";
@@ -59,10 +53,16 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const [query, setQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
+  const [statusFilters, setStatusFilters] = useState(new Set());
+  const toggleStatus = (val) => setStatusFilters(prev => { const n = new Set(prev); n.has(val) ? n.delete(val) : n.add(val); return n; });
   const [progMin, setProgMin] = useState(0);
   const [progMax, setProgMax] = useState(100);
+  const [progMinInput, setProgMinInput] = useState('0');
+  const [progMaxInput, setProgMaxInput] = useState('100');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [deadlineFrom, setDeadlineFrom] = useState('');
+  const [deadlineTo, setDeadlineTo] = useState('');
   const [showSort, setShowSort] = useState(false);
   const [sortBy, setSortBy] = useState('time');
   const [sortDir, setSortDir] = useState('desc');
@@ -70,6 +70,8 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const PAGE_SIZE = 5;
   const [confirmId, setConfirmId] = useState(null);
   
+  const sliderContainerRef = useRef(null);
+  const sliderDragging = useRef(null);
   const filterRef = useRef(null);
   const popupRef  = useRef(null);
   const sortRef = useRef(null);
@@ -120,6 +122,15 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
       const q = query.toLowerCase();
       if (!p.title.toLowerCase().includes(q) && !(p.objective || '').toLowerCase().includes(q)) return false;
     }
+    if (statusFilters.size > 0) {
+      const pct = calcProgress(p);
+      const today = new Date().toISOString().slice(0,10);
+      const overdue = p.deadline && p.deadline < today && pct < 100;
+      const done = pct >= 100;
+      const inProgress = !done && !overdue;
+      const match = (statusFilters.has('inProgress') && inProgress) || (statusFilters.has('overdue') && overdue) || (statusFilters.has('done') && done);
+      if (!match) return false;
+    }
     if (progMin > 0 || progMax < 100) {
       const pct = calcProgress(p);
       if (pct < progMin || pct > progMax) return false;
@@ -129,15 +140,22 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
       if (dateFrom && created < new Date(dateFrom + 'T00:00:00').getTime()) return false;
       if (dateTo   && created > new Date(dateTo   + 'T00:00:00').getTime()) return false;
     }
+    if (deadlineFrom || deadlineTo) {
+      if (!p.deadline) return false;
+      if (deadlineFrom && p.deadline < deadlineFrom) return false;
+      if (deadlineTo   && p.deadline > deadlineTo)   return false;
+    }
     return true;
   });
   
-  const isFiltering = progMin > 0 || progMax < 100 || dateFrom !== '' || dateTo !== '';
+  const isFiltering = statusFilters.size > 0 || progMin > 0 || progMax < 100 || dateFrom !== '' || dateTo !== '' || deadlineFrom !== '' || deadlineTo !== '';
 
   // 搜尋/篩選/排序變動時重置頁碼
-  React.useEffect(() => { setPage(1); }, [query, progMin, progMax, dateFrom, dateTo, sortBy, sortDir]);
+  React.useEffect(() => { setPage(1); }, [query, statusFilters, progMin, progMax, dateFrom, dateTo, deadlineFrom, deadlineTo, sortBy, sortDir]);
   const sorted = [...filtered].sort((a, b) => {
-    let diff = sortBy === 'time' ? new Date(a.createdAt) - new Date(b.createdAt) : calcProgress(a) - calcProgress(b);
+    let diff = sortBy === 'time' ? new Date(a.createdAt) - new Date(b.createdAt)
+      : sortBy === 'deadline' ? ((a.deadline || '9999') < (b.deadline || '9999') ? -1 : (a.deadline || '9999') > (b.deadline || '9999') ? 1 : 0)
+      : calcProgress(a) - calcProgress(b);
     return sortDir === 'asc' ? diff : -diff;
   });
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
@@ -166,7 +184,34 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
     );
   }
 
-  const baseShadow = darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000';
+  const getSliderVal = (clientX) => {
+    const rect = sliderContainerRef.current.getBoundingClientRect();
+    return Math.round(Math.min(100, Math.max(0, (clientX - rect.left) / rect.width * 100)));
+  };
+  const onSliderMouseDown = (e) => {
+    const val = getSliderVal(e.clientX);
+    const distMin = Math.abs(val - progMin);
+    const distMax = Math.abs(val - progMax);
+    const startX = e.clientX;
+    let decided = distMin !== distMax;
+    sliderDragging.current = distMin <= distMax ? 'min' : 'max';
+    e.preventDefault();
+    const onMove = (e2) => {
+      if (!decided) {
+        const dx = e2.clientX - startX;
+        if (Math.abs(dx) < 3) return;
+        sliderDragging.current = dx < 0 ? 'min' : 'max';
+        decided = true;
+      }
+      const v = getSliderVal(e2.clientX);
+      if (sliderDragging.current === 'min') { const val = Math.min(v, progMax); setProgMin(val); setProgMinInput(String(val)); }
+      else { const val = Math.max(v, progMin); setProgMax(val); setProgMaxInput(String(val)); }
+    };
+    const onUp = () => { sliderDragging.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+    const baseShadow = darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000';
   const hoverShadow = darkMode ? '6px 6px 0 0 rgba(255,255,255,0.2)' : '6px 6px 0 0 #000';
   const activeShadow = darkMode ? '2px 2px 0 0 rgba(255,255,255,0.2)' : '2px 2px 0 0 #000';
 
@@ -323,28 +368,71 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
 
           {/* Filter Dropdown */}
           {showFilter && (
-            <div ref={popupRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 9999, width: '224px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#1a1a1a' : '#fff', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
+            <div ref={popupRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 9999, width: 'fit-content', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#1a1a1a' : '#fff', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>專案狀態</div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  {[['inProgress', '進行中'], ['overdue', '已逾期'], ['done', '已完成']].map(([val, label]) => {
+                    const checked = statusFilters.has(val);
+                    return (
+                      <label key={val} onClick={() => toggleStatus(val)} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: darkMode ? '#fff' : '#000', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <div style={{ width: '14px', height: '14px', border: `2px solid ${checked ? '#0000FF' : (darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)')}`, background: checked ? '#0000FF' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px' }}>完成進度</div>
-                  <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: darkMode ? '#fff' : '#000' }}>{progMin}% – {progMax}%</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      type="text" inputMode="numeric" value={progMinInput}
+                      onChange={e => { const v = e.target.value; if (v === '' || (/^\d+$/.test(v) && Number(v) <= 100)) setProgMinInput(v); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { const v = Math.min(Math.max(0, Number(progMinInput)), progMax); setProgMin(v); setProgMinInput(String(v)); e.target.blur(); } }}
+                      onBlur={() => { const v = Math.min(Math.max(0, Number(progMinInput)), progMax); setProgMin(v); setProgMinInput(String(v)); }}
+                      style={{ width: '42px', fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, background: 'transparent', border: 'none', borderBottom: `2px solid ${darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'}`, color: darkMode ? '#fff' : '#000', outline: 'none', textAlign: 'center', padding: '0 2px' }}
+                    />
+                    <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>%–</span>
+                    <input
+                      type="text" inputMode="numeric" value={progMaxInput}
+                      onChange={e => { const v = e.target.value; if (v === '' || (/^\d+$/.test(v) && Number(v) <= 100)) setProgMaxInput(v); }}
+                      onKeyDown={e => { if (e.key === 'Enter') { const v = Math.max(Math.min(100, Number(progMaxInput)), progMin); setProgMax(v); setProgMaxInput(String(v)); e.target.blur(); } }}
+                      onBlur={() => { const v = Math.max(Math.min(100, Number(progMaxInput)), progMin); setProgMax(v); setProgMaxInput(String(v)); }}
+                      style={{ width: '42px', fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, background: 'transparent', border: 'none', borderBottom: `2px solid ${darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'}`, color: darkMode ? '#fff' : '#000', outline: 'none', textAlign: 'center', padding: '0 2px' }}
+                    />
+                    <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 700, color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>%</span>
+                  </div>
                 </div>
                 <div style={{ position: 'relative', height: '20px', marginTop: '4px', display: 'flex', alignItems: 'center' }}>
                   <div style={{ position: 'absolute', width: '100%', height: '4px', background: darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
                   <div style={{ position: 'absolute', height: '4px', background: '#0000FF', pointerEvents: 'none', left: `${progMin}%`, width: `${progMax - progMin}%` }} />
-                  <input type="range" min={0} max={100} step={1} value={progMin} onChange={e => setProgMin(Math.min(Number(e.target.value), progMax))} className="p-range" style={{ position: 'absolute', width: '100%', height: '4px', appearance: 'none', WebkitAppearance: 'none', background: 'transparent', outline: 'none', margin: 0 }} />
-                  <input type="range" min={0} max={100} step={1} value={progMax} onChange={e => setProgMax(Math.max(Number(e.target.value), progMin))} className="p-range" style={{ position: 'absolute', width: '100%', height: '4px', appearance: 'none', WebkitAppearance: 'none', background: 'transparent', outline: 'none', margin: 0 }} />
+                  <div ref={sliderContainerRef} onMouseDown={onSliderMouseDown}
+                        style={{ position: 'absolute', width: '100%', height: '20px', cursor: 'pointer', top: 0 }}>
+                        <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: `${progMin}%`, width: '14px', height: '14px', background: '#0000FF', border: '2px solid #fff', boxShadow: '2px 2px 0 #000', marginLeft: '-7px', boxSizing: 'border-box', zIndex: 5, cursor: 'ew-resize' }} />
+                        <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: `${progMax}%`, width: '14px', height: '14px', background: '#0000FF', border: '2px solid #fff', boxShadow: '2px 2px 0 #000', marginLeft: '-7px', boxSizing: 'border-box', zIndex: 5, cursor: 'ew-resize' }} />
+                      </div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>建立日期</div>
                 <input type="date" className="p-date" value={dateFrom} max={dateTo || undefined} onChange={e => { const v = e.target.value; if (dateTo && v > dateTo) return; setDateFrom(v); }} style={{ width: '100%', fontSize: '12px', padding: '8px', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, outline: 'none', fontFamily: 'monospace', background: darkMode ? '#2b2b2b' : '#f9fafb', color: darkMode ? '#fff' : '#000', colorScheme: darkMode ? 'dark' : 'light' }} />
-                <input type="date" className="p-date" value={dateTo} min={dateFrom || undefined} onChange={e => { const v = e.target.value; if (dateFrom && v < dateFrom) return; setDateTo(v); }} style={{ width: '100%', fontSize: '12px', padding: '8px', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, outline: 'none', fontFamily: 'monospace', background: darkMode ? '#2b2b2b' : '#f9fafb', color: darkMode ? '#fff' : '#000', colorScheme: darkMode ? 'dark' : 'light' }} />
+                <input type="date" className="p-date" value={dateTo} onChange={e => { const v = e.target.value; setDateTo(!v ? '' : (dateFrom && v < dateFrom ? dateFrom : v)); }} style={{ width: '100%', fontSize: '12px', padding: '8px', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, outline: 'none', fontFamily: 'monospace', background: darkMode ? '#2b2b2b' : '#f9fafb', color: darkMode ? '#fff' : '#000', colorScheme: darkMode ? 'dark' : 'light' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>期限日期</div>
+                <input type="date" className="p-date" value={deadlineFrom} max={deadlineTo || undefined} onChange={e => { const v = e.target.value; if (deadlineTo && v > deadlineTo) return; setDeadlineFrom(v); }} style={{ width: '100%', fontSize: '12px', padding: '8px', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, outline: 'none', fontFamily: 'monospace', background: darkMode ? '#2b2b2b' : '#f9fafb', color: darkMode ? '#fff' : '#000', colorScheme: darkMode ? 'dark' : 'light' }} />
+                <input type="date" className="p-date" value={deadlineTo} onChange={e => { const v = e.target.value; setDeadlineTo(!v ? '' : (deadlineFrom && v < deadlineFrom ? deadlineFrom : v)); }} style={{ width: '100%', fontSize: '12px', padding: '8px', border: `2px solid ${darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`, outline: 'none', fontFamily: 'monospace', background: darkMode ? '#2b2b2b' : '#f9fafb', color: darkMode ? '#fff' : '#000', colorScheme: darkMode ? 'dark' : 'light' }} />
               </div>
 
               {isFiltering && (
-                <button onClick={() => { setProgMin(0); setProgMax(100); setDateFrom(''); setDateTo(''); }} style={{ alignSelf: 'flex-start', fontSize: '11px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '6px 12px', border: '2px solid rgba(255,0,255,0.4)', background: 'transparent', color: '#FF00FF', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#FF00FF'; e.currentTarget.style.color = '#000'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#FF00FF'; }}>
+                <button onClick={() => { setStatusFilters(new Set()); setProgMin(0); setProgMax(100); setProgMinInput('0'); setProgMaxInput('100'); setDateFrom(''); setDateTo(''); setDeadlineFrom(''); setDeadlineTo(''); }} style={{ alignSelf: 'flex-start', fontSize: '11px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '6px 12px', border: '2px solid rgba(255,0,255,0.4)', background: 'transparent', color: '#FF00FF', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#FF00FF'; e.currentTarget.style.color = '#000'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#FF00FF'; }}>
                   清除篩選
                 </button>
               )}
@@ -381,13 +469,13 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             <div ref={sortRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 99999, width: '144px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#1a1a1a' : '#fff', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.4)' : '#000'}` }}>
               <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>排序依據</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
-                {[['time', '建立時間'], ['progress', '完成進度']].map(([val, label]) => (
+                {[['time', '建立時間'], ['deadline', '期限日期'], ['progress', '完成進度']].map(([val, label]) => (
                   <button key={val} onClick={() => setSortBy(val)} style={{ textAlign: 'left', fontSize: '12px', fontWeight: 700, padding: '6px 10px', border: '2px solid', borderColor: sortBy === val ? '#000' : 'transparent', background: sortBy === val ? '#FFFF00' : 'transparent', color: sortBy === val ? '#000' : (darkMode ? '#fff' : '#000'), cursor: 'pointer' }}>{label}</button>
                 ))}
               </div>
               <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>方向</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {[['desc', sortBy === 'time' ? '最新優先' : '高→低'], ['asc', sortBy === 'time' ? '最舊優先' : '低→高']].map(([val, label]) => (
+                {[['desc', sortBy === 'progress' ? '高→低' : sortBy === 'deadline' ? '最遠優先' : '最新優先'], ['asc', sortBy === 'progress' ? '低→高' : sortBy === 'deadline' ? '最近優先' : '最舊優先']].map(([val, label]) => (
                   <button key={val} onClick={() => setSortDir(val)} style={{ textAlign: 'left', fontSize: '12px', fontWeight: 700, padding: '6px 10px', border: '2px solid', borderColor: sortDir === val ? '#000' : 'transparent', background: sortDir === val ? '#FFFF00' : 'transparent', color: sortDir === val ? '#000' : (darkMode ? '#fff' : '#000'), cursor: 'pointer' }}>{label}</button>
                 ))}
               </div>
@@ -432,7 +520,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
                 {(isOverdue || pct === 100) && (
                   <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', flexWrap: 'wrap' }}>
                     {pct === 100 && (
-                      <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#00FF00', color: '#000', padding: '2px 6px', border: '1px solid rgba(0,0,0,0.2)' }}>✓ 完成</span>
+                      <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#00FF00', color: '#000', padding: '2px 6px', border: '1px solid rgba(0,0,0,0.2)' }}>已完成</span>
                     )}
                     {isOverdue && (
                       <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#ff0000', color: '#fff', padding: '2px 6px', border: '1px solid rgba(0,0,0,0.2)' }}>已逾期</span>
@@ -445,8 +533,17 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
                 <p style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {p.objective}
                 </p>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
-                  {formatTaiwanDate(p.createdAt)}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.7 }}>建立</span>
+                    {formatTaiwanDate(p.createdAt)}
+                  </div>
+                  {p.deadline && (
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: isOverdue ? '#ff0000' : (darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.65)'), display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.7 }}>期限</span>
+                      {formatTaiwanDate(p.deadline)}
+                    </div>
+                  )}
                 </div>
               </div>
               

@@ -107,7 +107,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
       <style>{`.gm-date::-webkit-calendar-picker-indicator { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important; }
         @keyframes gm-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
         @keyframes gm-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
-        @keyframes gm-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes gm-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(2.5); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
         @keyframes gm-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
       `}</style>
       <div style={{ position: "relative" }}>
@@ -137,8 +137,8 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
           </svg>
         </div>
         {/* 左上角黃色空心三角 */}
-        <div style={{ position: "absolute", top: "15%", left: "1%", color: "#FFFF00", opacity: 0.2, pointerEvents: "none", zIndex: 0, animation: "gm-triFloat 25s infinite ease-in-out" }}>
-          <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter">
+        <div style={{ position: "absolute", top: "15%", left: "1%", color: "#FFFF00", opacity: 0.2, pointerEvents: "none", zIndex: 0, animation: "gm-triFloat 18s infinite ease-in-out" }}>
+          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter">
             <polygon points="12,2 22,20 2,20" />
           </svg>
         </div>
@@ -183,7 +183,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
             disabled={loading}
             style={{ 
               background: "none", border: "none",
-              color: loading ? (darkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)') : (darkMode ? '#ffffff' : T.bg),
+              color: loading ? 'rgba(255,255,255,0.25)' : (darkMode ? '#ffffff' : T.bg),
               fontSize: "28px", lineHeight: 1,
               transition: "color 0.2s",
               cursor: loading ? "not-allowed" : "pointer",
@@ -207,7 +207,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
           </p>
 
           {/* Objective */}
-          <div style={{ marginBottom: "15px" }}>
+          <div style={{ marginBottom: "13px" }}>
             <label style={{
               fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
               letterSpacing: "0.12em", textTransform: "uppercase", display: "block", marginBottom: "8px",
@@ -230,7 +230,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
           </div>
 
           {/* Deadline */}
-          <div style={{ marginBottom: "15px" }}>
+          <div style={{ marginBottom: "13px" }}>
             <label style={{
               fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
               letterSpacing: "0.12em", textTransform: "uppercase", display: "block", marginBottom: "8px",
@@ -272,7 +272,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
               }}
               placeholder="例：目前痛點、預算規模、產業背景、特定限制…"
               value={context} onChange={e => setContext(e.target.value)}
-              disabled={loading} rows={2}
+              disabled={loading} rows={5}
             />
           </div>
 
@@ -323,8 +323,8 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
                 padding: "10px 20px", fontFamily: '"Space Grotesk", sans-serif',
                 fontWeight: 900, fontSize: "16px", textTransform: "uppercase",
                 background: loading ? (darkMode ? "#444" : "#ddd") : T.bg,
-                color: loading ? "#888" : T.text,
-                border: `4px solid ${loading ? (darkMode ? "#555" : "#bbb") : T.border}`,
+                color: loading ? (darkMode ? "#888" : "#444") : T.text,
+                border: `4px solid ${loading ? (darkMode ? "#555" : "#999") : T.border}`,
                 boxShadow: loading ? "none" : `4px 4px 0 0 ${darkMode ? "#868686" : "#000000"}`,
                 textDecoration: "none",
                 transition: "all 0.15s",
