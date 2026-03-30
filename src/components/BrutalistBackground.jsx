@@ -72,9 +72,9 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 空心圓形 ─── */}
       {[
-        { top: '11%', left: '80%', color: ACCENT_PINK, size: 80, duration: "14s" },
+        { top: '11%', left: '80%', color: "#ff7300", size: 80, duration: "14s" },
         { top: '75%', left: '10%', color: ACCENT_YELLOW, size: 140, duration: "20s" },
-        { top: '85%', left: '60%', color: ACCENT_YELLOW, size: 60, duration: "16s" },
+        { top: '85%', left: '60%', color: '#02fcfc', size: 60, duration: "16s" },
       ].map((circle, i) => (
         <div key={`circle-${i}`} style={{ position: "absolute", top: circle.top, left: circle.left, color: circle.color, opacity: 0.15, animation: `circlePulseFloat ${circle.duration} infinite linear` }}>
           <svg width={circle.size} height={circle.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /></svg>
@@ -83,9 +83,9 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 空心三角形 ─── */}
       {[
-        { top: '35%', left: '15%', color: ACCENT_GREEN, size: 70, duration: "18s" },
+        { top: '35%', left: '17%', color: ACCENT_GREEN, size: 65, duration: "18s" },
         { top: '65%', left: '80%', color: ACCENT_BLUE, size: 80, duration: "22s" },
-        { top: '41%', left: '53%', color: ACCENT_BLUE, size: 40, duration: "25s" },
+        { top: '41%', left: '53%', color: "#fd0000", size: 40, duration: "25s" },
         { top: '6%', left: '46%', color: dark ? "#FFF" : "#000", size: 60, duration: "15s" },
       ].map((tri, i) => (
         <div key={`tri-${i}`} style={{ position: "absolute", top: tri.top, left: tri.left, color: tri.color, opacity: 0.15, animation: `triangleSpinFloat ${tri.duration} infinite linear` }}>
@@ -95,10 +95,10 @@ export default function BrutalistBackground({ dark }) {
 
       {/* ─── 漂浮十字架 ─── */}
       {[
-        { top: '10%', left: '20%', color: ACCENT_BLUE, size: 40, duration: "15s" },
+        { top: '10%', left: '20%', color: '#00d4fa', size: 40, duration: "15s" },
         { top: '80%', left: '25%', color: ACCENT_PINK, size: 60, duration: "22s" },
         { top: '40%', left: '81%', color: ACCENT_YELLOW, size: 50, duration: "18s" },
-        { top: '15%', left: '70%', color: ACCENT_GREEN, size: 35, duration: "25s" },
+        { top: '7%', left: '67%', color: ACCENT_GREEN, size: 35, duration: "25s" },
         { top: '60%', left: '45%', color: dark ? "#FFF" : "#000", size: 30, duration: "20s" },
       ].map((cross, i) => (
         <div key={i} style={{ position: "absolute", top: cross.top, left: cross.left, color: cross.color, opacity: 0.2, animation: `crossFloat1 ${cross.duration} infinite linear` }}>
