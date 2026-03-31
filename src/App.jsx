@@ -88,6 +88,12 @@ const BRUTALIST_CSS = `
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%2300FF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
   }
 
+  /* 8. disabled button 子元素也套用旋轉星芒，蓋過 body button * 的手指規則 */
+  body button[disabled],
+  body button[disabled] * {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%23FF0000" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
+  }
+
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes click-burst { 0% { transform: scale(0) translate(0,0); opacity: 1; } 100% { transform: scale(4) translate(0,0); opacity: 0; } }
   @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

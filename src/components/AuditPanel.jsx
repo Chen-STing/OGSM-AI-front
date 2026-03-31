@@ -261,9 +261,17 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
         doc.addImage(frontCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfW, pdfH)
       }
 
-      container.innerHTML = renderPage(summaryHTML)
-      await new Promise(r => setTimeout(r, 100))
-      await captureAndAdd()
+      // ── 兩階段生成：先收集所有頁面 HTML，再帶總頁數渲染 ──────────────────
+
+      // 收集內容頁 HTML（不含封面封底）
+      const contentPages = []   // [{ html }]
+
+      const collectPage = (html) => {
+        contentPages.push(html)
+      }
+
+      // 第一階段：dry-run 收集所有內容頁
+      collectPage(summaryHTML)
 
       const PAGE_CONTENT_H = 1027
       const probe = document.createElement('div')
@@ -379,20 +387,38 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
 
           const stratH = await measureHTML(strategyHTML)
           if (currentPageH + stratH > PAGE_CONTENT_H) {
-            container.innerHTML = renderPage(currentPageHTML)
-            await new Promise(r => setTimeout(r, 100))
-            await captureAndAdd()
+            collectPage(currentPageHTML)
             currentPageHTML = goalContinuationHTML
             currentPageH = await measureHTML(goalContinuationHTML)
           }
           currentPageHTML += strategyHTML
           currentPageH += stratH
         }
-        container.innerHTML = renderPage(currentPageHTML)
-        await new Promise(r => setTimeout(r, 100))
-        await captureAndAdd()
+        collectPage(currentPageHTML)
       }
       document.body.removeChild(probe)
+
+      // 第二階段：帶總頁數正式渲染，頁碼嵌入 HTML 由 html2canvas 截圖
+      // 總頁數 = 封面(1) + 內容頁 + 封底(1)
+      const totalPages = contentPages.length + 2
+      const footerHTML = (pageNum) => `
+        <div style="position:absolute;bottom:18px;left:48px;right:48px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#9ca3af;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;letter-spacing:0.03em;">
+          <span>亞家科技股份有限公司 - OGSM 審計報告</span>
+          <span>第 ${pageNum} 頁 / 共 ${totalPages} 頁</span>
+        </div>
+      `
+      const renderPageWithFooter = (html, pageNum) =>
+        `<div style="width:794px;min-height:1123px;padding:48px 48px 52px;box-sizing:border-box;background:#fff;position:relative;">${html}${footerHTML(pageNum)}</div>`
+
+      for (let i = 0; i < contentPages.length; i++) {
+        container.innerHTML = renderPageWithFooter(contentPages[i], i + 2)
+        await new Promise(r => setTimeout(r, 100))
+        const canvas = await html2canvas(container.firstChild, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false
+        })
+        doc.addPage()
+        doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfW, pdfH)
+      }
 
       doc.addPage()
       doc.addImage(backCoverData, 'JPEG', 0, 0, pdfW, pdfH)
@@ -568,15 +594,64 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
           sl.addText(mdParts, { x: MDX + 0.08, y: BODY_Y + 0.08, w: MDW - 0.14, h: goalBodyH - 0.14, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.2 })
         }
 
-        const MP_ITEM_H   = 0.28
-        const MP_META_H   = 0.20
-        const MP_GAP_H    = 0.08
-        const mpAvailH    = goalBodyH - 0.20
-        const itemSlotH = MP_ITEM_H + MP_META_H + MP_GAP_H
+        // ── MP 欄：基於實測每行字數計算換行，固定間距，垂直置中 ────────────
+        // 實測基準：「P3.2.1.2 建立 N1 錯題資料庫，將聽力與閱讀錯誤類型分類標記，」
+        // 此句（含編號）恰好填滿一行，正文部分約 28 個中文字
+        const MP_FONT_MAIN  = 10
+        const MP_FONT_META  = 8
+        const MP_FONT_NUM   = 10
+        const MP_PAD_MIN    = 0.08
+        const MP_GAP_H      = 0.10        // 項目間固定間距（inch）
+        // 10pt * lineSpacingMultiple 1.1 / 72 = 0.1528，再加字型 internal leading 約 15%
+        const MP_LINE_H     = (10 / 72) * 1.1 * 1.15   // ≈ 0.176 inch
+        const MP_META_H     = (8  / 72) * 1.1 * 1.15   // ≈ 0.141 inch
+
+        // 計算文字的加權寬度（單位：中文字寬）
+        const calcTextWidth = (str) => {
+          let w = 0
+          for (const ch of (str || '')) {
+            const code = ch.codePointAt(0)
+            if (code >= 0x4E00 && code <= 0x9FFF) w += 1.0        // 中文字
+            else if (code >= 0xFF00 && code <= 0xFFEF) w += 1.0    // 全形符號
+            else if ('，。！？；：「」『』【】、（）'.includes(ch)) w += 1.0  // 全形標點
+            else if (ch >= 'A' && ch <= 'Z') w += 0.55             // 大寫英文
+            else if (ch >= 'a' && ch <= 'z') w += 0.50             // 小寫英文
+            else if (ch >= '0' && ch <= '9') w += 0.50             // 數字
+            else if (ch === '+') w += 0.50
+            else if (ch === '-') w += 0.45
+            else if (ch === '.') w += 0.30
+            else if (ch === ' ') w += 0.25
+            else if (ch === '(' || ch === ')') w += 0.30           // 半形括號
+            else w += 0.50                                          // 其他半形
+          }
+          return w
+        }
+
+        // 基準（新比重）：
+        //   第一行正文「建立 N1 錯題資料庫，將聽力與閱讀錯誤類型分類標記」= 24.3
+        //   第二行上限「動以加速首批用戶獲取，(測試文字+1，測試文字+1+2，測試)2」= 25.1
+        const MP_FIRST_LINE_CAP = 24.3
+        const MP_CHARS_PER_LINE = 25.1
+
+        const calcLines = (item) => {
+          const textW = calcTextWidth(item.text || '')
+          if (textW <= MP_FIRST_LINE_CAP) return 1
+          return 1 + Math.ceil((textW - MP_FIRST_LINE_CAP) / MP_CHARS_PER_LINE)
+        }
+
+        const mainH = (item) => calcLines(item) * MP_LINE_H
+
+        const hasMeta = (item) => !!(item.deadline || item.assignee)
+
+        const itemTotalH = (item, isLast) =>
+          mainH(item) + (hasMeta(item) ? MP_META_H : 0) + (isLast ? 0 : MP_GAP_H)
+
+        // 切分 chunk
+        const mpAvailH = goalBodyH - MP_PAD_MIN * 2
         const mpChunks = [[]]
         let mpChunkH = 0
         mpItems.forEach(item => {
-          const h = itemSlotH
+          const h = itemTotalH(item, false)
           if (mpChunkH + h > mpAvailH && mpChunks[mpChunks.length - 1].length > 0) {
             mpChunks.push([])
             mpChunkH = 0
@@ -584,25 +659,52 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
           mpChunks[mpChunks.length - 1].push(item)
           mpChunkH += h
         })
+        if (mpChunks.length === 0) mpChunks.push([])
 
-        const buildMpParts = (chunk) => {
-          const parts = []
+        const renderMpChunk = (slide, chunk, colX, colW) => {
+          if (chunk.length === 0) return
+          const totalH = chunk.reduce((s, item, idx) =>
+            s + itemTotalH(item, idx === chunk.length - 1), 0)
+          const startY = BODY_Y + Math.max(MP_PAD_MIN, (goalBodyH - totalH) / 2)
+          const textX  = colX + 0.08
+          const textW  = colW - 0.16
+
+          let curY = startY
           chunk.forEach((item, idx) => {
             const isLast = idx === chunk.length - 1
+            const mH     = mainH(item)
             const fmtDate = item.deadline ? item.deadline.replace(/-/g, '/') : ''
-            const metaLineText = [ fmtDate ? `[期限 ${fmtDate}]` : '', item.assignee ? `負責人員: ${item.assignee}` : '' ].filter(Boolean).join('  ')
-            parts.push({ text: item.num + ' ', options: { bold: true, color: '1A4A2E', fontSize: 10 } })
-            parts.push({ text: item.text, options: { color: '000000', fontSize: 11, breakLine: true, paraSpaceAfter: 0 } })
-            parts.push({ text: metaLineText || ' ', options: { color: '1A4A2E', fontSize: 9, breakLine: !isLast, paraSpaceAfter: isLast ? 0 : 4 } })
+            const metaTxt = [
+              fmtDate       ? `[期限 ${fmtDate}]`         : '',
+              item.assignee ? `負責人員: ${item.assignee}` : '',
+            ].filter(Boolean).join('  ')
+
+            slide.addText(
+              [
+                { text: item.num + ' ', options: { bold: true, color: '1A4A2E', fontSize: MP_FONT_NUM } },
+                { text: item.text || '', options: { color: '000000', fontSize: MP_FONT_MAIN } },
+              ],
+              { x: textX, y: curY, w: textW, h: mH,
+                fontFace: 'Microsoft JhengHei', align: 'left', valign: 'top',
+                margin: 0, lineSpacingMultiple: 1.1 }
+            )
+            curY += mH
+
+            if (metaTxt) {
+              slide.addText(metaTxt, {
+                x: textX, y: curY, w: textW, h: MP_META_H,
+                fontFace: 'Microsoft JhengHei', fontSize: MP_FONT_META,
+                color: '1A4A2E', align: 'left', valign: 'top', margin: 0,
+              })
+              curY += MP_META_H
+            }
+
+            if (!isLast) curY += MP_GAP_H
           })
-          return parts
         }
 
-        const mpPadY = mpItems.length > 8 ? 0.02 : mpItems.length > 4 ? 0.04 : 0.08
         sl.addShape(pres.shapes.RECTANGLE, { x: MPX, y: BODY_Y, w: MPW, h: goalBodyH, fill: { color: CELL_MP }, line: b() })
-        if (mpChunks[0].length > 0) {
-          sl.addText(buildMpParts(mpChunks[0]), { x: MPX + 0.08, y: BODY_Y + mpPadY, w: MPW - 0.12, h: goalBodyH - mpPadY * 2, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.1 })
-        }
+        renderMpChunk(sl, mpChunks[0], MPX, MPW)
 
         sl.addShape(pres.shapes.RECTANGLE, { x: TX, y: OBJ_Y, w: TW, h: OBJ_H + HDR_TOTAL + RH * totalRows, fill: { type: 'none' }, line: { color: HDR_BD, pt: 1.8 } })
         sl.addText(`${project.title}　·　G${gi + 1} / ${project.goals.length}`, { x: MG, y: 7.36, w: TW, h: 0.16, fontSize: 9, fontFace: 'Microsoft JhengHei', color: 'AAAAAA', align: 'left', valign: 'middle', margin: 0 })
@@ -632,7 +734,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
           ovSl.addShape(pres.shapes.RECTANGLE, { x: MDX, y: BODY_Y, w: MDW, h: goalBodyH, fill: { color: CELL_MD }, line: b() })
           if (mdParts.length > 0) { ovSl.addText(mdParts, { x: MDX + 0.08, y: BODY_Y + 0.08, w: MDW - 0.14, h: goalBodyH - 0.14, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.2 }) }
           ovSl.addShape(pres.shapes.RECTANGLE, { x: MPX, y: BODY_Y, w: MPW, h: goalBodyH, fill: { color: CELL_MP }, line: b() })
-          if (mpChunks[ci].length > 0) { ovSl.addText(buildMpParts(mpChunks[ci]), { x: MPX + 0.08, y: BODY_Y + mpPadY, w: MPW - 0.12, h: goalBodyH - mpPadY * 2, fontFace: 'Microsoft JhengHei', align: 'left', valign: 'middle', margin: 0, lineSpacingMultiple: 1.1 }) }
+          if (mpChunks[ci].length > 0) { renderMpChunk(ovSl, mpChunks[ci], MPX, MPW) }
           ovSl.addShape(pres.shapes.RECTANGLE, { x: TX, y: OBJ_Y, w: TW, h: OBJ_H + HDR_TOTAL + RH * totalRows, fill: { type: 'none' }, line: { color: HDR_BD, pt: 1.8 } })
           ovSl.addText(`${project.title}　·　G${gi + 1} / ${project.goals.length}　（MP 續 ${ci}）`, { x: MG, y: 7.36, w: TW, h: 0.16, fontSize: 9, fontFace: 'Microsoft JhengHei', color: 'AAAAAA', align: 'left', valign: 'middle', margin: 0 })
         }
@@ -721,7 +823,6 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
               style={{
                 width: '48px', height: '48px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
-                cursor: pptLoading ? 'not-allowed' : 'pointer',
                 background: darkMode ? '#1a1a1a' : '#fff',
                 border: `3px solid ${T.border}`,
                 color: T.text,
@@ -762,7 +863,6 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
               style={{
                 width: '48px', height: '48px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
-                cursor: pdfLoading ? 'not-allowed' : 'pointer',
                 background: darkMode ? '#1a1a1a' : '#fff',
                 border: `3px solid ${T.border}`,
                 color: T.text,
@@ -795,7 +895,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
             </button>
 
             <button className="audit-close-btn" style={s.closeBtn} onClick={onClose}
-              onMouseEnter={e => { e.currentTarget.style.color = ACCENT_PINK; }}
+              onMouseEnter={e => { if (pptLoading || pdfLoading) return; e.currentTarget.style.color = ACCENT_PINK; }}
               onMouseLeave={e => { e.currentTarget.style.color = T.text; }}
             >✕</button>
           </div>
@@ -903,7 +1003,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                   const stColor    = progressColor(stProgress)
 
                   return (
-                    <div key={st.id ?? si} style={s.stratCard}>
+                    <div key={st.id ?? si} style={{ ...s.stratCard, borderTop: si === 0 ? 'none' : `4px solid #224d98` }}>
                       <div style={s.stratHeader}>
                         <span style={{...s.stratBadge, background: T.border, color: T.bg}}>S{gi + 1}.{si + 1}</span>
                         <span style={s.stratText}>{st.text || '(未命名)'}</span>
@@ -940,6 +1040,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                   <div
                                     style={{
                                       ...s.mRow,
+                                      borderBottom: mi === st.measures.length - 1 ? 'none' : s.mRow.borderBottom,
                                       cursor: hasTodos ? 'pointer' : 'default',
                                       background: todosOpen ? (darkMode ? 'rgba(255,0,255,0.06)' : 'rgba(255,0,255,0.04)') : 'transparent',
                                       borderLeft: hasTodos ? `3px solid ${todosOpen ? ACCENT_PINK : 'transparent'}` : '3px solid transparent',
@@ -986,7 +1087,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                       padding: '12px 16px',
                                       background: 'transparent',
                                       borderTop: `2px solid ${T.border}`,
-                                      borderBottom: `2px solid ${T.border}`,
+                                      borderBottom: mi === st.measures.length - 1 ? 'none' : `2px solid ${T.border}`,
                                     }}>
                                       <div style={{ fontSize: '11px', fontFamily: '"Space Grotesk", monospace', fontWeight: 900, color: ACCENT_PINK, marginBottom: '8px' }}>
                                         [ MP CHECKLIST {doneCount}/{totalTodos} ]
@@ -1112,8 +1213,8 @@ function buildAuditStyles(dark) {
     },
     goalText: { fontSize: '16px', fontWeight: 900, color: T.text, lineHeight: 1.5 },
 
-    stratCard: { padding: '0', borderBottom: `3px solid #224d98`},
-    stratHeader: { display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 20px', borderBottom: `2px solid ${T.border}`, background: 'transparent' },
+    stratCard: { padding: '0', borderTop: `4px solid #224d98` },
+    stratHeader: { display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 20px', borderBottom: `2px solid ${T.border}`, background: dark ? 'rgba(34,77,152,0.18)' : 'rgba(34,77,152,0.07)' },
     stratBadge: { fontSize: '12px', fontFamily: '"Space Grotesk", monospace', padding: '2px 6px', flexShrink: 0, fontWeight: 900 },
     stratText: { fontSize: '14px', color: T.text, flex: 1, fontWeight: 700, lineHeight: 1.5 },
 
