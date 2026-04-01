@@ -472,7 +472,7 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
   const dragState = useRef(null)
   const [pos, setPos]               = useState({ x: window.innerWidth/2, y: window.innerHeight/2 })
   const [cursor, setCursor]         = useState('grab')
-  const [tab, setTab]               = useState('bg')
+  const [tab, setTab]               = useState('exp')
   const [customCursor, setCustomCursor]   = useState(() => initExpSettings?.customCursor ?? false)
   const [clickEffectOn, setClickEffectOn] = useState(() => initExpSettings?.clickEffect  ?? false)
   const [bursts, setBursts]         = useState([])
