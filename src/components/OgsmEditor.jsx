@@ -158,7 +158,7 @@ function getDragImg() {
 }
 
 // ─── MAIN EDITOR COMPONENT ───────────────────────────────────────────────────
-export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen }) {
+export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen, aiConfirmShapeConfig }) {
   const [draft, setDraft]   = useState(null)
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
@@ -178,9 +178,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [dragTodo, setDragTodo] = useState(null); const [dragOverTodo, setDragOverTodo] = useState(null)
   const [dragGoal, setDragGoal] = useState(null); const [dragOverGoal, setDragOverGoal] = useState(null)
   const [dragStrategy, setDragStrategy] = useState(null); const [dragOverStrategy, setDragOverStrategy] = useState(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const customCursorRef = useRef(null)
   const scrollRef = useRef(null); const scrollRafRef = useRef(null)
+  const dragMouseDownRef = useRef(null)
 
   const handleScrollZoneDragOver = useCallback((e) => {
     const el = scrollRef.current; if (!el) return
@@ -191,28 +190,6 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     if (speed !== 0) { const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }; scrollRafRef.current = requestAnimationFrame(step) }
   }, [])
   const handleScrollZoneDragEnd = useCallback(() => { if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null } }, [])
-
-  useEffect(() => {
-    const onDragOver = (e) => {
-      e.preventDefault()
-      if (customCursorRef.current) {
-        customCursorRef.current.style.left = e.clientX + 'px'
-        customCursorRef.current.style.top = e.clientY + 'px'
-        customCursorRef.current.style.display = 'block'
-      }
-    }
-    const onDragEnd = () => {
-      if (customCursorRef.current) customCursorRef.current.style.display = 'none'
-    }
-    document.addEventListener('dragover', onDragOver)
-    document.addEventListener('dragend', onDragEnd)
-    document.addEventListener('drop', onDragEnd)
-    return () => {
-      document.removeEventListener('dragover', onDragOver)
-      document.removeEventListener('dragend', onDragEnd)
-      document.removeEventListener('drop', onDragEnd)
-    }
-  }, [])
 
   useEffect(() => {
     if (openTodos.size === 0) return
@@ -389,27 +366,23 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     return d
   })
 
-  // Drag helpers
-  const getTransparentImg = () => getDragImg()
-  const setDraggingCursor = (on) => { setIsDragging(on) }
 
-  // Drag handlers
-  const handleMeasureDragStart = (e, gi, si, mi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragMeasure({ gi, si, mi }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
+  const handleMeasureDragStart = (e, gi, si, mi) => { if (['textarea','input','select','button'].includes(dragMouseDownRef.current)) { e.preventDefault(); return } e.stopPropagation(); setDragMeasure({ gi, si, mi }); e.dataTransfer.effectAllowed = 'move' }
   const handleMeasureDragOver  = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si) return; e.dataTransfer.dropEffect = 'move'; if (dragOverMeasure?.mi !== mi) setDragOverMeasure({ gi, si, mi }) }
   const handleMeasureDrop      = (e, gi, si, mi) => { e.preventDefault(); e.stopPropagation(); if (!dragMeasure || dragMeasure.gi !== gi || dragMeasure.si !== si || dragMeasure.mi === mi) { setDragMeasure(null); setDragOverMeasure(null); return } update(d => { const measures = d.goals[gi].strategies[si].measures; const [removed] = measures.splice(dragMeasure.mi, 1); measures.splice(mi, 0, removed); return d }); setDragMeasure(null); setDragOverMeasure(null) }
-  const handleMeasureDragEnd   = () => { setDragMeasure(null); setDragOverMeasure(null); setDraggingCursor(false) }
-  const handleTodoDragStart = (e, gi, si, mi, ti) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragTodo({ gi, si, mi, ti }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
+  const handleMeasureDragEnd   = () => { setDragMeasure(null); setDragOverMeasure(null) }
+  const handleTodoDragStart = (e, gi, si, mi, ti) => { if (['textarea','input','select','button'].includes(dragMouseDownRef.current)) { e.preventDefault(); return } e.stopPropagation(); setDragTodo({ gi, si, mi, ti }); e.dataTransfer.effectAllowed = 'move' }
   const handleTodoDragOver  = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverTodo?.ti !== ti) setDragOverTodo({ gi, si, mi, ti }) }
   const handleTodoDrop      = (e, gi, si, mi, ti) => { e.preventDefault(); e.stopPropagation(); if (!dragTodo || dragTodo.gi !== gi || dragTodo.si !== si || dragTodo.mi !== mi || dragTodo.ti === ti) { setDragTodo(null); setDragOverTodo(null); return } const todos = [...(draft.goals[gi].strategies[si].measures[mi].todos || [])]; const [removed] = todos.splice(dragTodo.ti, 1); todos.splice(ti, 0, removed); setMTodos(gi, si, mi, todos); setDragTodo(null); setDragOverTodo(null) }
-  const handleTodoDragEnd   = () => { setDragTodo(null); setDragOverTodo(null); setDraggingCursor(false) }
-  const handleGoalDragStart = (e, gi) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } setDragGoal(gi); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
+  const handleTodoDragEnd   = () => { setDragTodo(null); setDragOverTodo(null) }
+  const handleGoalDragStart = (e, gi) => { if (['textarea','input','select','button'].includes(dragMouseDownRef.current)) { e.preventDefault(); return } setDragGoal(gi); e.dataTransfer.effectAllowed = 'move' }
   const handleGoalDragOver  = (e, gi) => { e.preventDefault(); if (dragGoal == null) return; e.dataTransfer.dropEffect = 'move'; if (dragOverGoal !== gi) setDragOverGoal(gi) }
   const handleGoalDrop      = (e, gi) => { e.preventDefault(); if (dragGoal == null || dragGoal === gi) { setDragGoal(null); setDragOverGoal(null); return } update(d => { const [r] = d.goals.splice(dragGoal, 1); d.goals.splice(gi, 0, r); return d }); setDragGoal(null); setDragOverGoal(null) }
-  const handleGoalDragEnd   = () => { setDragGoal(null); setDragOverGoal(null); setDraggingCursor(false) }
-  const handleStrategyDragStart = (e, gi, si) => { const tag = e.target.tagName.toLowerCase(); if (['textarea','input','select','button'].includes(tag)) { e.preventDefault(); return } e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setDragImage(getDragImg(), 0, 0); setDraggingCursor(true) }
+  const handleGoalDragEnd   = () => { setDragGoal(null); setDragOverGoal(null) }
+  const handleStrategyDragStart = (e, gi, si) => { if (['textarea','input','select','button'].includes(dragMouseDownRef.current)) { e.preventDefault(); return } e.stopPropagation(); setDragStrategy({ gi, si }); e.dataTransfer.effectAllowed = 'move' }
   const handleStrategyDragOver  = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi) return; e.dataTransfer.dropEffect = 'move'; if (dragOverStrategy?.si !== si) setDragOverStrategy({ gi, si }) }
   const handleStrategyDrop      = (e, gi, si) => { e.preventDefault(); e.stopPropagation(); if (!dragStrategy || dragStrategy.gi !== gi || dragStrategy.si === si) { setDragStrategy(null); setDragOverStrategy(null); return } update(d => { const strategies = d.goals[gi].strategies; const [r] = strategies.splice(dragStrategy.si, 1); strategies.splice(si, 0, r); return d }); setDragStrategy(null); setDragOverStrategy(null) }
-  const handleStrategyDragEnd   = () => { setDragStrategy(null); setDragOverStrategy(null); setDraggingCursor(false) }
+  const handleStrategyDragEnd   = () => { setDragStrategy(null); setDragOverStrategy(null) }
 
   const allMeasures = draft.goals.flatMap(g => g.strategies.flatMap(s => s.measures))
   const overallProgress = allMeasures.length ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length) : 0
@@ -419,13 +392,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent', position: 'relative' }}>
-      {isDragging && (
-        <div ref={customCursorRef} style={{ position: 'fixed', pointerEvents: 'none', zIndex: 99999, transform: 'translate(-4px, -2px)', transition: 'none', display: 'none' }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-            <path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="#000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="#00FF00" stroke="#FFFFFF" strokeWidth="2.5" strokeLinejoin="miter" />
-          </svg>
-        </div>
-      )}
+
       <style>{`
         @keyframes b-spin { to { transform: rotate(360deg); } }
         @keyframes ogsm-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -454,7 +421,6 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         .ogsm-ai-btn:hover { background: ${B_YELLOW} !important; border-color: #000 !important; color: #000 !important; box-shadow: 2px 2px 0 #000; transform: scale(1.05); }
         .ogsm-measure-drag-row[data-dragging='true'], .ogsm-goal-drag-block[data-dragging='true'], .ogsm-strategy-drag-block[data-dragging='true'] { opacity: 0.5 !important; filter: blur(2px) !important; }
         .ogsm-measure-drag-row[data-dragover='true'], .ogsm-goal-drag-block[data-dragover='true'], .ogsm-strategy-drag-block[data-dragover='true'] { outline: 2px solid ${B_YELLOW}; outline-offset: -1px; }
-        .ogsm-dragging-active, .ogsm-dragging-active * { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, grabbing !important; }
         
         /* 改為取消文字選中或聚焦時的藍色外框 */
         textarea:focus, input:focus, select:focus { outline: none !important; box-shadow: none !important; }
@@ -590,7 +556,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                 const isGDragging = dragGoal === gi
                 const isGDragOver = dragOverGoal === gi && dragGoal !== gi
                 return (
-                  <div key={goal.id ?? `g-${gi}`} className="ogsm-goal-drag-block" data-dragging={isGDragging ? 'true' : 'false'} data-dragover={isGDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, cursor: editMode ? 'grab' : 'default' }} draggable={editMode} onDragStart={editMode ? e => handleGoalDragStart(e, gi) : undefined} onDragOver={editMode ? e => handleGoalDragOver(e, gi) : undefined} onDrop={editMode ? e => handleGoalDrop(e, gi) : undefined} onDragEnd={editMode ? handleGoalDragEnd : undefined}>
+                  <div key={goal.id ?? `g-${gi}`} className="ogsm-goal-drag-block" data-dragging={isGDragging ? 'true' : 'false'} data-dragover={isGDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, cursor: editMode ? 'grab' : 'default' }} draggable={editMode} onMouseDown={e => { dragMouseDownRef.current = e.target.tagName.toLowerCase() }} onDragStart={editMode ? e => handleGoalDragStart(e, gi) : undefined} onDragOver={editMode ? e => handleGoalDragOver(e, gi) : undefined} onDrop={editMode ? e => handleGoalDrop(e, gi) : undefined} onDragEnd={editMode ? handleGoalDragEnd : undefined}>
                     
                     {/* Goal cell */}
                     <div style={{ width: COL_G, minWidth: COL_G, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
@@ -611,7 +577,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                         const isSDragging = dragStrategy?.gi === gi && dragStrategy?.si === si
                         const isSDragOver = dragOverStrategy?.gi === gi && dragOverStrategy?.si === si && !isSDragging
                         return (
-                          <div key={st.id ?? `s-${si}`} className="ogsm-strategy-drag-block" data-dragging={isSDragging ? 'true' : 'false'} data-dragover={isSDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: si < goal.strategies.length - 1 ? `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none' }} draggable={editMode} onDragStart={editMode ? e => handleStrategyDragStart(e, gi, si) : undefined} onDragOver={editMode ? e => handleStrategyDragOver(e, gi, si) : undefined} onDrop={editMode ? e => handleStrategyDrop(e, gi, si) : undefined} onDragEnd={editMode ? handleStrategyDragEnd : undefined}>
+                          <div key={st.id ?? `s-${si}`} className="ogsm-strategy-drag-block" data-dragging={isSDragging ? 'true' : 'false'} data-dragover={isSDragOver ? 'true' : 'false'} style={{ display: 'flex', borderBottom: si < goal.strategies.length - 1 ? `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none' }} draggable={editMode} onMouseDown={e => { dragMouseDownRef.current = e.target.tagName.toLowerCase() }} onDragStart={editMode ? e => handleStrategyDragStart(e, gi, si) : undefined} onDragOver={editMode ? e => handleStrategyDragOver(e, gi, si) : undefined} onDrop={editMode ? e => handleStrategyDrop(e, gi, si) : undefined} onDragEnd={editMode ? handleStrategyDragEnd : undefined}>
                             
                             {/* Strategy cell */}
                             <div style={{ width: dynS, minWidth: dynS, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
@@ -639,7 +605,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                 const doneCount = todos.filter(t => t.done).length
 
                                 return (
-                                  <div key={m.id ?? `m-${mi}`} className="ogsm-measure-drag-row ogsm-table-row" data-dragging={isMDragging ? 'true' : 'false'} data-dragover={isMDragOver ? 'true' : 'false'} draggable={editMode} onDragStart={editMode ? e => handleMeasureDragStart(e, gi, si, mi) : undefined} onDragOver={editMode ? e => handleMeasureDragOver(e, gi, si, mi) : undefined} onDrop={editMode ? e => handleMeasureDrop(e, gi, si, mi) : undefined} onDragEnd={editMode ? handleMeasureDragEnd : undefined}>
+                                  <div key={m.id ?? `m-${mi}`} className="ogsm-measure-drag-row ogsm-table-row" data-dragging={isMDragging ? 'true' : 'false'} data-dragover={isMDragOver ? 'true' : 'false'} draggable={editMode} onMouseDown={e => { dragMouseDownRef.current = e.target.tagName.toLowerCase() }} onDragStart={editMode ? e => handleMeasureDragStart(e, gi, si, mi) : undefined} onDragOver={editMode ? e => handleMeasureDragOver(e, gi, si, mi) : undefined} onDrop={editMode ? e => handleMeasureDrop(e, gi, si, mi) : undefined} onDragEnd={editMode ? handleMeasureDragEnd : undefined}>
                                     <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: mi < st.measures.length - 1 ? `1px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` : 'none', minHeight: '64px' }}>
                                       
                                       {/* KPI */}
@@ -673,14 +639,15 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       <div style={{ width: COL_OWNER, minWidth: COL_OWNER, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
                                           <BrutalistSelect
-                                            value={m.assignee || ''}
+                                            multiple
+                                            value={Array.isArray(m.assignee) ? m.assignee : (m.assignee ? [m.assignee] : [])}
                                             onChange={v => setMField(gi,si,mi,'assignee',v)}
-                                            options={[{ value: '', label: '—' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                                            options={members.map(mb => ({ value: mb, label: mb }))}
                                             darkMode={dark}
-                                            style={{ width: '100%', fontSize: '11px', fontWeight: 700, height: '22px', boxSizing: 'border-box' }}
+                                            style={{ width: '100%', fontSize: '11px', fontWeight: 700, minHeight: '22px', boxSizing: 'border-box' }}
                                           />
                                         ) : (
-                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#a0b8ff' : '#000' }}>{m.assignee || '—'}</span>
+                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#a0b8ff' : '#000' }}>{Array.isArray(m.assignee) ? (m.assignee.length ? m.assignee.join(', ') : '—') : (m.assignee || '—')}</span>
                                         )}
                                       </div>
 
@@ -699,11 +666,11 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       <div style={{ width: COL_STATUS, minWidth: COL_STATUS, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
                                           <BrutalistSelect
-                                            value={m.status}
+                                            value={m.status || 'NotStarted'}
                                             onChange={v => setMField(gi,si,mi,'status',v)}
                                             options={Object.entries(STATUS_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))}
                                             darkMode={dark}
-                                            style={{ width: '100%', fontSize: '12px', fontWeight: 900, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, height: '22px', boxSizing: 'border-box' }}
+                                            style={{ width: '100%', fontSize: '12px', fontWeight: 900, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, minHeight: '22px', boxSizing: 'border-box' }}
                                           />
                                         ) : (
                                           <span style={{ fontSize: '10px', fontWeight: 900, color: sc.color }}>{sc.label}</span>
@@ -745,7 +712,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                             const isTDragOver = dragOverTodo?.gi === gi && dragOverTodo?.si === si && dragOverTodo?.mi === mi && dragOverTodo?.ti === ti && !isTDragging
                                             return (
                                               <div key={t.id ?? ti} draggable={editMode} onDragStart={editMode ? e => handleTodoDragStart(e, gi, si, mi, ti) : undefined} onDragOver={editMode ? e => handleTodoDragOver(e, gi, si, mi, ti) : undefined} onDrop={editMode ? e => handleTodoDrop(e, gi, si, mi, ti) : undefined} onDragEnd={editMode ? handleTodoDragEnd : undefined}
-                                                style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', marginBottom: '1px', minHeight: '16px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${B_BLUE}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}>
+                                                style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', marginBottom: '1px', minHeight: '16px', opacity: isTDragging ? 0.35 : 1, borderTop: isTDragOver ? `2px solid ${B_BLUE}` : '2px solid transparent', transition: 'border-color 0.1s, opacity 0.15s' }}
+                                                onMouseDown={e => { dragMouseDownRef.current = e.target.tagName.toLowerCase() }}>
                                                 {editMode && <span style={{ fontSize: '11px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', cursor: 'grab', flexShrink: 0, marginTop: '4px', lineHeight: 1.5, userSelect: 'none' }}>⠿</span>}
                                                 <button style={{ width: '10px', height: '10px', flexShrink: 0, border: `2px solid ${t.done ? B_GREEN : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')}`, borderRadius: 0, background: t.done ? B_GREEN : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, outline: 'none', alignSelf: 'flex-start', marginTop: '3px' }} onClick={() => updateTodo(t.id, 'done', !t.done)}>
                                                   {t.done && <span style={{ fontSize: '10px', color: '#000', fontWeight: 900 }}><Icons.Check /></span>}
@@ -756,12 +724,15 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                                     <textarea style={{ flex: 1, background: 'none', border: 'none', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)'}`, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'inherit', fontWeight: 700, outline: 'none', padding: '1px 0', textDecoration: t.done ? 'line-through' : 'none', minWidth: 0, resize: 'none', overflow: 'hidden', lineHeight: 1.5, wordBreak: 'break-word' }} value={t.text} rows={1} onChange={e => { updateTodo(t.id, 'text', e.target.value); e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} onFocus={e => { e.target.style.height = '0px'; e.target.style.height = e.target.scrollHeight + 'px' }} placeholder="輸入檢核步驟…" />
                                                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
                                                       <BrutalistSelect
-                                                        value={t.assignee || ''}
+                                                        multiple
+                                                        tagLayout="wrap"
+                                                        maxTagCols={3}
+                                                        value={Array.isArray(t.assignee) ? t.assignee : (t.assignee ? [t.assignee] : [])}
                                                         onChange={v => updateTodo(t.id, 'assignee', v)}
-                                                        options={[{ value: '', label: '— 負責人 —' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                                                        options={members.map(mb => ({ value: mb, label: mb }))}
                                                         darkMode={dark}
                                                         overdue={tOverdue}
-                                                        style={{ width: '90px', fontSize: '11px', fontWeight: 700, height: '22px', boxSizing: 'border-box' }}
+                                                        style={{ width: '200px', fontSize: '11px', fontWeight: 700, minHeight: '22px', boxSizing: 'border-box' }}
                                                       />
                                                       <div style={{ display: 'flex', alignItems: 'center', height: '22px', boxSizing: 'border-box', border: `1px solid ${tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.2)' : '#000')}`, background: dark ? '#222' : '#f0f0f0', padding: '0 4px' }}>
                                                         <input type="date" className={`ogsm-date${tOverdue ? ' ogsm-date-overdue' : ''}`} style={{ width: '96px', background: 'none', border: 'none', color: tOverdue ? '#cc0000' : (dark ? '#fff' : '#000'), fontSize: '11px', fontFamily: 'monospace', padding: 0, outline: 'none', colorScheme: dark ? 'dark' : 'light', height: '20px' }} value={t.deadline || ''} max={m.deadline || undefined} onChange={e => updateTodo(t.id, 'deadline', e.target.value)} />
@@ -774,7 +745,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                                     <span style={{ fontSize: '11px', fontFamily: 'monospace', color: B_BLUE, flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
                                                     <span style={{ fontSize: '11px', lineHeight: 1.5, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), textDecoration: t.done ? 'line-through' : 'none', cursor: 'pointer', flex: 1, wordBreak: 'break-word', fontWeight: 700 }} onClick={() => updateTodo(t.id, 'done', !t.done)}>{t.text}</span>
                                                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
-                                                      {t.assignee && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#ffffff' : '#000', background: dark ? 'rgba(80,110,255,0.35)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(140,170,255,0.6)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>{t.assignee}</span>}
+                                                      {(Array.isArray(t.assignee) ? t.assignee.length > 0 : !!t.assignee) && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#ffffff' : '#000', background: dark ? 'rgba(80,110,255,0.35)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(140,170,255,0.6)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>{Array.isArray(t.assignee) ? t.assignee.join(', ') : t.assignee}</span>}
                                                       {t.deadline && <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'), background: tOverdue ? 'rgba(204,0,0,0.08)' : 'transparent', border: `1px solid ${tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.2)')}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>{tOverdue ? <span style={{ fontSize: '11px' }}>⚠</span> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0 }}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}{t.deadline}</span>}
                                                     </div>
                                                   </>
@@ -829,7 +800,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
       )}
 
       {aiDialog && !aiLoading && (
-        <AiConfirmDialog type={aiDialog.type} currentText={aiDialog.currentText} onConfirm={handleAiConfirm} onCancel={() => setAiDialog(null)} darkMode={darkMode} />
+        <AiConfirmDialog type={aiDialog.type} currentText={aiDialog.currentText} onConfirm={handleAiConfirm} onCancel={() => setAiDialog(null)} darkMode={darkMode} shapeConfig={aiConfirmShapeConfig} />
       )}
     </div>
   )

@@ -8,6 +8,8 @@ import GenerateModal from './components/GenerateModal.jsx';
 import MemberSettings from './components/MemberSettings.jsx';
 import AuditPanel from './components/AuditPanel.jsx';
 import BrutalistBackground from './components/BrutalistBackground.jsx';
+import KonamiCode from './components/KonamiCode.jsx';
+import { loadSavedBgConfig, loadSavedModalConfig, loadSavedExpSettings } from './bgConfig.js';
 
 const ACCENT_BLUE   = "#0000FF";
 const ACCENT_PINK   = "#FF00FF";
@@ -23,74 +25,76 @@ const BRUTALIST_CSS = `
   .dark body { background: var(--bg-dark); color: #fff; }
 
   /* ⚡ BRUTALIST CURSORS ⚡ */
+  /* 所有自訂義游標規則都包在 .custom-cursor class 內 */
+  /* 當 customCursor 關閉時，移除 .custom-cursor class 即可全部停用 */
 
   /* 1. 全域預設：霓虹黃箭頭 */
-  html, body, body * {
+  .custom-cursor, .custom-cursor * {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="6,6 16,28 20,20 28,16" fill="%23000000" /><polygon points="2,2 12,24 16,16 24,12" fill="%23FFFF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 2 2, auto !important;
   }
 
   /* 2. 可點擊元素：綠色像素手指 */
-  body button, body a, body [role="button"],
-  body .cursor-pointer, body .clickable, body select,
-  body button *, body a *, body [role="button"] *,
-  body .cursor-pointer *, body .clickable *,
-  body [style*="cursor: pointer"], body [style*="cursor:pointer"],
-  body [style*="cursor: pointer"] *, body [style*="cursor:pointer"] * {
+  .custom-cursor button, .custom-cursor a, .custom-cursor [role="button"],
+  .custom-cursor .cursor-pointer, .custom-cursor .clickable, .custom-cursor select,
+  .custom-cursor button *, .custom-cursor a *, .custom-cursor [role="button"] *,
+  .custom-cursor .cursor-pointer *, .custom-cursor .clickable *,
+  .custom-cursor [style*="cursor: pointer"], .custom-cursor [style*="cursor:pointer"],
+  .custom-cursor [style*="cursor: pointer"] *, .custom-cursor [style*="cursor:pointer"] * {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%2300FF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
   }
 
-  /* 3. 文字輸入：青色 I-Beam（可編輯時，含無 type 屬性的 input） */
-  body textarea:not([readonly]),
-  body input[type="text"]:not([readonly]),
-  body input:not([type]):not([readonly]),
-  body input[type="search"]:not([readonly]),
-  body input[type="email"]:not([readonly]),
-  body input[type="password"]:not([readonly]),
-  body input[type="date"]:not([readonly]),
-  body input[type="number"]:not([readonly]) {
+  /* 3. 文字輸入：青色 I-Beam */
+  .custom-cursor textarea:not([readonly]),
+  .custom-cursor input[type="text"]:not([readonly]),
+  .custom-cursor input:not([type]):not([readonly]),
+  .custom-cursor input[type="search"]:not([readonly]),
+  .custom-cursor input[type="email"]:not([readonly]),
+  .custom-cursor input[type="password"]:not([readonly]),
+  .custom-cursor input[type="date"]:not([readonly]),
+  .custom-cursor input[type="number"]:not([readonly]) {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M10 6 h16 v4 h-6 v12 h6 v4 h-16 v-4 h6 v-12 h-6 z" fill="%23000000" /><path d="M6 2 h16 v4 h-6 v12 h6 v4 h-16 v-4 h6 v-12 h-6 z" fill="%2300FFFF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 14 16, text !important;
   }
 
-  /* 4. 唯讀欄位：霓虹黃箭頭 */
-  body textarea[readonly], body input[readonly] {
+  /* 4. 唯讀欄位 */
+  .custom-cursor textarea[readonly], .custom-cursor input[readonly] {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="6,6 16,28 20,20 28,16" fill="%23000000" /><polygon points="2,2 12,24 16,16 24,12" fill="%23FFFF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 2 2, auto !important;
   }
 
-  /* 5. AI 生成遮罩：旋轉星芒（需蓋過 body * 規則，用 id 提高特異度） */
-  body .ogsm-ai-loading-overlay,
-  body .ogsm-ai-loading-overlay * {
+  /* 5. AI 生成遮罩 */
+  .custom-cursor .ogsm-ai-loading-overlay,
+  .custom-cursor .ogsm-ai-loading-overlay * {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%23FF0000" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
   }
 
-  /* 5. 載入／停用：紅色旋轉星芒 */
-  body .loading, body [disabled] {
+  /* 5. 載入／停用 */
+  .custom-cursor .loading, .custom-cursor [disabled] {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%23FF0000" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
   }
 
-  /* 6. 全域載入狀態：body.is-loading 紅色旋轉星芒 + 禁止點擊 */
-  body.is-loading,
-  body.is-loading *,
-  body.is-loading button,
-  body.is-loading a,
-  body.is-loading [role="button"],
-  body.is-loading .cursor-pointer,
-  body.is-loading input,
-  body.is-loading textarea,
-  body.is-loading select {
+  /* 6. 全域載入狀態 */
+  body.is-loading .custom-cursor,
+  body.is-loading .custom-cursor *,
+  body.is-loading .custom-cursor button,
+  body.is-loading .custom-cursor a,
+  body.is-loading .custom-cursor [role="button"],
+  body.is-loading .custom-cursor .cursor-pointer,
+  body.is-loading .custom-cursor input,
+  body.is-loading .custom-cursor textarea,
+  body.is-loading .custom-cursor select {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%23FF0000" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
     pointer-events: none !important;
   }
 
-  /* 7. loading 豁免區：仍可點擊（如 Modal 關閉按鈕） */
-  body.is-loading [data-loading-exempt],
-  body.is-loading [data-loading-exempt] * {
+  /* 7. loading 豁免區 */
+  body.is-loading .custom-cursor [data-loading-exempt],
+  body.is-loading .custom-cursor [data-loading-exempt] * {
     pointer-events: auto !important;
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%2300FF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
   }
 
-  /* 8. disabled button 子元素也套用旋轉星芒，蓋過 body button * 的手指規則 */
-  body button[disabled],
-  body button[disabled] * {
+  /* 8. disabled button */
+  .custom-cursor button[disabled],
+  .custom-cursor button[disabled] * {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.5s" repeatCount="indefinite" /><polygon points="18,4 22,14 32,18 22,22 18,32 14,22 4,18 14,14" fill="%23000000" /><polygon points="16,2 20,12 30,16 20,20 16,30 12,20 2,16 12,12" fill="%23FF0000" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></g></svg>') 16 16, wait !important;
   }
 
@@ -197,6 +201,7 @@ export default function App() {
   const [openSidebarHovered, setOpenSidebarHovered] = useState(false);
   const [darkToggleHovered, setDarkToggleHovered] = useState(false);
   const [aiGenerateHovered, setAiGenerateHovered] = useState(false);
+  const [expSettings, setExpSettings] = useState(loadSavedExpSettings);
 
   useEffect(() => {
     const onPop = () => setRoute(parseRoute());
@@ -243,6 +248,12 @@ export default function App() {
     else document.body.classList.remove('is-loading');
     return () => document.body.classList.remove('is-loading');
   }, [loadingList, loadingDetail]);
+
+  useEffect(() => {
+    if (expSettings.customCursor) document.body.classList.add('custom-cursor');
+    else document.body.classList.remove('custom-cursor');
+    return () => document.body.classList.remove('custom-cursor');
+  }, [expSettings.customCursor]);
 
   const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
@@ -358,8 +369,16 @@ export default function App() {
     } catch (e) { showToast("負責人儲存失敗", "error"); }
   }, [showToast]);
 
+  const [bgConfig, setBgConfig]       = useState(loadSavedBgConfig);
+  const [modalConfigs, setModalConfigs] = useState(() => ({
+    generate:  loadSavedModalConfig('generate'),
+    member:    loadSavedModalConfig('member'),
+    aiconfirm: loadSavedModalConfig('aiconfirm'),
+  }));
+
   const handleGlobalClick = (e) => {
     if (loadingList || loadingDetail) return;
+    if (!expSettings.clickEffect) return;
     if (e.target.tagName !== 'BUTTON') setClickEffect({ x: e.clientX, y: e.clientY, id: Date.now() });
     setTimeout(() => setClickEffect(null), 520);
   };
@@ -426,7 +445,7 @@ export default function App() {
     <div style={{
       width: sidebarOpen ? "340px" : "0px", minWidth: sidebarOpen ? "340px" : "0px",
       height: "100%", display: "flex", flexDirection: "column",
-      borderRight: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#666363' : '#c5bebe')}`, 
+      borderRight: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#3C3C3C' : '#D0D0D0')}`, 
       background: "transparent",
       transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease-out",
       position: "relative", zIndex: 50, 
@@ -435,7 +454,7 @@ export default function App() {
       <div style={{ width: "340px", height: "100%", display: "flex", flexDirection: "column" }}>
         <div style={{ 
           padding: "24px 24px 15px",
-          borderBottom: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#c4c2c2' : '#d3cccc')}`, 
+          borderBottom: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#3C3C3C' : '#D0D0D0')}`, 
           transition: 'border-color 0.15s ease-out', display: "flex", justifyContent: "space-between", alignItems: "flex-start" 
         }}>
           <div onClick={goHome} className="cursor-pointer">
@@ -479,12 +498,12 @@ export default function App() {
             <ProjectList projects={projects} loading={loadingList} activeId={route.id ?? null} onSelect={selectProject} onDelete={handleDeleteProject} onManage={goProjects} darkMode={dark} />
           </div>
 
-          <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#666363' : '#c5bebe'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
+          <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#3C3C3C' : '#D0D0D0'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
             <span style={{ fontSize: "12px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontStyle: 'italic', letterSpacing: "0.08em", opacity: 0.4, color: dark ? '#fff' : '#000' }}>POWERED BY AI</span>
             <button className="b-action-hover" onClick={() => setDark(d => !d)} data-sidebar-toggle=""
               onMouseEnter={() => setDarkToggleHovered(true)}
               onMouseLeave={() => setDarkToggleHovered(false)}
-              style={{ width: "35px", height: "35px", background: darkToggleHovered ? (dark ? '#fff' : '#000') : (dark ? '#222' : "#fff"), color: darkToggleHovered ? (dark ? '#000' : '#fff') : (dark ? '#fff' : "#000"), border: `2px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
+              style={{ width: "35px", height: "35px", background: darkToggleHovered ? (dark ? '#fff' : '#000') : (dark ? '#222' : "#fff"), color: darkToggleHovered ? (dark ? '#000' : '#fff') : (dark ? '#fff' : "#000"), border: `2px solid ${dark ? '#555555' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
               {dark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
@@ -498,8 +517,8 @@ export default function App() {
   return (
     <>
       <style>{BRUTALIST_CSS}</style>
-      <div className={dark ? "dark" : ""} style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }} onClick={handleGlobalClick}>
-        <BrutalistBackground dark={dark} />
+      <div className={`${dark ? "dark" : ""} ${expSettings.customCursor ? "custom-cursor" : ""}`} style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }} onClick={handleGlobalClick}>
+        <BrutalistBackground dark={dark} bgConfig={bgConfig} />
 
         {/* ── HOME PAGE ── */}
         {(displayedPage === 'home' || isExitingHome) && (
@@ -544,7 +563,7 @@ export default function App() {
                   <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: "uppercase", fontSize: "14px", letterSpacing: "0.1em", opacity: 0.6 }}>載入中…</span>
                 </div>
               ) : activeProject ? (
-                <OgsmEditor project={activeProject} onSave={handleSave} onAudit={p => { setAuditProject(p); setShowAudit(true); }} members={members} darkMode={dark} sidebarOpen={sidebarOpen} />
+                <OgsmEditor project={activeProject} onSave={handleSave} onAudit={p => { setAuditProject(p); setShowAudit(true); }} members={members} darkMode={dark} sidebarOpen={sidebarOpen} aiConfirmShapeConfig={modalConfigs.aiconfirm} />
               ) : (
                 <EmptyState onNewProject={() => setShowGenerate(true)} dark={dark} />
               )}
@@ -552,13 +571,20 @@ export default function App() {
           </div>
         )}
 
-        {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} darkMode={dark} />}
-        {showMembers && <MemberSettings members={members} onChange={handleMembersChange} onClose={() => setShowMembers(false)} darkMode={dark} />}
+        {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} darkMode={dark} shapeConfig={modalConfigs.generate} />}
+        {showMembers && <MemberSettings members={members} onChange={handleMembersChange} onClose={() => setShowMembers(false)} darkMode={dark} shapeConfig={modalConfigs.member} />}
         {showAudit && <AuditPanel project={auditProject} onClose={() => setShowAudit(false)} darkMode={dark} />}
 
         <Toast toast={toast} />
         {clickEffect && <ClickBurst key={clickEffect.id} x={clickEffect.x} y={clickEffect.y} />}
       </div>
+
+      <KonamiCode
+        dark={dark}
+        onBgChange={setBgConfig}
+        onModalChange={(key, cfg) => setModalConfigs(p => ({ ...p, [key]: cfg }))}
+        onExpChange={setExpSettings}
+      />
     </>
   );
 }

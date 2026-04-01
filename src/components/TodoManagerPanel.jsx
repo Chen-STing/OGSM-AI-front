@@ -344,12 +344,13 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onU
             {/* Inline assignee + deadline */}
             <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', paddingTop: '1px' }} onClick={e => e.stopPropagation()}>
               <BrutalistSelect
-                value={todo.assignee || ''}
+                multiple
+                value={Array.isArray(todo.assignee) ? todo.assignee : (todo.assignee ? [todo.assignee] : [])}
                 onChange={v => onUpdate && onUpdate('assignee', v)}
-                options={[{ value: '', label: '— 負責人 —' }, ...(members || []).map(mb => ({ value: mb, label: mb }))]}
+                options={(members || []).map(mb => ({ value: mb, label: mb }))}
                 darkMode={darkMode}
                 overdue={todo.todoOverdue}
-                style={{ width: '88px', fontSize: '9px', fontWeight: 700, height: '26px', boxSizing: 'border-box' }}
+                style={{ width: '180px', fontSize: '9px', fontWeight: 700, minHeight: '26px', boxSizing: 'border-box' }}
               />
               <input
                 type="date"

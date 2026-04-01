@@ -6,13 +6,14 @@ import { createPortal } from 'react-dom'
  * 游標全程使用自定義粉紅手指，選項列表用 portal 渲染避免 overflow 截切
  *
  * props:
- *   value       - 目前值
- *   onChange    - (value) => void
+ *   value       - 目前值（single: string；multiple: string[]）
+ *   onChange    - single: (value: string) => void；multiple: (values: string[]) => void
  *   options     - [{ value, label }]  或  ['string', ...]
  *   placeholder - 未選時顯示的文字
  *   style       - 外層容器 style（寬度、字體等）
  *   darkMode    - boolean
  *   disabled    - boolean
+ *   multiple    - boolean（啟用多選，預設 false 維持單選行為）
  */
 export default function BrutalistSelect({
   value,
@@ -23,19 +24,26 @@ export default function BrutalistSelect({
   darkMode = true,
   disabled = false,
   overdue = false,
+  multiple = false,
 }) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, maxHeight: 260 })
+  const [search, setSearch] = useState('')
   const triggerRef = useRef(null)
   const dropRef = useRef(null)
+  const searchRef = useRef(null)
 
   // 把 string[] 統一轉成 { value, label }[]
   const normalised = options.map(o =>
     typeof o === 'string' ? { value: o, label: o } : o
   )
 
-  const selected = normalised.find(o => o.value === value)
-  const displayLabel = selected ? selected.label : placeholder
+  // 多選模式：統一成 string[] 處理
+  const selectedValues = multiple ? (Array.isArray(value) ? value : []) : null
+
+  const displayLabel = multiple
+    ? null  // 多選模式用 tag 列表取代
+    : (normalised.find(o => o.value === value)?.label ?? placeholder)
 
   // 計算 dropdown 位置（用 viewport 座標，配合 position:fixed）
   const updatePos = () => {
@@ -86,6 +94,7 @@ export default function BrutalistSelect({
     if (disabled) return
     updatePos()
     setOpen(o => !o)
+    if (open) setSearch('')
   }
 
   // 點擊外部關閉 + 滾動時同步位置或自動關閉
@@ -125,20 +134,21 @@ export default function BrutalistSelect({
     document.addEventListener('mousedown', handleClick)
     // capture:true 可捕捉所有可滾動容器的 scroll 事件
     window.addEventListener('scroll', handleScroll, true)
+    // 自動聚焦搜尋框
+    const t = setTimeout(() => searchRef.current?.focus(), 30)
     return () => {
       document.removeEventListener('mousedown', handleClick)
       window.removeEventListener('scroll', handleScroll, true)
+      clearTimeout(t)
     }
   }, [open])
 
   const T = darkMode
     ? { bg: '#1e1e1e', border: '#fff', text: '#fff', hoverBg: '#0000FF', hoverText: '#fff', activeBg: '#FFFF00', activeText: '#000' }
-    : { bg: '#fff',    border: '#000', text: '#000', hoverBg: '#0000FF', hoverText: '#fff', activeBg: '#FFFF00', activeText: '#000' }
+    : { bg: '#fff',    border: '#000', text: '#000', hoverBg: '#0000FF', hoverText: '#fff', activeBg: '#b8a800', activeText: '#000' }
 
   const borderColor = overdue ? '#cc0000' : T.border
   const textColor   = overdue ? '#cc0000' : T.text
-
-  const CURSOR_HAND = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><path d=\"M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z\" fill=\"%23000000\" /><path d=\"M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z\" fill=\"%23FF00FF\" stroke=\"%23FFFFFF\" stroke-width=\"2.5\" stroke-linejoin=\"miter\" /></svg>') 10 2, pointer"
 
   return (
     <>
@@ -161,14 +171,64 @@ export default function BrutalistSelect({
           fontWeight: 'inherit',
           userSelect: 'none',
           opacity: disabled ? 0.4 : 1,
-          cursor: CURSOR_HAND,
+          cursor: 'pointer',
           position: 'relative',
           ...style,
         }}
       >
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {displayLabel}
-        </span>
+        {/* 多選 tag 列 or 單選文字 */}
+        {multiple ? (
+          <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '3px', padding: '3px 0', minWidth: 0 }}>
+            {selectedValues.length === 0 ? (
+              <span style={{ opacity: 0.4 }}>{placeholder}</span>
+            ) : (
+              selectedValues.map(v => {
+                const label = normalised.find(o => o.value === v)?.label ?? v
+                return (
+                  <span
+                    key={v}
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => {
+                      e.stopPropagation()
+                      onChange(selectedValues.filter(x => x !== v))
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = overdue ? 'rgba(204,0,0,0.35)' : (darkMode ? 'rgba(255,0,0,0.35)' : 'rgba(255,0,0,0.12)')
+                      e.currentTarget.style.borderColor = overdue ? '#cc0000' : '#ff0000'
+                      e.currentTarget.querySelector('span').style.opacity = '1'
+                      e.currentTarget.querySelector('span').style.color = '#ff0000'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = overdue ? 'rgba(204,0,0,0.15)' : (darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)')
+                      e.currentTarget.style.borderColor = overdue ? '#cc0000' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')
+                      e.currentTarget.querySelector('span').style.opacity = '0.6'
+                      e.currentTarget.querySelector('span').style.color = ''
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '3px',
+                      background: overdue ? 'rgba(204,0,0,0.15)' : (darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+                      border: `1px solid ${overdue ? '#cc0000' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')}`,
+                      padding: '1px 5px 1px 6px',
+                      fontSize: '0.9em',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      lineHeight: 1.5,
+                      transition: 'background 0.1s, border-color 0.1s',
+                    }}
+                  >
+                    {label}
+                    <span style={{ fontSize: '9px', opacity: 0.6, lineHeight: 1, transition: 'opacity 0.1s, color 0.1s' }}>✕</span>
+                  </span>
+                )
+              })
+            )}
+          </div>
+        ) : (
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {displayLabel}
+          </span>
+        )}
         {/* 小三角箭頭 */}
         <svg
           width="8" height="8" viewBox="0 0 8 8" fill="currentColor"
@@ -188,60 +248,133 @@ export default function BrutalistSelect({
             position: 'fixed',
             top: dropPos.top,
             left: dropPos.left,
-            width: Math.max(dropPos.width, 140),
+            width: Math.max(dropPos.width, 160),
             background: T.bg,
             border: `2px solid ${T.border}`,
             boxShadow: `4px 4px 0 0 ${darkMode ? 'rgba(255,255,255,0.2)' : '#000'}`,
             zIndex: 99999,
             maxHeight: `${dropPos.maxHeight}px`,
-            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          {normalised.map((opt) => {
-            const isActive = opt.value === value
-            return (
-              <div
-                key={opt.value}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = T.hoverBg
-                    e.currentTarget.style.color = T.hoverText
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = T.text
-                  }
-                }}
-                style={{
-                  padding: '9px 14px',
-                  fontSize: 'inherit',
-                  fontFamily: 'inherit',
-                  fontWeight: isActive ? 900 : 700,
-                  color: isActive ? T.activeText : T.text,
-                  background: isActive ? T.activeBg : 'transparent',
-                  cursor: CURSOR_HAND,
-                  userSelect: 'none',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                  transition: 'background 0.1s, color 0.1s',
-                }}
-              >
-                {isActive && (
-                  <span style={{ marginRight: '6px', fontSize: '9px' }}>▶</span>
-                )}
-                {opt.label}
-              </div>
-            )
-          })}
+          {/* ─ 搜尋輸入框（僅多選模式顯示）─ */}
+          {multiple && (
+          <div style={{
+            padding: '5px 8px',
+            borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+          }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, opacity: 0.4, color: T.text }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onMouseDown={e => e.stopPropagation()}
+              onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setSearch('') } }}
+              placeholder="搜尋…"
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: T.text,
+                fontSize: 'inherit',
+                fontFamily: 'inherit',
+                fontWeight: 700,
+                minWidth: 0,
+              }}
+            />
+            {search && (
+              <span
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+                onClick={e => { e.stopPropagation(); setSearch(''); searchRef.current?.focus() }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#ff0000' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '0.4'; e.currentTarget.style.color = T.text }}
+                style={{ cursor: 'pointer', opacity: 0.4, color: T.text, fontSize: '11px', lineHeight: 1, flexShrink: 0, transition: 'opacity 0.1s, color 0.1s' }}
+              >✕</span>
+            )}
+          </div>
+          )}
+
+          {/* ─ 選項列表 ─ */}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+          {(() => {
+            const q = search.trim().toLowerCase()
+            const filtered = q ? normalised.filter(o => o.label.toLowerCase().includes(q)) : normalised
+            if (filtered.length === 0) {
+              return (
+                <div style={{ padding: '10px 14px', fontSize: 'inherit', fontFamily: 'inherit', fontWeight: 700, color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', userSelect: 'none' }}>
+                  無匹配選項
+                </div>
+              )
+            }
+            return filtered.map((opt) => {
+              const isActive = multiple ? selectedValues.includes(opt.value) : opt.value === value
+              return (
+                <div
+                  key={opt.value}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    if (multiple) {
+                      const newVals = isActive
+                        ? selectedValues.filter(v => v !== opt.value)
+                        : [...selectedValues, opt.value]
+                      onChange(newVals)
+                      // 多選保持開啟，但清除搜尋
+                      setSearch('')
+                      setTimeout(() => searchRef.current?.focus(), 10)
+                    } else {
+                      onChange(opt.value)
+                      setOpen(false)
+                      setSearch('')
+                    }
+                  }}
+                  onMouseEnter={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = T.hoverBg
+                      e.currentTarget.style.color = T.hoverText
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) {
+                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = T.text
+                    }
+                  }}
+                  style={{
+                    padding: '9px 14px',
+                    fontSize: 'inherit',
+                    fontFamily: 'inherit',
+                    fontWeight: isActive ? 900 : 700,
+                    color: isActive ? T.activeText : T.text,
+                    background: isActive ? T.activeBg : 'transparent',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                >
+                  {isActive && (
+                    <span style={{ marginRight: '6px', fontSize: multiple ? '11px' : '9px' }}>
+                      {multiple ? '✓' : '▶'}
+                    </span>
+                  )}
+                  {opt.label}
+                </div>
+              )
+            })
+          })()}
+          </div>
         </div>,
         document.body
       )}
