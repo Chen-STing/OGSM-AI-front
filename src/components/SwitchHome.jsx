@@ -177,6 +177,9 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [filterPos, setFilterPos]   = useState({ top: 0, left: 0 });
   const [sortPos, setSortPos]       = useState({ top: 0, left: 0 });
   const [cardSize, setCardSize]     = useState(260);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [filterHovered, setFilterHovered] = useState(false);
+  const [sortHovered, setSortHovered]     = useState(false);
 
   const sliderContainerRef = useRef(null);
   const sliderDragging = useRef(null);
@@ -355,14 +358,20 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
-    const btnStyle = (active) => ({
-    width: "44px", height: "44px", background: active ? ACCENT_BLUE : (dark ? "#3b3b3b" : "#fff"),
-    border: `4px solid ${dark ? "rgba(255,255,255,0.3)" : "#000"}`, boxShadow: `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`,
-    display: "flex", alignItems: "center", justifyContent: "center", color: active ? "#fff" : (dark ? "#fff" : "#000"), cursor: "pointer", transition: "all 0.15s",
+    const btnStyle = (active, hovered) => ({
+    width: "44px", height: "44px",
+    background: active
+      ? (hovered ? "#0000cc" : ACCENT_BLUE)
+      : (hovered ? ACCENT_YELLOW : (dark ? "#3b3b3b" : "#fff")),
+    border: `4px solid ${active && hovered ? "#0000cc" : (dark ? "rgba(255,255,255,0.3)" : "#000")}`,
+    boxShadow: `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: active ? "#fff" : (hovered ? "#000" : (dark ? "#fff" : "#000")),
+    cursor: "pointer", transition: "all 0.15s",
   });
 
   const labelStyle = { fontSize: "10px", fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase", background: "#000", color: ACCENT_YELLOW, padding: "2px 6px", alignSelf: "flex-start" };
-  const popBase = { position: "fixed", zIndex: 99999, padding: "16px", display: "flex", flexDirection: "column", gap: "14px", border: `3px solid ${dark ? "#fff" : "#000"}`, background: dark ? "#1a1a1a" : "#fff", boxShadow: `5px 5px 0 0 ${dark ? "rgba(255,255,255,0.3)" : "#000"}` };
+  const popBase = { position: "fixed", zIndex: 99999, padding: "16px", display: "flex", flexDirection: "column", gap: "14px", border: `3px solid ${dark ? "#fff" : "#000"}`, background: dark ? "#2e2e2e" : "#f0f0f0", backgroundImage: dark ? "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)" : "linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)", backgroundSize: "20px 20px", boxShadow: `5px 5px 0 0 ${dark ? "rgba(255,255,255,0.3)" : "#000"}` };
 
   const wrapperClass = `${entering === 'home' ? "sh-entering" : ""} ${entering === 'editor' ? "sh-entering-from-editor" : ""} ${exitingTo ? "sh-exiting-to-" + exitingTo : ""}`;
 
@@ -390,17 +399,17 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
               <span style={{ fontSize: "12px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.45, color: dark ? "#fff" : "#000" }}>個專案</span>
             </div>
           )}
-          <div style={{ position: "relative", display: "flex", alignItems: "center", border: `4px solid ${dark ? "rgba(255,255,255,0.3)" : "#000"}`, boxShadow: `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`, background: dark ? "rgba(59,59,59,0.8)" : "#fff", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ position: "absolute", left: "12px", opacity: 0.4, color: dark ? "#fff" : "#000", pointerEvents: "none" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="搜尋專案..." style={{ background: "transparent", border: "none", fontSize: "13px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, paddingLeft: "40px", paddingRight: query ? "4px" : "16px", paddingTop: "10px", paddingBottom: "10px", width: "200px", color: dark ? "#fff" : "#000", outline: "none" }} />
+          <div style={{ position: "relative", display: "flex", alignItems: "center", border: `4px solid ${query ? ACCENT_BLUE : searchFocused ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.3)" : "#000")}`, boxShadow: query ? `3px 3px 0 ${ACCENT_BLUE}, 0 0 0 2px rgba(0,0,255,0.15)` : searchFocused ? `3px 3px 0 ${ACCENT_BLUE}` : `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`, background: query ? (dark ? "rgba(0,0,60,0.5)" : "rgba(230,230,255,0.6)") : (dark ? "rgba(59,59,59,0.8)" : "#fff"), transition: "all 0.2s ease" }} onMouseEnter={e => { if(!query && !searchFocused){ e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; } }} onMouseLeave={e => { if(!query && !searchFocused){ e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; } }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={query ? ACCENT_BLUE : (dark ? "#fff" : "#000")} strokeWidth="3" style={{ position: "absolute", left: "12px", opacity: query ? 1 : 0.4, pointerEvents: "none", transition: "all 0.2s", transform: query ? "scale(1.15)" : "scale(1)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} placeholder="搜尋專案..." style={{ background: "transparent", border: "none", fontSize: "13px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, paddingLeft: "40px", paddingRight: query ? "4px" : "16px", paddingTop: "10px", paddingBottom: "10px", width: "200px", color: dark ? "#fff" : "#000", outline: "none" }} />
             {query && (
               <button onClick={() => setQuery("")} title="清除搜尋" style={{ flexShrink: 0, marginRight: "8px", width: "22px", height: "22px", display: "flex", alignItems: "center", justifyContent: "center", background: dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)", border: "none", cursor: "pointer", color: dark ? "#fff" : "#000", fontSize: "14px", fontWeight: 900, lineHeight: 1, padding: 0, transition: "background 0.15s, color 0.15s" }} onMouseEnter={e => { e.currentTarget.style.background = "#FF00FF"; e.currentTarget.style.color = "#fff"; }} onMouseLeave={e => { e.currentTarget.style.background = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)"; e.currentTarget.style.color = dark ? "#fff" : "#000"; }}>✕</button>
             )}
           </div>
-          <button ref={filterBtnRef} onClick={() => setShowFilter(v => !v)} style={btnStyle(isFiltering)} title="篩選" onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }}>
+          <button ref={filterBtnRef} onClick={() => setShowFilter(v => !v)} style={btnStyle(isFiltering, filterHovered)} title="篩選" onMouseEnter={e => { setFilterHovered(true); e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseLeave={e => { setFilterHovered(false); e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
           </button>
-          <button ref={sortBtnRef} onClick={() => setShowSort(v => !v)} style={btnStyle(isSorted)} title="排序" onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }}>
+          <button ref={sortBtnRef} onClick={() => setShowSort(v => !v)} style={btnStyle(isSorted, sortHovered)} title="排序" onMouseEnter={e => { setSortHovered(true); e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseLeave={e => { setSortHovered(false); e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `3px 3px 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "#000"}`; }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transition: "transform 0.2s", transform: sortDir === "asc" ? "rotate(180deg)" : "rotate(0deg)" }}><path d="M12 5v14m-7-7l7-7 7 7"/></svg>
           </button>
         </div>

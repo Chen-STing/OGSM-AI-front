@@ -115,7 +115,7 @@ export default function AiConfirmDialog({
       <style>{`
         @keyframes acd-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
         @keyframes acd-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
-        @keyframes acd-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes acd-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.6); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
         @keyframes acd-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
       `}</style>
       <div
@@ -235,7 +235,10 @@ export default function AiConfirmDialog({
               width: '100%', padding: '14px 16px', fontSize: '15px', fontWeight: 700,
               border: `4px solid ${T.border}`, boxShadow: 'none',
               fontFamily: '"Space Grotesk", "Noto Sans TC", sans-serif',
-              color: T.text, background: T.inputBg,
+              color: T.text,
+              background: 'transparent',
+              backdropFilter: 'blur(2px)',
+              WebkitBackdropFilter: 'blur(2px)',
               resize: 'vertical', minHeight: '90px', outline: 'none', lineHeight: 1.6,
               transition: 'background 0.3s ease, color 0.3s ease, border 0.3s ease',
             }}

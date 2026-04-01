@@ -220,7 +220,8 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
                 width: "100%", padding: "16px", fontSize: "16px", fontWeight: 700,
                 border: `4px solid ${T.border}`, boxShadow: "none",
                 fontFamily: '"Space Grotesk", sans-serif', color: T.text,
-                background: T.inputBg, resize: "vertical", minHeight: "100px",
+                background: T.inputBg, backdropFilter: "blur(1px)", WebkitBackdropFilter: "blur(1px)",
+                resize: "vertical", minHeight: "100px",
                 outline: "none", transition: "border-color 0.15s, background 0.3s ease, color 0.3s ease",
               }}
               placeholder="例：在 2026 年底前將體重從 85kg 減至 75kg"
@@ -244,6 +245,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
               style={{
                 padding: "7px 16px", fontSize: "16px", fontFamily: "monospace", fontWeight: 700,
                 border: `4px solid ${T.border}`, boxShadow: "none", background: T.inputBg, color: T.text,
+                backdropFilter: "blur(1px)", WebkitBackdropFilter: "blur(1px)",
                 width: "100%", maxWidth: "250px", outline: "none",
                 colorScheme: darkMode ? "dark" : "light",
                 transition: "background 0.3s ease, color 0.3s ease, border 0.3s ease"
@@ -267,7 +269,8 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
               style={{
                 width: "100%", padding: "12px 16px", fontSize: "14px",
                 border: `4px solid ${T.border}`, boxShadow: "none", color: T.text,
-                background: T.inputBg, resize: "vertical", outline: "none",
+                background: T.inputBg, backdropFilter: "blur(1px)", WebkitBackdropFilter: "blur(1px)",
+                resize: "vertical", outline: "none",
                 transition: "background 0.3s ease, color 0.3s ease, border 0.3s ease"
               }}
               placeholder="例：目前痛點、預算規模、產業背景、特定限制…"

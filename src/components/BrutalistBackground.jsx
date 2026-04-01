@@ -45,8 +45,8 @@ export default function BrutalistBackground({ dark }) {
         /* 空心圓形脈衝漂浮動畫 */
         @keyframes circlePulseFloat {
           0%   { transform: translate(0, 0) scale(1); }
-          33%  { transform: translate(40px, -40px) scale(1.1); }
-          66%  { transform: translate(-20px, 30px) scale(0.9); }
+          33%  { transform: translate(40px, -40px) scale(1.5); }
+          66%  { transform: translate(-20px, 30px) scale(0.8); }
           100% { transform: translate(0, 0) scale(1); }
         }
 

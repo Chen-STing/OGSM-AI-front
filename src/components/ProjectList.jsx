@@ -69,6 +69,8 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 5;
   const [confirmId, setConfirmId] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [filterHovered, setFilterHovered] = useState(false);
   
   const sliderContainerRef = useRef(null);
   const sliderDragging = useRef(null);
@@ -78,18 +80,23 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const sortBtnRef = useRef(null);
   const inputRef = useRef(null);
   const clearBtnRef = useRef(null);
+  const searchIconRef = useRef(null);
 
-  // 讓清除按鈕跟隨 input 的 transform 同步
+  // 讓清除按鈕與搜尋 icon 跟隨 input 的 transform 同步
   function syncClearBtn(translateXY) {
-    if (!clearBtnRef.current) return;
-    clearBtnRef.current.style.transform = `translateY(-50%) ${translateXY}`;
+    if (clearBtnRef.current) clearBtnRef.current.style.transform = `translateY(-50%) ${translateXY}`;
+    if (searchIconRef.current) {
+      const scale = query ? 'scale(1.2)' : 'scale(1)';
+      searchIconRef.current.style.transform = `translateY(-50%) ${translateXY} ${scale}`;
+    }
   }
 
   // query 從無到有時，按鈕剛 mount，立刻從 input 讀取當前 transform 補上
   useEffect(() => {
-    if (!query || !clearBtnRef.current || !inputRef.current) return;
+    if (!query || !inputRef.current) return;
     const currentTransform = inputRef.current.style.transform || 'translate(0px, 0px)';
-    clearBtnRef.current.style.transform = `translateY(-50%) ${currentTransform}`;
+    if (clearBtnRef.current) clearBtnRef.current.style.transform = `translateY(-50%) ${currentTransform}`;
+    if (searchIconRef.current) searchIconRef.current.style.transform = `translateY(-50%) ${currentTransform}`;
   }, [query]);
 
   // Portal 定位：showSort 開啟後立刻從按鈕取座標
@@ -224,25 +231,34 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
         
         {/* 獨立搜尋框 */}
         <div style={{ flex: 1, position: 'relative', height: '48px' }}>
+          <svg ref={searchIconRef} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={query ? '#0000FF' : (darkMode ? '#fff' : '#000')} strokeWidth="3" style={{ position: 'absolute', left: '14px', top: '50%', transform: query ? 'translateY(-50%) scale(1.2)' : 'translateY(-50%) scale(1)', opacity: query ? 1 : 0.35, pointerEvents: 'none', transition: 'all 0.2s', zIndex: 2 }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input 
             ref={inputRef}
             type="text" 
             placeholder="搜尋專案..." 
             value={query} 
             onChange={e => setQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={e => {
+              setSearchFocused(false);
+              e.currentTarget.style.transform = 'translate(0px, 0px)';
+              e.currentTarget.style.boxShadow = baseShadow;
+              e.currentTarget.style.borderColor = query ? '#0000FF' : (darkMode ? '#fff' : '#000');
+              syncClearBtn('translate(0px, 0px)');
+            }}
             style={{ 
               width: '100%', 
               height: '100%', 
-              background: darkMode ? '#1a1a1a' : '#fff', 
-              border: `3px solid ${darkMode ? '#fff' : '#000'}`, 
+              background: query ? (darkMode ? 'rgba(0,0,60,0.5)' : 'rgba(230,230,255,0.6)') : (darkMode ? '#1a1a1a' : '#fff'), 
+              border: `3px solid ${query ? '#0000FF' : searchFocused ? '#0000FF' : (darkMode ? '#fff' : '#000')}`, 
               outline: 'none', 
-              padding: query ? '0 40px 0 16px' : '0 16px', 
+              padding: query ? '0 40px 0 38px' : '0 16px 0 38px', 
               fontSize: '14px', 
               fontWeight: 700, 
               fontFamily: '"Inter", "Noto Sans TC", sans-serif', 
               color: darkMode ? '#fff' : '#000',
-              boxShadow: baseShadow,
-              transition: 'all 0.1s ease-out',
+              boxShadow: query ? `${baseShadow}, 0 0 0 2px rgba(0,0,255,0.15)` : baseShadow,
+              transition: 'all 0.15s ease-out',
               transform: 'translate(0px, 0px)' 
             }}
             onMouseEnter={e => {
@@ -254,7 +270,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             onMouseLeave={e => {
               if (document.activeElement === e.currentTarget) return;
               e.currentTarget.style.transform = 'translate(0px, 0px)';
-              e.currentTarget.style.boxShadow = baseShadow;
+              e.currentTarget.style.boxShadow = query ? `${baseShadow}, 0 0 0 2px rgba(0,0,255,0.15)` : baseShadow;
               syncClearBtn('translate(0px, 0px)');
             }}
             onMouseDown={e => {
@@ -269,15 +285,17 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               syncClearBtn('translate(-2px, -2px)');
             }}
             onFocus={e => {
+              setSearchFocused(true);
               e.currentTarget.style.transform = 'translate(2px, 2px)';
               e.currentTarget.style.boxShadow = activeShadow;
               e.currentTarget.style.borderColor = '#0000FF';
               syncClearBtn('translate(2px, 2px)');
             }}
             onBlur={e => {
+              setSearchFocused(false);
               e.currentTarget.style.transform = 'translate(0px, 0px)';
-              e.currentTarget.style.boxShadow = baseShadow;
-              e.currentTarget.style.borderColor = darkMode ? '#fff' : '#000';
+              e.currentTarget.style.boxShadow = query ? `${baseShadow}, 0 0 0 2px rgba(0,0,255,0.15)` : baseShadow;
+              e.currentTarget.style.borderColor = query ? '#0000FF' : (darkMode ? '#fff' : '#000');
               syncClearBtn('translate(0px, 0px)');
             }}
           />
@@ -339,18 +357,22 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               alignItems: 'center', 
               justifyContent: 'center', 
               cursor: 'pointer', 
-              background: isFiltering ? '#0000FF' : (darkMode ? '#1a1a1a' : '#fff'), 
+              background: isFiltering
+                ? (filterHovered ? '#0000cc' : '#0000FF')
+                : (filterHovered ? '#FFFF00' : (darkMode ? '#1a1a1a' : '#fff')), 
               border: `3px solid ${darkMode ? '#fff' : '#000'}`, 
-              color: isFiltering ? '#fff' : (darkMode ? '#fff' : '#000'), 
+              color: isFiltering ? '#fff' : (filterHovered ? '#000' : (darkMode ? '#fff' : '#000')), 
               boxShadow: baseShadow,
-              transition: 'all 0.1s ease-out',
-              transform: 'translate(0px, 0px)' // 鎖定初始狀態
+              transition: 'all 0.15s ease-out',
+              transform: 'translate(0px, 0px)'
             }}
             onMouseEnter={e => {
+              setFilterHovered(true);
               e.currentTarget.style.transform = 'translate(-2px, -2px)';
               e.currentTarget.style.boxShadow = hoverShadow;
             }}
             onMouseLeave={e => {
+              setFilterHovered(false);
               e.currentTarget.style.transform = 'translate(0px, 0px)';
               e.currentTarget.style.boxShadow = baseShadow;
             }}
@@ -368,7 +390,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
 
           {/* Filter Dropdown */}
           {showFilter && (
-            <div ref={popupRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 9999, width: 'fit-content', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#1a1a1a' : '#fff', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
+            <div ref={popupRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 9999, width: 'fit-content', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#2e2e2e' : '#f0f0f0', backgroundImage: darkMode ? 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)' : 'linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)', backgroundSize: '20px 20px', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>專案狀態</div>
                 <div style={{ display: 'flex', gap: '12px' }}>
@@ -466,7 +488,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
 
           {/* Sort Dropdown — Portal 渲染到 body，突破 stacking context */}
           {showSort && createPortal(
-            <div ref={sortRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 99999, width: '144px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#1a1a1a' : '#fff', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.4)' : '#000'}` }}>
+            <div ref={sortRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 99999, width: '144px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#2e2e2e' : '#f0f0f0', backgroundImage: darkMode ? 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)' : 'linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)', backgroundSize: '20px 20px', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.4)' : '#000'}` }}>
               <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>排序依據</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
                 {[['time', '建立時間'], ['deadline', '期限日期'], ['progress', '完成進度']].map(([val, label]) => (

@@ -110,8 +110,8 @@ const BRUTALIST_CSS = `
   .dark .b-action-hover:active { box-shadow: 2px 2px 0 0 rgba(255,255,255,0.2) !important; }
   .ai-action-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 #000 !important; }
   .ai-action-hover:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #000 !important; }
-  .dark .ai-action-hover:hover { box-shadow: 6px 6px 0 0 rgb(0, 0, 0) !important; }
-  .dark .ai-action-hover:active { box-shadow: 2px 2px 0 0 rgb(0, 0, 0) !important; }
+  .dark .ai-action-hover:hover { box-shadow: 6px 6px 0 0 #131313 !important; }
+  .dark .ai-action-hover:active { box-shadow: 2px 2px 0 0 #131313 !important; }
 
   @keyframes block-exit-left   { 0% { transform: translateX(0);     opacity: 1; } 100% { transform: translateX(-120%); opacity: 0; } }
   @keyframes block-exit-right  { 0% { transform: translateX(0);     opacity: 1; } 100% { transform: translateX(120%);  opacity: 0; } }
@@ -192,6 +192,11 @@ export default function App() {
   const [auditProject, setAuditProject] = useState(null);
   const [toast, setToast] = useState(null);
   const [clickEffect, setClickEffect] = useState(null);
+  const [membersHovered, setMembersHovered] = useState(false);
+  const [closeSidebarHovered, setCloseSidebarHovered] = useState(false);
+  const [openSidebarHovered, setOpenSidebarHovered] = useState(false);
+  const [darkToggleHovered, setDarkToggleHovered] = useState(false);
+  const [aiGenerateHovered, setAiGenerateHovered] = useState(false);
 
   useEffect(() => {
     const onPop = () => setRoute(parseRoute());
@@ -442,7 +447,9 @@ export default function App() {
             </h1>
           </div>
           <button onClick={() => setSidebarOpen(false)} data-sidebar-toggle="" className="b-action-hover"
-            style={{ width: '36px', height: '36px', background: dark ? '#222' : '#fff', border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '3px 3px 0 0 rgba(255,255,255,0.2)' : '3px 3px 0 0 #000', color: dark ? '#fff' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s', opacity: isEditorExiting ? 0 : 1, pointerEvents: isEditorExiting ? 'none' : 'auto' }}
+            onMouseEnter={() => setCloseSidebarHovered(true)}
+            onMouseLeave={() => setCloseSidebarHovered(false)}
+            style={{ width: '36px', height: '36px', background: closeSidebarHovered ? '#0000FF' : (dark ? '#222' : '#fff'), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '3px 3px 0 0 rgba(255,255,255,0.2)' : '3px 3px 0 0 #000', color: closeSidebarHovered ? '#fff' : (dark ? '#fff' : '#000'), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s', opacity: isEditorExiting ? 0 : 1, pointerEvents: isEditorExiting ? 'none' : 'auto' }}
             title="收起側邊欄">
             <PanelLeftClose size={18} />
           </button>
@@ -451,14 +458,18 @@ export default function App() {
         <div className={isEnteringEditor ? "editor-sidebar-entering" : isEditorExiting ? "editor-sidebar-exiting" : ""} style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "10px 24px 15px", display: "flex", gap: "16px" }}>
             <button className="ai-action-hover" onClick={() => setShowGenerate(true)}
-              style={{ flex: 1, height: "52px", background: ACCENT_YELLOW, color: "#000", border: "4px solid #000", boxShadow: "4px 4px 0 0 #000", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' }}>
+              onMouseEnter={e => { setAiGenerateHovered(true); if (dark) e.currentTarget.style.boxShadow = '6px 6px 0 0 #131313'; }}
+              onMouseLeave={e => { setAiGenerateHovered(false); e.currentTarget.style.boxShadow = '4px 4px 0 0 #000'; }}
+              style={{ flex: 1, height: "52px", background: aiGenerateHovered ? '#FF0000' : ACCENT_YELLOW, color: aiGenerateHovered ? '#fff' : "#000", border: "4px solid #000", boxShadow: '4px 4px 0 0 #000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' }}>
               <Zap size={20} fill="currentColor" /> AI 生成 OGSM
             </button>
             <button className="b-action-hover" onClick={() => setShowMembers(true)}
-              style={{ width: "52px", height: "52px", flexShrink: 0, background: dark ? "#222" : "#fff", border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: dark ? '#fff' : '#000', transition: 'all 0.15s' }}
+              onMouseEnter={() => setMembersHovered(true)}
+              onMouseLeave={() => setMembersHovered(false)}
+              style={{ width: "52px", height: "52px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s' }}
               title="負責人管理">
               <Users size={22} />
-              <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: "2px solid #fff", borderRadius: "12px" }}>
+              <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: membersHovered ? '#FF00FF' : "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: `2px solid ${membersHovered ? '#FF00FF' : '#fff'}`, borderRadius: "12px", transition: 'all 0.15s' }}>
                 {members.length > 0 ? members.length : '12'}
               </span>
             </button>
@@ -471,7 +482,9 @@ export default function App() {
           <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#666363' : '#c5bebe'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
             <span style={{ fontSize: "12px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontStyle: 'italic', letterSpacing: "0.08em", opacity: 0.4, color: dark ? '#fff' : '#000' }}>POWERED BY AI</span>
             <button className="b-action-hover" onClick={() => setDark(d => !d)} data-sidebar-toggle=""
-              style={{ width: "35px", height: "35px", background: dark ? '#222' : "#fff", color: dark ? '#fff' : "#000", border: `2px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
+              onMouseEnter={() => setDarkToggleHovered(true)}
+              onMouseLeave={() => setDarkToggleHovered(false)}
+              style={{ width: "35px", height: "35px", background: darkToggleHovered ? (dark ? '#fff' : '#000') : (dark ? '#222' : "#fff"), color: darkToggleHovered ? (dark ? '#000' : '#fff') : (dark ? '#fff' : "#000"), border: `2px solid ${dark ? '#fceeee' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
               {dark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
@@ -519,7 +532,9 @@ export default function App() {
             <div className={isEnteringEditor ? "editor-main-entering" : isEditorExiting ? "editor-main-exiting" : ""} style={{ flex: 1, overflow: "hidden", position: "relative", minWidth: 0 }}>
               {!sidebarOpen && (
                 <button className="b-action-hover" onClick={() => setSidebarOpen(true)} data-sidebar-toggle=""
-                  style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 40, width: '44px', height: '44px', background: dark ? '#222' : '#fff', border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: dark ? '#fff' : '#000', opacity: isEditorExiting ? 0 : 1, transition: 'opacity 0.15s' }}>
+                  onMouseEnter={() => setOpenSidebarHovered(true)}
+                  onMouseLeave={() => setOpenSidebarHovered(false)}
+                  style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 40, width: '44px', height: '44px', background: openSidebarHovered ? '#FFFF00' : (dark ? '#222' : '#fff'), border: `4px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: openSidebarHovered ? '#000' : (dark ? '#fff' : '#000'), opacity: isEditorExiting ? 0 : 1, transition: 'all 0.15s' }}>
                   <Menu size={24} />
                 </button>
               )}

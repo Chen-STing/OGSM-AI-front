@@ -115,7 +115,7 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
       <style>{`
         @keyframes ms-starFloat   { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 25% { transform: translate(20px,-30px) rotate(90deg) scale(1.25); } 50% { transform: translate(-10px,20px) rotate(180deg) scale(0.85); } 75% { transform: translate(30px,10px) rotate(270deg) scale(1.15); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
         @keyframes ms-crossFloat  { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 33% { transform: translate(-25px,20px) rotate(120deg) scale(1.2); } 66% { transform: translate(15px,-15px) rotate(240deg) scale(0.8); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
-        @keyframes ms-circleFloat { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-25px) scale(1.15); } 66% { transform: translate(-15px,15px) scale(0.88); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes ms-circleFloat { 0% { transform: translate(0,0) scale(0.88); } 33% { transform: translate(20px,-25px) scale(2); } 66% { transform: translate(-15px,15px) scale(1.5); } 100% { transform: translate(0,0) scale(0.88); } }
         @keyframes ms-triFloat    { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(-20px,-30px) rotate(180deg) scale(1.2); } 100% { transform: translate(0,0) rotate(360deg) scale(1); } }
       `}</style>
 
@@ -198,7 +198,7 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
           <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
             <input
               type="text"
-              style={{ ...D.input, background: T.inputBg, border: `2px solid ${T.border}`, color: T.text, width: '100%', boxSizing: 'border-box', paddingRight: inputVal ? '32px' : '12px', height: '100%' }}
+              style={{ ...D.input, background: T.inputBg, border: `2px solid ${T.border}`, color: T.text, width: '100%', boxSizing: 'border-box', paddingRight: inputVal ? '32px' : '12px', height: '100%', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }}
               value={inputVal}
               onChange={e => setInputVal(e.target.value)}
               onKeyDown={handleKey}
@@ -293,7 +293,7 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
         )}
 
         {/* ─── Member list ─── */}
-        <div style={{ ...D.list, position: 'relative', zIndex: 1, borderColor: T.border, backgroundColor: 'transparent' }}>
+        <div style={{ ...D.list, position: 'relative', zIndex: 1, borderColor: T.border, backgroundColor: 'transparent', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }}>
           {draft.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: T.textMuted, fontSize: '13px', fontFamily: '"DM Mono", monospace', fontWeight: 600 }}>
               NO MEMBERS FOUND.
@@ -310,7 +310,7 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
                 {editingIdx === idx ? (
                   <input
                     type="text"
-                    style={{ ...D.editInput, background: T.inputBg, border: `2px solid ${ACCENT_BLUE}`, color: T.text, flex: 1 }}
+                    style={{ ...D.editInput, background: T.inputBg, border: `2px solid ${ACCENT_BLUE}`, color: T.text, flex: 1, backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }}
                     value={editVal}
                     onChange={e => setEditVal(e.target.value)}
                     onKeyDown={e => handleEditKey(e, idx)}
@@ -381,11 +381,11 @@ export default function MemberSettings({ members = [], onChange, onClose, darkMo
 
 // ─── BRUTALIST THEME COLORS ─────────────────────────────────────────────────
 const DARK = {
-  bg: '#393939', border: '#FFFFFF', text: '#FFFFFF', textSub: '#CCCCCC',
+  bg: '#2e2e2e', border: '#FFFFFF', text: '#FFFFFF', textSub: '#CCCCCC',
   textMuted: '#888888', inputBg: '#000000', altBg: 'rgba(255,255,255,0.06)'
 }
 const LIGHT = {
-  bg: '#f8f9fa', border: '#000000', text: '#000000', textSub: '#444444',
+  bg: '#f0f0f0', border: '#000000', text: '#000000', textSub: '#444444',
   textMuted: '#666666', inputBg: '#FFFFFF', altBg: 'rgba(0,0,0,0.04)'
 }
 

@@ -77,6 +77,8 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
   const [expandedMeasureTodos, setExpandedMeasureTodos] = useState(new Set())
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pptLoading, setPptLoading] = useState(false)
+  const [pptHovered, setPptHovered] = useState(false)
+  const [pdfHovered, setPdfHovered] = useState(false)
 
   if (!project) return null
 
@@ -823,17 +825,20 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
               style={{
                 width: '48px', height: '48px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
-                background: darkMode ? '#1a1a1a' : '#fff',
+                background: pptHovered ? '#FFFF00' : (darkMode ? '#1a1a1a' : '#fff'),
                 border: `3px solid ${T.border}`,
-                color: T.text,
+                color: pptHovered ? '#000' : T.text,
                 boxShadow: darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
                 opacity: pptLoading ? 0.5 : 1,
+                transition: 'all 0.15s',
               }}
               onMouseEnter={e => {
                 if (pptLoading) return;
+                setPptHovered(true);
                 e.currentTarget.style.boxShadow = darkMode ? '6px 6px 0 0 rgba(255,255,255,0.2)' : '6px 6px 0 0 #000';
               }}
               onMouseLeave={e => {
+                setPptHovered(false);
                 e.currentTarget.style.transform = 'translate(0px, 0px)';
                 e.currentTarget.style.boxShadow = darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000';
               }}
@@ -863,17 +868,20 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
               style={{
                 width: '48px', height: '48px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2px',
-                background: darkMode ? '#1a1a1a' : '#fff',
+                background: pdfHovered ? '#FF0000' : (darkMode ? '#1a1a1a' : '#fff'),
                 border: `3px solid ${T.border}`,
-                color: T.text,
+                color: pdfHovered ? '#fff' : T.text,
                 boxShadow: darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
                 opacity: pdfLoading ? 0.5 : 1,
+                transition: 'all 0.15s',
               }}
               onMouseEnter={e => {
                 if (pdfLoading) return;
+                setPdfHovered(true);
                 e.currentTarget.style.boxShadow = darkMode ? '6px 6px 0 0 rgba(255,255,255,0.2)' : '6px 6px 0 0 #000';
               }}
               onMouseLeave={e => {
+                setPdfHovered(false);
                 e.currentTarget.style.transform = 'translate(0px, 0px)';
                 e.currentTarget.style.boxShadow = darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000';
               }}
