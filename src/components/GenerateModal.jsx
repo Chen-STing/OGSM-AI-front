@@ -160,7 +160,7 @@ export default function GenerateModal({ onClose, onGenerated, showToast, darkMod
 
           <div style={{ marginBottom: "13px" }}>
             <label style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", display: "block", marginBottom: "8px", color: T.text, transition: "color 0.3s ease" }}>
-              📅 計畫截止日期 <span style={{ opacity: 0.6, fontStyle: "normal", textTransform: "none" }}>(建議填寫，AI 將據此安排各指標期限)</span>
+              📅 計畫截止日期
             </label>
             <input type="date" className="gm-date"
               style={{ padding: "7px 16px", fontSize: "16px", fontFamily: "monospace", fontWeight: 700, border: `4px solid ${T.border}`, background: T.inputBg, color: T.text, backdropFilter: "blur(1px)", WebkitBackdropFilter: "blur(1px)", width: "100%", maxWidth: "250px", outline: "none", colorScheme: darkMode ? "dark" : "light", transition: "background 0.3s ease, color 0.3s ease, border 0.3s ease" }}

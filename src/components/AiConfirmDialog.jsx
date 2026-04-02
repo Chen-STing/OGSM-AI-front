@@ -72,7 +72,7 @@ export default function AiConfirmDialog({ type, currentText='', onConfirm, onCan
   const confirmUp    = (e) => { e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow=shadowHover }
 
   return (
-    <div style={{ position:'fixed', inset:0, background:T.backdrop, backdropFilter:'blur(4px)', zIndex:600, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.3s ease' }}
+    <div style={{ position:'fixed', inset:0, background:T.backdrop, backdropFilter:'blur(4px)', zIndex:10300, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.3s ease' }}
       onClick={e=>e.target===e.currentTarget&&onCancel()} onKeyDown={handleKey}>
       <style>{`
         @keyframes acd-starFloat   { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 25%{transform:translate(20px,-30px) rotate(90deg) scale(1.25)} 50%{transform:translate(-10px,20px) rotate(180deg) scale(0.85)} 75%{transform:translate(30px,10px) rotate(270deg) scale(1.15)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }

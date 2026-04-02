@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TodoManagerPanel from './TodoManagerPanel.jsx'
 import AiConfirmDialog from './AiConfirmDialog.jsx'
 import BrutalistSelect from './BrutalistSelect.jsx'
+import QuickEditModal from './QuickEditModal.jsx'
 import { api } from '../services/api.js'
 
 const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignee: '', todos: [], sortOrder: 0 })
@@ -170,6 +171,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   const [aiDialog, setAiDialog] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [qeModal, setQeModal] = useState(null) // null | { type:'goal'|'strategy'|'measure', gi, si, mi, label }
   
   const [openTodos, setOpenTodos] = useState(new Set())
   const toggleTodoRow = (key) => setOpenTodos(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -333,6 +335,33 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
       }
     } catch (e) { alert('AI 生成失敗：' + e.message) } finally { setAiLoading(false); setAiDialog(null) }
   }, [aiDialog, draft, update])
+
+  const handleQeSave = useCallback((saved) => {
+    if (!qeModal) return
+    const { type, gi, si, mi } = qeModal
+    const normMeasure = m => {
+      const assignee = m.assignees !== undefined ? m.assignees : (m.assignee ?? [])
+      const { assignees: _a, ...mRest } = m
+      return { ...mRest, assignee, todos: (mRest.todos || []).map(t => { const { assignees: ta, ...tRest } = t; return { ...tRest, assignee: ta !== undefined ? ta : (tRest.assignee ?? []) } }) }
+    }
+    const normStrategy = s => ({ ...s, measures: (s.measures || []).map(normMeasure) })
+    if (type === 'goal') {
+      update(d => {
+        if (saved.goal) d.goals[gi].text = saved.goal.text ?? d.goals[gi].text
+        if (saved.strategies) d.goals[gi].strategies = saved.strategies.map(normStrategy)
+        return d
+      })
+    } else if (type === 'strategy') {
+      update(d => {
+        if (saved.strategy) d.goals[gi].strategies[si].text = saved.strategy.text ?? d.goals[gi].strategies[si].text
+        if (saved.measures) d.goals[gi].strategies[si].measures = saved.measures.map(normMeasure)
+        return d
+      })
+    } else {
+      update(d => { d.goals[gi].strategies[si].measures[mi] = normMeasure({ ...d.goals[gi].strategies[si].measures[mi], ...saved.measure }); return d })
+    }
+    setQeModal(null)
+  }, [qeModal, update])
 
   const handleSave = async () => { setSaving(true); try { await onSave(draft) } finally { setSaving(false) }; setDirty(false) }
 
@@ -562,7 +591,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                     <div style={{ width: COL_G, minWidth: COL_G, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
                       {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                       <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: B_YELLOW, marginBottom: '6px' }}>G{gi + 1}</div>
-                      <textarea data-ogsm-autoresize style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', paddingLeft: editMode ? '12px' : '0' }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} readOnly={!editMode} />
+                      <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'goal', gi, si: null, mi: null, label: `G${gi + 1}` }) } : undefined}>
+                        <textarea data-ogsm-autoresize style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', paddingLeft: editMode ? '12px' : '0', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} readOnly={!editMode} />
+                      </div>
                       {editMode && (
                         <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
                           {goal.id == null && <button style={s.aiBtnSmall} title="AI 生成 Strategies" className="ogsm-ai-btn" onClick={() => setAiDialog({ type: 'goal', gi, si: null, mi: null, currentText: goal.text })}>⚡</button>}
@@ -583,7 +614,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                             <div style={{ width: dynS, minWidth: dynS, flexShrink: 0, padding: '16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, position: 'relative' }}>
                               {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                               <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px' }}>S{gi + 1}.{si + 1}</div>
-                              <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0' }} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} readOnly={!editMode} />
+                              <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'strategy', gi, si, mi: null, label: `S${gi + 1}.${si + 1}` }) } : undefined}>
+                                <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} readOnly={!editMode} />
+                              </div>
                               {editMode && (
                                 <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
                                   {st.id == null && <button style={s.aiBtnSmall} title="AI 生成 Measures" className="ogsm-ai-btn" onClick={() => setAiDialog({ type: 'strategy', gi, si, mi: null, currentText: st.text })}>⚡</button>}
@@ -612,7 +645,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       <div style={{ width: dynKpi, minWidth: dynKpi, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', alignSelf: 'stretch' }}>
                                         {editMode && <div style={{ position: 'absolute', left: '4px', top: '12px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                                         <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px', paddingLeft: editMode ? '12px' : '0' }}>D{gi+1}.{si+1}.{mi+1}</div>
-                                        <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} readOnly={!editMode} />
+                                        <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'measure', gi, si, mi, label: `D${gi+1}.${si+1}.${mi+1}` }) } : undefined}>
+                                          <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} readOnly={!editMode} />
+                                        </div>
                                         {editMode && (
                                           <div style={{ display: 'flex', gap: '4px', marginTop: '8px', paddingLeft: '12px' }}>
                                             {m.id == null && <button className="ogsm-ai-btn" style={s.aiBtnSmall} title="AI 生成 MP 檢核指標" onClick={() => setAiDialog({ type: 'measure', gi, si, mi, currentText: m.kpi })}>⚡</button>}
@@ -801,6 +836,26 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {aiDialog && !aiLoading && (
         <AiConfirmDialog type={aiDialog.type} currentText={aiDialog.currentText} onConfirm={handleAiConfirm} onCancel={() => setAiDialog(null)} darkMode={darkMode} shapeConfig={aiConfirmShapeConfig} />
+      )}
+
+      {qeModal && draft && (
+        <QuickEditModal
+          type={qeModal.type}
+          label={qeModal.label}
+          data={
+            qeModal.type === 'goal'
+              ? { goal: draft.goals[qeModal.gi], strategies: draft.goals[qeModal.gi].strategies }
+              : qeModal.type === 'strategy'
+              ? { strategy: draft.goals[qeModal.gi].strategies[qeModal.si], measures: draft.goals[qeModal.gi].strategies[qeModal.si].measures }
+              : { measure: draft.goals[qeModal.gi].strategies[qeModal.si].measures[qeModal.mi] }
+          }
+          members={members}
+          dark={dark}
+          objective={draft.objective || ''}
+          goalText={qeModal.type !== 'goal' ? (draft.goals[qeModal.gi]?.text || '') : ''}
+          onSave={handleQeSave}
+          onClose={() => setQeModal(null)}
+        />
       )}
     </div>
   )
