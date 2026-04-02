@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import BrutalistBackground from './BrutalistBackground'
 import BrutalistSelect from './BrutalistSelect'
+import { loadSavedBgConfig } from '../bgConfig.js'
 
 // ─── BRUTALIST TOKENS ────────────────────────────────────────────────────────
 const B_YELLOW = '#FFFF00'
@@ -52,6 +53,13 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
   const [sortDate, setSortDate] = useState('none')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [confirmingId, setConfirmingId] = useState(null)
+
+  const [bgConfig, setBgConfig] = useState(() => loadSavedBgConfig())
+  useEffect(() => {
+    const handleBgChange = () => setBgConfig(loadSavedBgConfig())
+    window.addEventListener('brutalistBgChanged', handleBgChange)
+    return () => window.removeEventListener('brutalistBgChanged', handleBgChange)
+  }, [])
 
   const toggleGroup = (key) => setCollapsedGroups(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
 
@@ -158,7 +166,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
       }}>
         {/* 佈局層 */}
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-          <BrutalistBackground dark={darkMode} />
+          <BrutalistBackground dark={darkMode} bgConfig={bgConfig} />
 
       {/* ── Header ── */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '18px 18px 14px', borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, flexShrink: 0, background: 'transparent' }}>

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import BrutalistBackground from './BrutalistBackground'
+import { loadSavedBgConfig } from '../bgConfig.js' // 加入這行載入設定
 
 // ─── DESIGN TOKENS (Brutalist Edition) ──────────────────────────────────────
 const ACCENT_BLUE   = "#4242e3";
@@ -43,7 +44,6 @@ function calcTodos(goals) {
   return { total: all.length, done, pct: all.length ? Math.round((done / all.length) * 100) : 0 }
 }
 
-// ─── 粗獷版進度條 (方正、帶粗邊框) ───
 function ProgressBar({ value, color = ACCENT_ORANGE, height = 10, trackColor = '#000', borderColor = '#FFF' }) {
   return (
     <div style={{ background: trackColor, border: `2px solid ${borderColor}`, height, overflow: 'hidden' }}>
@@ -58,7 +58,6 @@ function ProgressBar({ value, color = ACCENT_ORANGE, height = 10, trackColor = '
   )
 }
 
-// ─── 粗獷版狀態點 (變成方塊) ───
 function StatusDots({ counts }) {
   return (
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -79,6 +78,14 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
   const [pptLoading, setPptLoading] = useState(false)
   const [pptHovered, setPptHovered] = useState(false)
   const [pdfHovered, setPdfHovered] = useState(false)
+
+  // 接收背景的動態變更
+  const [bgConfig, setBgConfig] = useState(() => loadSavedBgConfig())
+  useEffect(() => {
+    const handleBgChange = () => setBgConfig(loadSavedBgConfig())
+    window.addEventListener('brutalistBgChanged', handleBgChange)
+    return () => window.removeEventListener('brutalistBgChanged', handleBgChange)
+  }, [])
 
   if (!project) return null
 
@@ -807,7 +814,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
             <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
         {/* 自動填滿側邊欄寬高、防溢出的背景 */}
-        <BrutalistBackground dark={darkMode} />
+        <BrutalistBackground dark={darkMode} bgConfig={bgConfig} />
 
         {/* Header */}
         <div style={s.header}>

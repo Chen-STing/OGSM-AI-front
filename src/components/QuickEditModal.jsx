@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import BrutalistSelect from './BrutalistSelect.jsx'
 import AiConfirmDialog from './AiConfirmDialog.jsx'
 import { api } from '../services/api.js'
+import BrutalistBackground from './BrutalistBackground.jsx'
+import { loadSavedBgConfig } from '../bgConfig.js'
 
 // ── Empty factories ───────────────────────────────────────────────────────────
 const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignees: [], todos: [], sortOrder: 0 })
@@ -15,8 +17,8 @@ const B_PINK   = '#FF00FF'
 const B_RED    = 'rgb(255,15,15)'
 const B_PURPLE = '#a78bfa'
 
-const DARK  = { bg:'#222222', border:'#DDDDDD', text:'#F0F0F0', textSub:'#B8B8B8', textMuted:'#888888', inputBg:'rgba(255,255,255,0.06)', altBg:'rgba(255,255,255,0.04)', grid:'rgba(255,255,255,0.04)', scanline:'rgba(255,255,255,0.10)', headerBg:'#111111' }
-const LIGHT = { bg:'#FFFFFF', border:'#111111', text:'#111111', textSub:'#484848', textMuted:'#777777', inputBg:'rgba(0,0,0,0.04)',         altBg:'rgba(0,0,0,0.02)',   grid:'rgba(0,0,0,0.04)',         scanline:'rgba(0,0,0,0.08)',         headerBg:'#0D0D0D' }
+const DARK  = { bg:'transparent', border:'#DDDDDD', text:'#F0F0F0', textSub:'#B8B8B8', textMuted:'#888888', inputBg:'rgba(255,255,255,0.06)', altBg:'rgba(255,255,255,0.04)', grid:'rgba(255,255,255,0.04)', scanline:'rgba(255,255,255,0.10)', headerBg:'rgba(17,17,17,0.6)' }
+const LIGHT = { bg:'transparent', border:'#111111', text:'#111111', textSub:'#484848', textMuted:'#777777', inputBg:'rgba(0,0,0,0.04)',         altBg:'rgba(0,0,0,0.02)',   grid:'rgba(0,0,0,0.04)',         scanline:'rgba(0,0,0,0.08)',         headerBg:'rgba(13,13,13,0.6)' }
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const XIcon = () => (
@@ -120,13 +122,12 @@ function CollapseBlock({ label, headerTitle, headerColor, badge, defaultOpen=fal
       marginBottom: '6px',
       marginLeft:   indent ? '14px' : 0,
       overflow:     'hidden',
-      background:   T.bg,
+      background:   'transparent',
       boxShadow:    isDragOver ? `3px 3px 0 ${headerColor}` : `2px 2px 0 ${dark?'#444':'#ccc'}`,
       transition:   'border-color 0.12s, box-shadow 0.12s',
     }}>
       {/* header row */}
-      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'transparent', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
-
+      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'rgba(0,0,0,0.15)', backdropFilter:'blur(2px)', WebkitBackdropFilter:'blur(2px)', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
         {/* drag grip */}
         {dragHandleProps && (
           <div {...dragHandleProps} title="拖拉排序"
@@ -249,7 +250,7 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
 
             {/* text */}
             <textarea ref={taRef} rows={1}
-              style={{ flex:1, background:'none', border:'none', borderBottom:`1px solid ${dark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.12)'}`, color:t.done?T.textMuted:T.text, fontSize:'12px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:700, outline:'none', padding:'2px 0', resize:'none', overflow:'hidden', lineHeight:1.5, textDecoration:t.done?'line-through':'none', minWidth:0 }}
+              style={{ flex:1, background:'none', border:'none', borderBottom:`1px solid ${dark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.12)'}`, color:t.done?T.textMuted:(overdue?B_RED:T.text), fontSize:'12px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:700, outline:'none', padding:'2px 0', resize:'none', overflow:'hidden', lineHeight:1.5, textDecoration:t.done?'line-through':'none', minWidth:0 }}
               value={t.text} placeholder="MP 步驟描述…"
               onChange={e=>taChange(e,v=>update(ti,'text',v))} />
 
@@ -260,8 +261,10 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
                 onChange={v=>update(ti,'assignees',v)}
                 options={members.map(mb=>({value:mb,label:mb}))}
                 placeholder="負責人" darkMode={dark}
+                overdue={overdue}
                 style={{ width:'120px', fontSize:'11px', fontWeight:700, minHeight:'22px' }} />
               <input type="date"
+                className={overdue ? 'qe-date-overdue' : ''}
                 style={{ ...inputSm, width:'110px', fontFamily:'monospace', fontSize:'11px', color:overdue?B_RED:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), colorScheme:dark?'dark':'light' }}
                 value={t.deadline||''} onChange={e=>update(ti,'deadline',e.target.value)} />
               <button onClick={()=>remove(ti)}
@@ -276,9 +279,10 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
       })}
 
       <button onClick={addTodo}
-        style={{ marginTop:'8px', background:'none', border:'none', borderTop:`2px dashed ${T.border}`, color:T.textMuted, cursor:'pointer', fontSize:'10px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.08em', padding:'8px 0 0', width:'100%', textAlign:'left', transition:'color 0.15s' }}
-        onMouseEnter={e=>e.currentTarget.style.color=B_BLUE} onMouseLeave={e=>e.currentTarget.style.color=T.textMuted}>
-        ＋ 新增 MP 步驟
+        style={{ marginTop:'8px', background:'none', border:'none', borderTop:`2px dashed ${T.border}`, color:T.textMuted, cursor:'pointer', fontSize:'11px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.1em', padding:'9px 8px', width:'100%', textAlign:'left', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.15s' }}
+        onMouseEnter={e=>{e.currentTarget.style.background = dark ? B_BLUE : '#4338ca'; e.currentTarget.style.color = dark ? '#000' : '#fff'; e.currentTarget.style.borderTopStyle = 'solid'}}
+        onMouseLeave={e=>{e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textMuted; e.currentTarget.style.borderTopStyle = 'dashed'}}>
+        <span style={{ fontSize:'14px', lineHeight:1 }}>＋</span>新增 MP 步驟
       </button>
     </div>
   )
@@ -307,7 +311,6 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
     const isOver = m.deadline && m.deadline < today
     const newStatus = isOver&&newPct<100?'Overdue':newPct>=100?'Completed':newPct>0?'InProgress':'NotStarted'
     
-    // 已移除將 MP 負責人強制塞入 MD assignees 的行為，兩者不再連動
     onTodosChange({ todos:nextTodos, progress:newPct, status:newStatus })
   }
 
@@ -350,13 +353,13 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'14px' }}>
         <div>
-          <span style={lbl}>狀態 <span style={{ fontWeight:400, opacity:0.5, textTransform:'none', letterSpacing:0 }}>（MP 連動）</span></span>
+          <span style={lbl}>狀態</span>
           <div style={{ ...inputBase, height:'34px', padding:'0 12px', display:'flex', alignItems:'center', color:STATUS_COLOR[m.status]||STATUS_COLOR.NotStarted, fontSize:'12px', fontWeight:900, userSelect:'none' }}>
             {STATUS_OPTIONS.find(o=>o.value===(m.status||'NotStarted'))?.label??'未開始'}
           </div>
         </div>
         <div>
-          <span style={lbl}>進度 <span style={{ fontWeight:400, opacity:0.5, textTransform:'none', letterSpacing:0 }}>（MP 連動）{pct}%</span></span>
+          <span style={lbl}>進度</span>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'6px' }}>
             <div style={{ flex:1, height:'6px', background:dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', overflow:'hidden', border:`1px solid ${T.border}` }}>
               <div style={{ height:'100%', width:`${pct}%`, background:pct>=100?B_GREEN:pct>=60?B_BLUE:pct>=30?B_YELLOW:B_RED, transition:'width 0.3s,background 0.3s' }} />
@@ -396,6 +399,13 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
   // drag: measures inside strategy (goal mode)
   const [dragGM, setDragGM] = useState(null)  // {si,mi}
   const [overGM, setOverGM] = useState(null)  // {si,mi}
+
+  const [bgConfig, setBgConfig] = useState(() => loadSavedBgConfig())
+  useEffect(() => {
+    const handleBgChange = () => setBgConfig(loadSavedBgConfig())
+    window.addEventListener('brutalistBgChanged', handleBgChange)
+    return () => window.removeEventListener('brutalistBgChanged', handleBgChange)
+  }, [])
 
   const overlayRef = useRef(null)
   const T  = dark ? DARK : LIGHT
@@ -457,14 +467,20 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
   }
 
   // ── body ──────────────────────────────────────────────────────────────────
-  const AddRowBtn = ({ label:btnLabel, color, forType, si=null }) => (
-    <button onClick={()=>setChoice({forType,si})}
-      style={{ width:'100%', background:'none', border:'none', borderTop:`2px dashed ${color??T.border}`, color:color??T.textMuted, cursor:'pointer', padding:'9px 4px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'10px', textTransform:'uppercase', letterSpacing:'0.1em', textAlign:'left', display:'flex', alignItems:'center', gap:'6px', transition:'color 0.15s' }}
-      onMouseEnter={e=>e.currentTarget.style.color=color??B_YELLOW}
-      onMouseLeave={e=>e.currentTarget.style.color=color??T.textMuted}>
-      <span style={{ fontSize:'14px', lineHeight:1 }}>＋</span>{btnLabel}
-    </button>
-  )
+  const AddRowBtn = ({ label:btnLabel, color, forType, si=null }) => {
+    const hoverBg = color ?? (dark ? B_YELLOW : '#b8a800')
+    const hoverText = dark ? '#000' : '#fff'
+    const baseText = color ?? T.textMuted
+
+    return (
+      <button onClick={()=>setChoice({forType,si})}
+        style={{ width:'100%', background:'none', border:'none', borderTop:`2px dashed ${color??T.border}`, color:baseText, cursor:'pointer', padding:'9px 8px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.1em', textAlign:'left', display:'flex', alignItems:'center', gap:'6px', transition:'all 0.15s' }}
+        onMouseEnter={e=>{e.currentTarget.style.background=hoverBg; e.currentTarget.style.color=hoverText; e.currentTarget.style.borderTopStyle='solid'}}
+        onMouseLeave={e=>{e.currentTarget.style.background='none'; e.currentTarget.style.color=baseText; e.currentTarget.style.borderTopStyle='dashed'}}>
+        <span style={{ fontSize:'14px', lineHeight:1 }}>＋</span>{btnLabel}
+      </button>
+    )
+  }
 
   const renderBody = () => {
 
@@ -501,11 +517,11 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
                       dragHandleProps={{ draggable:true, onDragStart:e=>{e.stopPropagation();setDragGM({si,mi});e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',`${si}-${mi}`)} }} />
                   </div>
                 ))}
-                <AddRowBtn label="新增 MD 定量指標" color={B_PURPLE} forType="measure" si={si} />
+                <AddRowBtn label="新增 MD 定量指標" color={dark ? B_PURPLE : '#7c3aed'} forType="measure" si={si} />
               </CollapseBlock>
             </div>
           ))}
-          <AddRowBtn label="新增 Strategy" color={B_GREEN} forType="strategy" />
+          <AddRowBtn label="新增 Strategy" color={dark ? B_GREEN : '#1a9e1a'} forType="strategy" />
         </>
       )
     }
@@ -528,7 +544,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
                 dragHandleProps={{ draggable:true, onDragStart:e=>{e.stopPropagation();setDragMI(mi);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(mi))} }} />
             </div>
           ))}
-          <AddRowBtn label="新增 MD 定量指標" color={B_PURPLE} forType="measure" />
+          <AddRowBtn label="新增 MD 定量指標" color={dark ? B_PURPLE : '#7c3aed'} forType="measure" />
         </>
       )
     }
@@ -545,19 +561,16 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
         @keyframes qe-pop  { from{transform:scale(0.88);opacity:0} to{transform:scale(1);opacity:1} }
         @keyframes qe-scan { 0%{top:-4px} 100%{top:100%} }
         @keyframes qe-spin { to{transform:rotate(360deg)} }
+        .qe-date-overdue::-webkit-calendar-picker-indicator { filter: brightness(0) saturate(100%) invert(12%) sepia(90%) saturate(6000%) hue-rotate(0deg) brightness(85%) !important; }
       `}</style>
 
       {/* backdrop */}
       <div ref={overlayRef} onClick={e=>{if(e.target===overlayRef.current)onClose()}}
-        style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(6px)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
-
+        style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
         {/* modal */}
-        <div style={{ background:T.bg, border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${dark?'#223fce':'#7389dd'}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', maxHeight:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
-
-          {/* grid */}
-          <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, backgroundImage:`linear-gradient(to right,${T.grid} 1px,transparent 1px),linear-gradient(to bottom,${T.grid} 1px,transparent 1px)`, backgroundSize:'20px 20px' }} />
-          {/* scanline */}
-          <div style={{ position:'absolute', left:0, right:0, height:'2px', background:`linear-gradient(to right,transparent,${T.scanline},transparent)`, animation:'qe-scan 3s linear infinite', zIndex:1, pointerEvents:'none' }} />
+          <div style={{ background:'transparent', border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${dark?'#223fce':'#7389dd'}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', maxHeight:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
+            
+            <BrutalistBackground dark={dark} bgConfig={bgConfig} />
 
           {/* header */}
           <div style={{ position:'relative', zIndex:2, background:T.headerBg, padding:'14px 24px', borderBottom:`3px solid ${accentColor}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
@@ -582,9 +595,8 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
           </div>
 
           {/* footer */}
-          <div style={{ position:'relative', zIndex:2, background:T.bg, padding:'14px 24px', borderTop:`3px solid ${T.border}`, display:'flex', justifyContent:'flex-end', gap:'12px', flexShrink:0 }}>
-            <button onClick={onClose} data-bg={T.bg} data-hover={dark?'#444':'#e8e8e8'}
-              style={{ background:T.bg, border:`3px solid ${T.border}`, color:T.text, fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px', textTransform:'uppercase', letterSpacing:'0.08em', padding:'9px 22px', cursor:'pointer', boxShadow:`4px 4px 0 0 ${sh}`, transition:'all 0.15s' }}
+          <div style={{ position:'relative', zIndex:2, background:'transparent', padding:'14px 24px', display:'flex', justifyContent:'flex-end', gap:'12px', flexShrink:0 }}>            <button onClick={onClose} data-bg={'transparent'} data-hover={dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}
+              style={{ background:'transparent', border:`3px solid ${T.border}`, color:T.text, fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px', textTransform:'uppercase', letterSpacing:'0.08em', padding:'9px 22px', cursor:'pointer', boxShadow:`4px 4px 0 0 ${sh}`, transition:'all 0.15s' }}
               {...btnH}>取消</button>
             <button onClick={()=>onSave(local)} data-bg={accentColor} data-hover={dark?'#223fce':'#7389dd'}
               style={{ background:accentColor, border:`3px solid ${dark?'#a9a9a9':'#000'}`, color:'#000', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px', textTransform:'uppercase', letterSpacing:'0.08em', padding:'9px 28px', cursor:'pointer', boxShadow:`4px 4px 0 0 ${sh}`, transition:'all 0.15s' }}

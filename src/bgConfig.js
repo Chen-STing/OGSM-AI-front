@@ -38,9 +38,6 @@ export const DEFAULT_CONFIG = {
 }
 
 // ─── Modal shape original data (per modal) ────────────────────────────────────
-// Each modal has exactly 1 star, 1 cross, 1 circle, 1 tri — all decorative.
-// Counts are stored as { starCount, circleCount, crossCount, triCount }, max 3 each.
-
 export const MODAL_SS_KEYS = {
   generate: 'brutalist-modal-generate',
   member:   'brutalist-modal-member',
@@ -53,7 +50,6 @@ export const MODAL_DEFAULT_CONFIGS = {
   aiconfirm:{ starCount: 1, circleCount: 1, crossCount: 1, triCount: 1 },
 }
 
-// Original shape specs for each modal (positions/colors from source)
 export const MODAL_ORIGINAL_SHAPES = {
   generate: {
     stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#00FF00', size: 240, anim: 'gm-starFloat 20s infinite ease-in-out' }],
@@ -96,7 +92,6 @@ export function genItems(count, seed, sizeMin, sizeMax) {
   }))
 }
 
-// Modal random shapes — seeded by modal key + shape type
 const MODAL_SEEDS = {
   generate:  { star: 0xAA11BB22, cross: 0xCC33DD44, circle: 0xEE55FF66, tri: 0x11223344 },
   member:    { star: 0x55667788, cross: 0x99AABBCC, circle: 0xDDEEFF00, tri: 0x12345678 },
@@ -109,11 +104,6 @@ const MODAL_ANIM_PREFIXES = {
   aiconfirm: { star: 'acd-starFloat', cross: 'acd-crossFloat', circle: 'acd-circleFloat', tri: 'acd-triFloat' },
 }
 
-const MODAL_SIZES = {
-  star:   [80, 180], cross: [30, 80], circle: [40, 100], tri: [50, 120],
-}
-
-// Generate random positions for modal shapes (fully free distribution)
 function modalRandItems(count, seed, sizeMin, sizeMax, prefix) {
   const r = seededRand(seed)
   return Array.from({ length: Math.min(count, 3) }, () => ({
@@ -150,6 +140,7 @@ export function genModalShapes(modalKey, config, userSeed) {
 const SS_KEY = 'brutalist-bg-config'
 export const SS_EXP_KEY = 'brutalist-exp-settings'
 export const DEFAULT_EXP = { clickEffect: true, customCursor: true }
+
 export function loadSavedExpSettings() { 
   try {
     const raw = sessionStorage.getItem(SS_EXP_KEY)
@@ -169,8 +160,20 @@ export function ssLoad(key) {
   } catch {}
   return null
 }
-export function ssSave(cfg, key)  { try { sessionStorage.setItem(key ?? SS_KEY, JSON.stringify(cfg)) } catch {} }
-export function ssClear(key)      { try { sessionStorage.removeItem(key ?? SS_KEY) } catch {} }
+
+export function ssSave(cfg, key) { 
+  try { 
+    sessionStorage.setItem(key ?? SS_KEY, JSON.stringify(cfg));
+    window.dispatchEvent(new Event('brutalistBgChanged'));
+  } catch {} 
+}
+
+export function ssClear(key) { 
+  try { 
+    sessionStorage.removeItem(key ?? SS_KEY);
+    window.dispatchEvent(new Event('brutalistBgChanged'));
+  } catch {} 
+}
 
 export function loadSavedBgConfig()    { return ssLoad(SS_KEY) ?? { ...DEFAULT_CONFIG } }
 export function loadSavedModalConfig(modalKey) {

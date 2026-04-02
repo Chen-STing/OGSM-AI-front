@@ -550,7 +550,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {/* ── Table (利用 100% 寬度與 ResizeObserver 動態分配比例) ── */}
       <div style={{ flex: 1, minHeight: 0, padding: '12px 24px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div ref={scrollRef} data-scroll-container="" style={{ flex: 1, overflow: 'auto', background: dark ? 'rgba(10,10,10,0.35)' : 'rgba(255,255,255,0.35)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`, boxShadow: `4px 4px 0 ${dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }} className="custom-scrollbar" onDragOver={handleScrollZoneDragOver} onDragEnd={handleScrollZoneDragEnd} onDrop={handleScrollZoneDragEnd}>
+        <div ref={scrollRef} data-scroll-container="" style={{ flex: 1, overflow: 'auto', background: dark ? 'rgba(36, 36, 36, 0.35)' : 'rgba(255,255,255,0.35)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}`, boxShadow: `4px 4px 0 ${dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}` }} className="custom-scrollbar" onDragOver={handleScrollZoneDragOver} onDragEnd={handleScrollZoneDragEnd} onDrop={handleScrollZoneDragEnd}>
           <div style={{ width: '100%', minWidth: `${baseTotalW}px` }}>
             
             {/* Table Header (Sticky) */}
