@@ -838,6 +838,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                 boxShadow: darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
                 opacity: pptLoading ? 0.5 : 1,
                 transition: 'all 0.15s',
+                cursor: pptLoading ? 'not-allowed' : 'pointer',
               }}
               onMouseEnter={e => {
                 if (pptLoading) return;
@@ -881,6 +882,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                 boxShadow: darkMode ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000',
                 opacity: pdfLoading ? 0.5 : 1,
                 transition: 'all 0.15s',
+                cursor: pdfLoading ? 'not-allowed' : 'pointer',
               }}
               onMouseEnter={e => {
                 if (pdfLoading) return;

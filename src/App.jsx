@@ -565,7 +565,7 @@ export default function App() {
           transition: 'border-color 0.15s ease-out', display: "flex", justifyContent: "space-between", alignItems: "flex-start" 
         }}>
           <div onClick={goHome} className="cursor-pointer">
-            <h1 ref={sidebarTitleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "20px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0 }}
+            <h1 ref={sidebarTitleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "20px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0, cursor: 'pointer' }}
 
               onMouseEnter={e => { e.currentTarget.style.opacity = "0.6" }}
               onMouseLeave={e => { if (isEditorExiting || transition !== 'idle') return; e.currentTarget.style.opacity = 1; }}
@@ -587,13 +587,13 @@ export default function App() {
             <button className="ai-action-hover" onClick={() => setShowGenerate(true)}
               onMouseEnter={e => { setAiGenerateHovered(true); if (dark) e.currentTarget.style.boxShadow = '6px 6px 0 0 #131313'; }}
               onMouseLeave={e => { setAiGenerateHovered(false); e.currentTarget.style.boxShadow = '4px 4px 0 0 #000'; }}
-              style={{ flex: 1, height: "42px", background: aiGenerateHovered ? '#FF0000' : ACCENT_YELLOW, color: aiGenerateHovered ? '#fff' : "#000", border: "4px solid #000", boxShadow: '4px 4px 0 0 #000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' }}>
+              style={{ flex: 1, height: "42px", background: aiGenerateHovered ? '#FF0000' : ACCENT_YELLOW, color: aiGenerateHovered ? '#fff' : "#000", border: "4px solid #000", boxShadow: '4px 4px 0 0 #000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s', cursor: 'pointer' }}>
               <Zap size={20} fill="currentColor" /> AI 生成 OGSM
             </button>
             <button className="b-action-hover" onClick={() => setShowMembers(true)}
               onMouseEnter={() => setMembersHovered(true)}
               onMouseLeave={() => setMembersHovered(false)}
-              style={{ width: "42px", height: "42px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s' }}
+              style={{ width: "42px", height: "42px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s', cursor: 'pointer' }}
               title="負責人管理">
               <Users size={22} />
               <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: membersHovered ? '#FF00FF' : "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: `2px solid ${membersHovered ? '#FF00FF' : '#fff'}`, borderRadius: "12px", transition: 'all 0.15s' }}>

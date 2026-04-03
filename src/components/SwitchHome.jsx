@@ -389,7 +389,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
         <h1 ref={titleRef} onClick={onBack} className="cursor-pointer"
           style={{ 
             fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(20px, 3vw, 40px)", lineHeight: 0.85, 
-            letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0
+            letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, cursor: 'pointer'
           }}
           onMouseEnter={e => { if(!exitingTo) e.currentTarget.style.opacity = "0.6" }}
           onMouseLeave={e => { if(!exitingTo) e.currentTarget.style.opacity = "1" }}

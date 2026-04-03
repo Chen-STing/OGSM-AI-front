@@ -60,7 +60,7 @@ const CSS = `
   @keyframes konami-cheat-in{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
   .k-btn{transition:all 0.15s}
   .konami-tab{cursor:pointer;transition:all 0.12s;user-select:none}
-  .custom-cursor .konami-tab{cursor:${CURSOR_HAND_URL}}
+  .custom-cursor .konami-tab{cursor:${CURSOR_HAND_URL}!important}
   .konami-tab:hover{opacity:1!important}
   .k-slider{-webkit-appearance:none;appearance:none;width:100%;height:4px;outline:none;cursor:${CURSOR_HAND_URL};background:rgba(128,128,128,0.2);border-radius:2px}
   .k-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border:3px solid #000;border-radius:0;cursor:${CURSOR_HAND_URL}}
