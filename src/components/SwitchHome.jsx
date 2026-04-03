@@ -247,14 +247,19 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       const vh = window.innerHeight;
 
       if (exitingTo === 'editor') {
+        const ew = window.innerWidth;
+        const shSize = 20; // 改為 Editor 的 20px
+        // 取 Editor 目標絕對位置，左距 24px, 上距 16px (與上方 App.jsx 的 padding 相呼應)
         targetX = 24 - rect.left;
-        targetY = 24 - rect.top;
-        scale = 24 / currentFontSize;
+        targetY = 16 - rect.top;
+        scale = shSize / currentFontSize;
       } else if (exitingTo === 'home') {
-        // 放大的座標運算：對準 HomePage 的 Margin 與 Padding
-        targetX = Math.max(0, (vw - 1400) / 2) + 128 - rect.left;
-        targetY = (window.__OGSM_HOME_RECT__?.top || vh * 0.35) - rect.top;
-        const homeSize = Math.max(80, Math.min(vw * 0.1, 110));
+        // 放大的座標運算：對準 HomePage 的字型大小與快取座標
+        const exactLeft = window.__OGSM_HOME_RECT__?.left ?? (Math.max(0, (vw - 1400) / 2) + 64);
+        const exactTop = window.__OGSM_HOME_RECT__?.top ?? (vh * 0.35);
+        targetX = exactLeft - rect.left;
+        targetY = exactTop - rect.top;
+        const homeSize = window.__OGSM_HOME_SIZE__ ?? Math.max(80, Math.min(vw * 0.1, 100)); // 對齊首頁的 100
         scale = homeSize / currentFontSize;
       }
 
@@ -383,7 +388,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
         {/* 恢復這裡的標題運算，不套用 CSS 動畫 */}
         <h1 ref={titleRef} onClick={onBack} className="cursor-pointer"
           style={{ 
-            fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(24px, 3vw, 36px)", lineHeight: 0.85, 
+            fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(20px, 3vw, 40px)", lineHeight: 0.85, 
             letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0
           }}
           onMouseEnter={e => { if(!exitingTo) e.currentTarget.style.opacity = "0.6" }}

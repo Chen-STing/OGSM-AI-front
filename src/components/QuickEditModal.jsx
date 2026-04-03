@@ -10,7 +10,7 @@ const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progre
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-const B_YELLOW = '#FFFF00'
+const B_YELLOW = '#b7b717'
 const B_GREEN  = '#00FF00'
 const B_BLUE   = '#5e5eea'
 const B_PINK   = '#FF00FF'
@@ -115,6 +115,8 @@ function AddChoiceDialog({ itemLabel, dark, onManual, onAi, onClose }) {
 function CollapseBlock({ label, headerTitle, headerColor, badge, defaultOpen=false, dark, indent=false, onDelete, onTitleChange, dragHandleProps, isDragOver, children }) {
   const [open, setOpen] = useState(defaultOpen)
   const T = dark ? DARK : LIGHT
+  const _shadowMap = { [B_YELLOW]: dark?'#3a3800':'#4a4a00', [B_GREEN]: dark?'#004400':'#006600', [B_BLUE]: dark?'#16168c':'#2020b0', [B_PURPLE]: dark?'#3d1472':'#5020a0' }
+  const baseShadow = _shadowMap[headerColor] ?? (dark ? '#444' : '#ccc')
 
   return (
     <div style={{
@@ -123,11 +125,11 @@ function CollapseBlock({ label, headerTitle, headerColor, badge, defaultOpen=fal
       marginLeft:   indent ? '14px' : 0,
       overflow:     'hidden',
       background:   'transparent',
-      boxShadow:    isDragOver ? `3px 3px 0 ${headerColor}` : `2px 2px 0 ${dark?'#444':'#ccc'}`,
+      boxShadow:    `2px 2px 0 ${baseShadow}`,
       transition:   'border-color 0.12s, box-shadow 0.12s',
     }}>
       {/* header row */}
-      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'rgba(0,0,0,0.15)', backdropFilter:'blur(2px)', WebkitBackdropFilter:'blur(2px)', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
+      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'rgba(0,0,0,0.15)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
         {/* drag grip */}
         {dragHandleProps && (
           <div {...dragHandleProps} title="拖拉排序"
@@ -186,9 +188,10 @@ const STATUS_OPTIONS = [
 const STATUS_COLOR = { NotStarted:'#a8b4c9', InProgress:'#3b9ede', Completed:'#4caf7d', Overdue:'#e05252' }
 
 // ─── MP LIST with drag ────────────────────────────────────────────────────────
-function MpList({ todos, mpLabel, members, dark, onChange }) {
+function MpList({ todos, mpLabel, members, dark, onChange, maxDate = '' }) {
   const T = dark ? DARK : LIGHT
   const today = todayStr()
+  const overdueRed = '#f12222'
   const [dragIdx, setDragIdx] = useState(null)
   const [overIdx, setOverIdx] = useState(null)
   const dragReadyRef = useRef(null)
@@ -227,7 +230,7 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
               padding:'5px 8px', marginBottom:'3px',
               background:isOver?(dark?'rgba(94,94,234,0.18)':'rgba(94,94,234,0.08)'):(dark?'rgba(94,94,234,0.06)':'rgba(94,94,234,0.025)'),
               border:`1px solid ${isOver?B_BLUE:T.border}`,
-              borderLeft:`3px solid ${overdue?B_RED:B_BLUE}`,
+              borderLeft:`3px solid ${overdue?overdueRed:B_BLUE}`,
               opacity:dragIdx===ti?0.35:1, transition:'opacity 0.12s,border-color 0.12s,background 0.12s',
             }}>
 
@@ -250,7 +253,7 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
 
             {/* text */}
             <textarea ref={taRef} rows={1}
-              style={{ flex:1, background:'none', border:'none', borderBottom:`1px solid ${dark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.12)'}`, color:t.done?T.textMuted:(overdue?B_RED:T.text), fontSize:'12px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:700, outline:'none', padding:'2px 0', resize:'none', overflow:'hidden', lineHeight:1.5, textDecoration:t.done?'line-through':'none', minWidth:0 }}
+              style={{ flex:1, background:'none', border:'none', borderBottom:`1px solid ${dark?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.12)'}`, color:t.done?T.textMuted:(overdue?overdueRed:T.text), fontSize:'12px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:700, outline:'none', padding:'2px 0', resize:'none', overflow:'hidden', lineHeight:1.5, textDecoration:t.done?'line-through':'none', minWidth:0 }}
               value={t.text} placeholder="MP 步驟描述…"
               onChange={e=>taChange(e,v=>update(ti,'text',v))} />
 
@@ -265,8 +268,8 @@ function MpList({ todos, mpLabel, members, dark, onChange }) {
                 style={{ width:'120px', fontSize:'11px', fontWeight:700, minHeight:'22px' }} />
               <input type="date"
                 className={overdue ? 'qe-date-overdue' : ''}
-                style={{ ...inputSm, width:'110px', fontFamily:'monospace', fontSize:'11px', color:overdue?B_RED:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), colorScheme:dark?'dark':'light' }}
-                value={t.deadline||''} onChange={e=>update(ti,'deadline',e.target.value)} />
+                style={{ ...inputSm, width:'110px', fontFamily:'monospace', fontSize:'11px', color:overdue?overdueRed:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), colorScheme:dark?'dark':'light', ...(overdue?{border:`1px solid ${overdueRed}`}:{}) }}
+                value={t.deadline||''} max={maxDate||undefined} onChange={e=>update(ti,'deadline',e.target.value)} />
               <button onClick={()=>remove(ti)}
                 style={{ background:'transparent', border:`2px solid ${B_RED}`, color:B_RED, cursor:'pointer', padding:0, width:'22px', height:'22px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'14px', lineHeight:1, fontWeight:900, transition:'all 0.15s' }}
                 onMouseEnter={e=>{e.currentTarget.style.background=B_RED;e.currentTarget.style.color='#000';e.currentTarget.style.transform='translate(-1px,-1px)';e.currentTarget.style.boxShadow='2px 2px 0 #000'}}
@@ -369,7 +372,7 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
         </div>
       </div>
       <CollapseBlock label="MP 檢核步驟" headerColor={B_BLUE} badge={`${doneCount} / ${todos.length} 完成`} defaultOpen={todos.length>0} dark={dark}>
-        <MpList todos={todos} mpLabel={mdLabel} members={members} dark={dark} onChange={handleTodosChange} />
+        <MpList todos={todos} mpLabel={mdLabel} members={members} dark={dark} onChange={handleTodosChange} maxDate={m.deadline||''} />
       </CollapseBlock>
     </>
   )
@@ -411,6 +414,8 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
   const T  = dark ? DARK : LIGHT
   const sh = dark ? '#686868' : '#000'
   const accentColor = type==='goal'?B_YELLOW:type==='strategy'?B_GREEN:B_PURPLE
+  const _accentShadowMap = { [B_YELLOW]: dark?'#3a3800':'#4a4a00', [B_GREEN]: dark?'#006600':'#004400', [B_PURPLE]: dark?'#3d1472':'#5020a0' }
+  const accentShadow = _accentShadowMap[accentColor] ?? (dark?'#223fce':'#7389dd')
 
   const inputBase = {
     background:T.inputBg, border:`2px solid ${T.border}`, color:T.text,
@@ -420,7 +425,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
   }
 
   // ── state helpers ─────────────────────────────────────────────────────────
-  const setGoalText      = v        => setLocal(l=>({...l,goal:{...l,goal,text:v}}))
+  const setGoalText      = v        => setLocal(l=>({...l,goal:{...l.goal,text:v}}))
   const setStratText     = (si,v)   => setLocal(l=>({...l,strategies:l.strategies.map((s,i)=>i!==si?s:{...s,text:v})}))
   const setGoalMField    = (si,mi,f,v) => setLocal(l=>({...l,strategies:l.strategies.map((s,i)=>i!==si?s:{...s,measures:s.measures.map((m,j)=>j!==mi?m:{...m,[f]:v})})}))
   const setGoalTodos     = (si,mi,p)   => setLocal(l=>({...l,strategies:l.strategies.map((s,i)=>i!==si?s:{...s,measures:s.measures.map((m,j)=>j!==mi?m:{...m,...p})})}))
@@ -497,7 +502,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
               style={{ opacity:dragSI===si?0.35:1, transition:'opacity 0.12s' }}>
               <CollapseBlock
                 label={`Strategy  S${gNum}.${si+1}`}
-                headerTitle={st.text||''} headerColor={B_GREEN}
+                headerTitle={st.text||''} headerColor={dark ? B_GREEN : '#1a9e1a'} indent
                 defaultOpen={false} dark={dark}
                 onDelete={()=>removeStrategy(si)}
                 onTitleChange={v=>setStratText(si,v)}
@@ -568,12 +573,12 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
       <div ref={overlayRef} onClick={e=>{if(e.target===overlayRef.current)onClose()}}
         style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
         {/* modal */}
-          <div style={{ background:'transparent', border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${dark?'#223fce':'#7389dd'}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', maxHeight:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
+          <div style={{ background:'transparent', border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${accentShadow}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', maxHeight:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
             
             <BrutalistBackground dark={dark} bgConfig={bgConfig} />
 
           {/* header */}
-          <div style={{ position:'relative', zIndex:2, background:T.headerBg, padding:'14px 24px', borderBottom:`3px solid ${accentColor}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ position:'relative', zIndex:2, background:T.headerBg, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', padding:'14px 24px', borderBottom:`3px solid ${accentColor}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flex:1, minWidth:0 }}>
               <div style={{ background:accentColor, color:'#000', padding:'6px 12px', fontSize:'10px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', flexShrink:0 }}>{label}</div>
               <input

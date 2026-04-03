@@ -147,8 +147,8 @@ export default function BrutalistSelect({
     ? { bg: '#1e1e1e', border: '#fff', text: '#fff', hoverBg: '#0000FF', hoverText: '#fff', activeBg: '#FFFF00', activeText: '#000' }
     : { bg: '#fff',    border: '#000', text: '#000', hoverBg: '#0000FF', hoverText: '#fff', activeBg: '#b8a800', activeText: '#000' }
 
-  const borderColor = overdue ? '#cc0000' : T.border
-  const textColor   = overdue ? '#cc0000' : T.text
+  const borderColor = overdue ? '#f12222' : T.border
+  const textColor   = overdue ? '#f12222' : T.text
 
   return (
     <>
@@ -193,21 +193,21 @@ export default function BrutalistSelect({
                       onChange(selectedValues.filter(x => x !== v))
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = overdue ? 'rgba(204,0,0,0.35)' : (darkMode ? 'rgba(255,0,0,0.35)' : 'rgba(255,0,0,0.12)')
-                      e.currentTarget.style.borderColor = overdue ? '#cc0000' : '#ff0000'
+                      e.currentTarget.style.background = overdue ? 'rgba(241,34,34,0.25)' : (darkMode ? 'rgba(255,0,0,0.35)' : 'rgba(255,0,0,0.12)')
+                      e.currentTarget.style.borderColor = overdue ? '#f12222' : '#ff0000'
                       e.currentTarget.querySelector('span').style.opacity = '1'
                       e.currentTarget.querySelector('span').style.color = '#ff0000'
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = overdue ? 'rgba(204,0,0,0.15)' : (darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)')
-                      e.currentTarget.style.borderColor = overdue ? '#cc0000' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')
+                      e.currentTarget.style.borderColor = overdue ? '#f12222' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')
                       e.currentTarget.querySelector('span').style.opacity = '0.6'
                       e.currentTarget.querySelector('span').style.color = ''
                     }}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: '3px',
-                      background: overdue ? 'rgba(204,0,0,0.15)' : (darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
-                      border: `1px solid ${overdue ? '#cc0000' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')}`,
+                      background: overdue ? 'rgba(241,34,34,0.15)' : (darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'),
+                      border: `1px solid ${overdue ? '#f12222' : (darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)')}`,
                       padding: '1px 5px 1px 6px',
                       fontSize: '0.9em',
                       fontWeight: 700,

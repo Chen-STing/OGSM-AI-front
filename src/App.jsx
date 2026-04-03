@@ -9,7 +9,12 @@ import MemberSettings from './components/MemberSettings.jsx';
 import AuditPanel from './components/AuditPanel.jsx';
 import BrutalistBackground from './components/BrutalistBackground.jsx';
 import KonamiCode from './components/KonamiCode.jsx';
+import CipherPopup, { CipherApi } from './components/CipherPopup.jsx';
+import TranslationPopup from './components/TranslationPopup.jsx';
 import { loadSavedBgConfig, loadSavedModalConfig, loadSavedExpSettings } from './bgConfig.js';
+import { parseRoute, navigate } from './utils/router.js';
+import { TRANSLATION_CSS } from './styles/appCss.js';
+// ─────────────────────────────────────────────────────────────────────────────
 
 const ACCENT_BLUE   = "#0000FF";
 const ACCENT_PINK   = "#FF00FF";
@@ -155,21 +160,6 @@ const BRUTALIST_CSS = `
   .editor-main-exiting    { animation: block-exit-right 0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
 `;
 
-function parseRoute(pathname = window.location.pathname) {
-  const clean = pathname.replace(/\/+$/, '') || '/';
-  if (clean === '/') return { page: 'home' };
-  if (clean === '/management') return { page: 'projects' };
-  const match = clean.match(/^\/management\/(.+)$/);
-  if (match) return { page: 'editor', id: decodeURIComponent(match[1]) };
-  return { page: 'home' };
-}
-
-function navigate(path, replace = false) {
-  if (replace) window.history.replaceState(null, '', path);
-  else window.history.pushState(null, '', path);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
-
 function EmptyState() { return null; }
 function Toast({ toast }) { return null; }
 function ClickBurst({ x, y }) {
@@ -202,6 +192,13 @@ export default function App() {
   const [darkToggleHovered, setDarkToggleHovered] = useState(false);
   const [aiGenerateHovered, setAiGenerateHovered] = useState(false);
   const [expSettings, setExpSettings] = useState(loadSavedExpSettings);
+
+  // ── Translation popup state ──
+  const [translatePopup, setTranslatePopup] = useState(null); // { result, position, loading }
+
+  // ── Cipher popup state ──
+  // { position, mode: 'encrypt'|'decrypt', replaceTarget, onCipher }
+  const [cipherPopup, setCipherPopup] = useState(null);
 
   useEffect(() => {
     const onPop = () => setRoute(parseRoute());
@@ -254,6 +251,116 @@ export default function App() {
     else document.body.classList.remove('custom-cursor');
     return () => document.body.classList.remove('custom-cursor');
   }, [expSettings.customCursor]);
+
+  // ── 快捷鍵：翻譯 + 加解密（統一管理，capture phase 優先攔截）──
+  // Alt + Numpad1  中↔英
+  // Alt + Numpad2  中↔日
+  // Alt + Numpad3  中↔越
+  // Alt + Numpad4  中↔韓
+  // Alt + Numpad5  中↔阿
+  // Alt + Numpad6  中↔西
+  // Alt + Numpad7  中↔俄
+  // Alt + Numpad8  中↔法
+  // Alt + Numpad9  加密 / 解密
+  useEffect(() => {
+    const TRANSLATE_HOTKEYS = {
+      'Numpad1': 'zh-en', 'Numpad2': 'zh-ja', 'Numpad3': 'zh-vi',
+      'Numpad4': 'zh-ko', 'Numpad5': 'zh-ar', 'Numpad6': 'zh-es',
+      'Numpad7': 'zh-ru', 'Numpad8': 'zh-fr'
+    };
+
+    const getSelectionInfo = () => {
+      const activeEl   = document.activeElement;
+      const isEditable = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+      let text = '', replaceTarget = null, position = { x: 0, y: 0 };
+
+      if (isEditable) {
+        const { selectionStart, selectionEnd, value } = activeEl;
+        if (!value || selectionStart == null || selectionEnd == null || selectionStart === selectionEnd) return null;
+        text = value.slice(selectionStart, selectionEnd).trim();
+        if (!text) return null;
+        replaceTarget = { element: activeEl, start: selectionStart, end: selectionEnd };
+        const rect = activeEl.getBoundingClientRect();
+        position = { x: rect.left, y: rect.bottom };
+      } else {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return null;
+        text = sel.toString().trim();
+        if (!text) return null;
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        position = { x: rect.left, y: rect.bottom };
+      }
+      return { text, replaceTarget, position };
+    };
+
+    const handleKeyDown = async (e) => {
+      if (!e.altKey) return;
+
+      // 翻譯
+      const mode = TRANSLATE_HOTKEYS[e.code];
+      if (mode) {
+        e.preventDefault();
+        const info = getSelectionInfo();
+        if (!info || info.text.length > 2000) return;
+        const { text, replaceTarget, position } = info;
+        setTranslatePopup({ result: null, position, loading: true, mode, replaceTarget });
+        try {
+          const res = await fetch('/api/translation/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, mode }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          setTranslatePopup(prev => prev ? { ...prev, result: data?.translated?.trim() ?? null, loading: false } : null);
+        } catch {
+          setTranslatePopup(prev => prev ? { ...prev, result: null, loading: false } : null);
+        }
+        return;
+      }
+
+      // 加解密
+      if (e.code === 'Numpad9') {
+        e.preventDefault();
+        const info = getSelectionInfo();
+        if (!info) return;
+        const { text, replaceTarget, position } = info;
+        const cipherMode = CipherApi.isEncrypted(text) ? 'decrypt' : 'encrypt';
+        const onCipher   = (password) =>
+          cipherMode === 'encrypt'
+            ? CipherApi.encrypt(text, password)
+            : CipherApi.decrypt(text, password);
+        setCipherPopup({ position, mode: cipherMode, replaceTarget, onCipher });
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
+
+  // ── 翻譯結果替換 ─────────────────────────────────────────
+  const handleTranslationReplace = useCallback((translated) => {
+    if (!translatePopup?.replaceTarget) return;
+    const { element, start, end } = translatePopup.replaceTarget;
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.focus();
+      element.setRangeText(translated, start, end, 'end');
+      element.dispatchEvent(new Event('input',  { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, [translatePopup]);
+
+  // ── 加解密結果替換 ────────────────────────────────────────
+  const handleCipherReplace = useCallback((ciphered) => {
+    if (!cipherPopup?.replaceTarget) return;
+    const { element, start, end } = cipherPopup.replaceTarget;
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.focus();
+      element.setRangeText(ciphered, start, end, 'end');
+      element.dispatchEvent(new Event('input',  { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, [cipherPopup]);
 
   const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
@@ -404,7 +511,7 @@ export default function App() {
       el.style.transform = "none";
       
       const rect = el.getBoundingClientRect();
-      const currentFontSize = 24; // 側邊欄標題目前大小
+      const currentFontSize = parseFloat(window.getComputedStyle(el).fontSize); // 動態取得實際大小，避免 hardcode
       let targetX = 0, targetY = 0, scale = 1;
       
       const cw = document.documentElement.clientWidth;
@@ -413,7 +520,7 @@ export default function App() {
         // 飛向管理專案頁 (SwitchHome)
         targetX = 48 - rect.left;
         targetY = 32 - rect.top;
-        const shSize = Math.max(24, Math.min(cw * 0.03, 36)); 
+        const shSize = Math.max(20, Math.min(cw * 0.03, 40)); 
         scale = shSize / currentFontSize;
       } else { 
         // ✨ 飛向首頁 (HomePage)：直接讀取首頁留下的快取座標 (比照原本的做法)
@@ -424,7 +531,7 @@ export default function App() {
         targetY = exactTop - rect.top;
         
         // 讀取首頁標題大小的快取
-        const homeSize = window.__OGSM_HOME_SIZE__ ?? Math.max(80, Math.min(cw * 0.1, 110));
+        const homeSize = window.__OGSM_HOME_SIZE__ ?? Math.max(80, Math.min(cw * 0.1, 100));
         scale = homeSize / currentFontSize;
       }
 
@@ -445,7 +552,7 @@ export default function App() {
     <div style={{
       width: sidebarOpen ? "340px" : "0px", minWidth: sidebarOpen ? "340px" : "0px",
       height: "100%", display: "flex", flexDirection: "column",
-      borderRight: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#3C3C3C' : '#D0D0D0')}`, 
+      borderRight: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#575757' : '#D0D0D0')}`, 
       background: "transparent",
       transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease-out",
       position: "relative", zIndex: 50, 
@@ -453,12 +560,13 @@ export default function App() {
     }}>
       <div style={{ width: "340px", height: "100%", display: "flex", flexDirection: "column" }}>
         <div style={{ 
-          padding: "24px 24px 15px",
-          borderBottom: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#3C3C3C' : '#D0D0D0')}`, 
+          padding: "16px 24px 10px",
+          borderBottom: `1px solid ${isEditorExiting ? 'rgba(0,0,0,0)' : (dark ? '#575757' : '#D0D0D0')}`, 
           transition: 'border-color 0.15s ease-out', display: "flex", justifyContent: "space-between", alignItems: "flex-start" 
         }}>
           <div onClick={goHome} className="cursor-pointer">
-            <h1 ref={sidebarTitleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "24px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0 }}
+            <h1 ref={sidebarTitleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "20px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0 }}
+
               onMouseEnter={e => { e.currentTarget.style.opacity = "0.6" }}
               onMouseLeave={e => { if (isEditorExiting || transition !== 'idle') return; e.currentTarget.style.opacity = 1; }}
             >
@@ -479,13 +587,13 @@ export default function App() {
             <button className="ai-action-hover" onClick={() => setShowGenerate(true)}
               onMouseEnter={e => { setAiGenerateHovered(true); if (dark) e.currentTarget.style.boxShadow = '6px 6px 0 0 #131313'; }}
               onMouseLeave={e => { setAiGenerateHovered(false); e.currentTarget.style.boxShadow = '4px 4px 0 0 #000'; }}
-              style={{ flex: 1, height: "52px", background: aiGenerateHovered ? '#FF0000' : ACCENT_YELLOW, color: aiGenerateHovered ? '#fff' : "#000", border: "4px solid #000", boxShadow: '4px 4px 0 0 #000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' }}>
+              style={{ flex: 1, height: "42px", background: aiGenerateHovered ? '#FF0000' : ACCENT_YELLOW, color: aiGenerateHovered ? '#fff' : "#000", border: "4px solid #000", boxShadow: '4px 4px 0 0 #000', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: 'all 0.15s' }}>
               <Zap size={20} fill="currentColor" /> AI 生成 OGSM
             </button>
             <button className="b-action-hover" onClick={() => setShowMembers(true)}
               onMouseEnter={() => setMembersHovered(true)}
               onMouseLeave={() => setMembersHovered(false)}
-              style={{ width: "52px", height: "52px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s' }}
+              style={{ width: "42px", height: "42px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s' }}
               title="負責人管理">
               <Users size={22} />
               <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: membersHovered ? '#FF00FF' : "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: `2px solid ${membersHovered ? '#FF00FF' : '#fff'}`, borderRadius: "12px", transition: 'all 0.15s' }}>
@@ -498,7 +606,7 @@ export default function App() {
             <ProjectList projects={projects} loading={loadingList} activeId={route.id ?? null} onSelect={selectProject} onDelete={handleDeleteProject} onManage={goProjects} darkMode={dark} />
           </div>
 
-          <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#3C3C3C' : '#D0D0D0'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
+          <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#575757' : '#D0D0D0'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
             <span style={{ fontSize: "12px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontStyle: 'italic', letterSpacing: "0.08em", opacity: 0.4, color: dark ? '#fff' : '#000' }}>POWERED BY AI</span>
             <button className="b-action-hover" onClick={() => setDark(d => !d)} data-sidebar-toggle=""
               onMouseEnter={() => setDarkToggleHovered(true)}
@@ -516,7 +624,7 @@ export default function App() {
 
   return (
     <>
-      <style>{BRUTALIST_CSS}</style>
+      <style>{BRUTALIST_CSS}{TRANSLATION_CSS}</style>
       <div className={`${dark ? "dark" : ""} ${expSettings.customCursor ? "custom-cursor" : ""}`} style={{ height: "100vh", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", backgroundColor: "transparent" }} onClick={handleGlobalClick}>
         <BrutalistBackground dark={dark} bgConfig={bgConfig} />
 
@@ -577,6 +685,29 @@ export default function App() {
 
         <Toast toast={toast} />
         {clickEffect && <ClickBurst key={clickEffect.id} x={clickEffect.x} y={clickEffect.y} />}
+        {translatePopup && (
+          <TranslationPopup
+            result={translatePopup.result}
+            position={translatePopup.position}
+            loading={translatePopup.loading}
+            mode={translatePopup.mode ?? 'zh-en'}
+            canReplace={!!translatePopup.replaceTarget}
+            onReplace={handleTranslationReplace}
+            onClose={() => setTranslatePopup(null)}
+            dark={dark}
+          />
+        )}
+        {cipherPopup && (
+          <CipherPopup
+            position={cipherPopup.position}
+            mode={cipherPopup.mode}
+            onCipher={cipherPopup.onCipher}
+            canReplace={!!cipherPopup.replaceTarget}
+            onReplace={handleCipherReplace}
+            onClose={() => setCipherPopup(null)}
+            dark={dark}
+          />
+        )}
       </div>
 
       <KonamiCode

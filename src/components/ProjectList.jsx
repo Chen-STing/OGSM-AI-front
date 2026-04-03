@@ -227,7 +227,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
       <style>{LOCAL_CSS}</style>
 
       {/* ── 搜尋框與獨立篩選按鈕 (Brutalist Style) ── */}
-      <div style={{ padding: '2px 20px 20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <div style={{ padding: '2px 20px 10px', display: 'flex', gap: '12px', alignItems: 'center' }}>
         
         {/* 獨立搜尋框 */}
         <div style={{ flex: 1, position: 'relative', height: '48px' }}>
@@ -248,7 +248,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             }}
             style={{ 
               width: '100%', 
-              height: '100%', 
+              height: '92%', 
               background: query ? (darkMode ? 'rgba(0,0,60,0.5)' : 'rgba(230,230,255,0.6)') : (darkMode ? '#1a1a1a' : '#fff'), 
               border: `3px solid ${query ? '#0000FF' : searchFocused ? '#0000FF' : (darkMode ? '#fff' : '#000')}`, 
               outline: 'none', 
@@ -351,8 +351,8 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               setShowFilter(v => !v);
             }}
             style={{ 
-              width: '48px', 
-              height: '48px', 
+              width: '42px', 
+              height: '42px', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 

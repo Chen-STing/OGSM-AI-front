@@ -64,7 +64,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
       
       const currentFontSize = parseFloat(window.getComputedStyle(el).fontSize);
       const cw = document.documentElement.clientWidth;
-      const switchHomeTargetSize = Math.max(24, Math.min(cw * 0.03, 36)); 
+      const switchHomeTargetSize = Math.max(20, Math.min(cw * 0.03, 40)); 
       const scale = switchHomeTargetSize / currentFontSize;
 
       el.style.transformOrigin = "top left";
@@ -90,7 +90,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
       }}>
         {/* 嚴格判斷：若是轉場回來則完全不加上 animate-slide-up，保證落地不跳躍 */}
         <div className={`hp-title ${isFirstMount.current && !entering && !exiting ? "animate-slide-up" : ""}`} style={{ marginBottom: "48px", marginLeft: "64px", opacity: hideTitle ? 0 : 1 }}>
-          <h1 id="home-title-target" ref={titleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(80px, 10vw, 110px)", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0 }}>
+          <h1 id="home-title-target" ref={titleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(80px, 10vw, 100px)", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0 }}>
             STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
           </h1>
         </div>
