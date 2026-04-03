@@ -35,40 +35,49 @@ const LOCAL_CSS = `
 function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(null);
-  const assigneesRef = useRef(null);
+  const [clampCount, setClampCount] = useState(Infinity);
+  const displayRef = useRef(null);
   const pct = calcProgress(project);
   const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })();
   const isOverdue = project.deadline && project.deadline < today && pct < 100;
   const isDone = pct >= 100;
 
   const assignees = Array.isArray(project.assignees) ? project.assignees : [];
-  const showMore = visibleCount !== null && visibleCount < assignees.length;
-  const displayAssignees = showMore ? assignees.slice(0, visibleCount) : assignees;
+  const assigneesKey = assignees.join('\x00');
+  const hasBadge = isDone || isOverdue;
+  const showMore = isFinite(clampCount) && clampCount < assignees.length;
+  const displayAssignees = showMore ? assignees.slice(0, clampCount) : assignees;
 
-  // Reset when source data or card size changes
-  useLayoutEffect(() => { setVisibleCount(null); }, [project.assignees, size]);
-
-  // Measure and clamp to 2 rows; "..." tag is the last child when showMore
+  // Reset clamp whenever the things that affect layout change
   useLayoutEffect(() => {
-    const el = assigneesRef.current;
-    if (!el || assignees.length === 0) return;
-    const kids = Array.from(el.children);
+    setClampCount(Infinity);
+  }, [assigneesKey, size, hasBadge]);
+
+  // Measure the visible container only when showing all tags (clampCount === Infinity)
+  useLayoutEffect(() => {
+    if (isFinite(clampCount)) return; // already clamped — stable, skip
+    const container = displayRef.current;
+    if (!container) return;
+    const kids = Array.from(container.children);
     if (!kids.length) return;
-    const rowH = kids[0].offsetHeight;
-    if (!rowH) return;
-    const maxBottom = kids[0].offsetTop + rowH * 2 + 4;
-    const last = kids[kids.length - 1];
-    if (last.offsetTop + last.offsetHeight <= maxBottom + 1) return;
-    const tagKids = showMore ? kids.slice(0, -1) : kids;
-    let fitCount = 0;
-    for (const k of tagKids) {
-      if (k.offsetTop + k.offsetHeight <= maxBottom + 1) fitCount++;
-      else break;
-    }
-    const desired = Math.max(1, fitCount - 1);
-    setVisibleCount(c => (c !== null && c <= desired) ? c : desired);
-  }, [project.assignees, size, visibleCount]);
+
+    let rafId;
+    const measure = () => {
+      const rowH = kids[0].offsetHeight;
+      if (!rowH) { rafId = requestAnimationFrame(measure); return; }
+      const maxBottom = rowH + 1; // 1 row + 1px tolerance
+      const last = kids[kids.length - 1];
+      if (last.offsetTop + last.offsetHeight <= maxBottom + 1) return; // all fit
+      let fitCount = 0;
+      for (const k of kids) {
+        if (k.offsetTop + k.offsetHeight <= maxBottom + 1) fitCount++;
+        else break;
+      }
+      setClampCount(Math.max(1, fitCount - 1)); // reserve 1 slot for '...'
+    };
+    measure();
+    return () => { if (rafId) cancelAnimationFrame(rafId); };
+  }, [clampCount]);
 
   const scale        = size / 260;
   const pctFontSize  = Math.round(72  * scale);
@@ -100,8 +109,8 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px", minWidth: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1, overflow: "hidden" }}>
-          <div style={{ alignSelf: "flex-start", maxWidth: "100%", maxHeight: "46px", overflow: "hidden" }}>
-            <div ref={assigneesRef} style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
+          {/* Assignee tags: measure directly on this container; position:relative makes it the offsetParent */}
+          <div ref={displayRef} style={{ position: "relative", maxHeight: "23px", overflow: "hidden", display: "flex", flexWrap: "wrap", gap: "3px" }}>
               {assignees.length > 0 ? (
                 <>
                   {displayAssignees.map(name => (
@@ -114,8 +123,8 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
               ) : (
                 <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>無</div>
               )}
-            </div>
           </div>
+
           <div style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: hovered ? "#000" : (dark ? "rgba(255, 255, 255, 0.75)" : "rgba(0,0,0,0.75)"), display: "flex", gap: "4px" }}>
             <span style={{ opacity: 0.8 }}>建立</span>{project.createdAt ? project.createdAt.slice(0, 10) : ""}
           </div>

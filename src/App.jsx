@@ -460,13 +460,19 @@ export default function App() {
     } catch (e) { showToast("儲存失敗：" + e.message, "error"); }
   }, [showToast]);
 
-  const handleGenerated = useCallback((project) => {
-    setProjects(ps => [project, ...ps]);
-    setActiveProject(project);
+  const handleGenerated = useCallback((projectOrProjects) => {
+    const list = Array.isArray(projectOrProjects) ? projectOrProjects : [projectOrProjects];
+    setProjects(ps => [...list, ...ps]);
+    setActiveProject(list[0]);
     setShowGenerate(false);
-    navigate(`/management/${encodeURIComponent(project.id)}`);
-    showToast("OGSM 已生成！");
-  }, [showToast]);
+    if (list.length > 1) {
+      navigate('/management');
+      showToast(`${list.length} 個 OGSM 已匯入！`);
+    } else {
+      navigate(`/management/${encodeURIComponent(list[0].id)}`);
+      showToast("OGSM 已生成！");
+    }
+  }, [showToast, navigate]);
 
   const handleMembersChange = useCallback(async (newMembers) => {
     setMembers(newMembers);

@@ -613,7 +613,10 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                       {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                       <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: B_YELLOW, marginBottom: '6px' }}>G{gi + 1}</div>
                       <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'goal', gi, si: null, mi: null, label: `G${gi + 1}` }) } : undefined}>
-                        <textarea data-ogsm-autoresize style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', paddingLeft: editMode ? '12px' : '0', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} readOnly={!editMode} />
+                        {editMode
+                          ? <textarea data-ogsm-autoresize style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', paddingLeft: '12px' }} value={goal.text} onChange={e => setGoalText(gi, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Goal 描述…" rows={3} />
+                          : <span style={{ ...s.measureText, fontWeight: 900, fontSize: '13px', textTransform: 'uppercase', pointerEvents: 'none', textDecoration: goal.text?.trim() ? 'underline' : 'none', textDecorationStyle: 'dotted', textUnderlineOffset: '3px', color: goal.text?.trim() ? (dark ? '#fff' : '#000') : (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)') }}>{goal.text?.trim() || '—'}</span>
+                        }
                       </div>
                       {editMode && (
                         <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
@@ -636,7 +639,10 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                               {editMode && <div style={{ position: 'absolute', left: '4px', top: '16px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                               <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px' }}>S{gi + 1}.{si + 1}</div>
                               <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'strategy', gi, si, mi: null, label: `S${gi + 1}.${si + 1}` }) } : undefined}>
-                                <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} readOnly={!editMode} />
+                                {editMode
+                                  ? <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: '12px' }} value={st.text} onChange={e => setStratText(gi, si, e.target.value)} onInput={autoResize} ref={initResize} placeholder="Strategy 描述…" rows={2} />
+                                  : <span style={{ ...s.measureText, pointerEvents: 'none', textDecoration: st.text?.trim() ? 'underline' : 'none', textDecorationStyle: 'dotted', textUnderlineOffset: '3px', color: st.text?.trim() ? (dark ? '#fff' : '#000') : (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)') }}>{st.text?.trim() || '—'}</span>
+                                }
                               </div>
                               {editMode && (
                                 <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
@@ -667,7 +673,10 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                         {editMode && <div style={{ position: 'absolute', left: '4px', top: '12px', color: dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)', fontSize: '13px', cursor: 'grab', userSelect: 'none' }}>⠿</div>}
                                         <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', marginBottom: '6px', paddingLeft: editMode ? '12px' : '0' }}>D{gi+1}.{si+1}.{mi+1}</div>
                                         <div style={{ cursor: !editMode ? 'pointer' : 'auto' }} onClick={!editMode ? e => { e.stopPropagation(); setQeModal({ type: 'measure', gi, si, mi, label: `D${gi+1}.${si+1}.${mi+1}` }) } : undefined}>
-                                          <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: editMode ? '12px' : '0', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', pointerEvents: editMode ? 'auto' : 'none', textDecoration: editMode ? 'none' : 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} readOnly={!editMode} />
+                                          {editMode
+                                            ? <textarea data-ogsm-autoresize style={{ ...s.measureText, paddingLeft: '12px', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)' }} value={m.kpi} onChange={e => setMField(gi,si,mi,'kpi',e.target.value)} onInput={autoResize} ref={initResize} placeholder="MD 定量指標名稱" rows={1} />
+                                            : <span style={{ ...s.measureText, color: m.kpi?.trim() ? (dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)') : (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'), pointerEvents: 'none', textDecoration: m.kpi?.trim() ? 'underline' : 'none', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }}>{m.kpi?.trim() || '—'}</span>
+                                          }
                                         </div>
                                         {editMode && (
                                           <div style={{ display: 'flex', gap: '4px', marginTop: '8px', paddingLeft: '12px' }}>
@@ -679,7 +688,10 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
                                       {/* Target */}
                                       <div style={{ width: dynTarget, minWidth: dynTarget, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                                        <textarea data-ogsm-autoresize style={{ ...s.measureText, color: B_YELLOW, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} readOnly={!editMode} />
+                                        {editMode
+                                          ? <textarea data-ogsm-autoresize style={{ ...s.measureText, color: B_YELLOW, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }} value={m.target} onChange={e => setMField(gi,si,mi,'target',e.target.value)} onInput={autoResize} ref={initResize} placeholder="目標" rows={1} />
+                                          : <span style={{ color: m.target?.trim() ? B_YELLOW : (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'), fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '13px', fontStyle: 'italic' }}>{m.target?.trim() || '—'}</span>
+                                        }
                                       </div>
 
                                       {/* Actual */}

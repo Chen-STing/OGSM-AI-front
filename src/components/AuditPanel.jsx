@@ -569,7 +569,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
 
         strategies.forEach((strat, si) => {
           ;(strat.measures || []).forEach((m, mi) => {
-            mdItems.push({ num: `D${gi + 1}.${si + 1}.${mi + 1}`, text: m.kpi || '—', deadline: m.deadline || '', assignee: Array.isArray(m.assignee) ? m.assignee.join(', ') : (m.assignee || '') })
+            mdItems.push({ num: `D${gi + 1}.${si + 1}.${mi + 1}`, text: m.kpi || '—', target: m.target || '', deadline: m.deadline || '', assignee: Array.isArray(m.assignee) ? m.assignee.join(', ') : (m.assignee || '') })
             ;(m.todos || []).forEach((t, ti) => {
               mpItems.push({ num: `P${gi + 1}.${si + 1}.${mi + 1}.${ti + 1}`, text: t.text, done: t.done, deadline: t.deadline || '', assignee: Array.isArray(t.assignee) ? t.assignee.join(', ') : (t.assignee || '') })
             })
@@ -597,6 +597,9 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
           const metaLine = [fmtDate ? `[期限 ${fmtDate}]` : '', item.assignee ? `負責人員: ${item.assignee}` : ''].filter(Boolean).join('  ')
           mdParts.push({ text: item.num + ' ', options: { bold: true, color: '7A4000', fontSize: 10 } })
           mdParts.push({ text: item.text, options: { color: '000000', fontSize: 11, breakLine: true, paraSpaceAfter: 0 } })
+          if (item.target) {
+            mdParts.push({ text: `目標值：${item.target}`, options: { color: '1A6A1A', fontSize: 9, bold: true, breakLine: true, paraSpaceAfter: 0 } })
+          }
           mdParts.push({ text: hasMeta ? metaLine : ' ', options: { color: '7A6030', fontSize: 9, breakLine: !isLast, paraSpaceAfter: isLast ? 0 : 15 } })
         })
         if (mdParts.length > 0) {

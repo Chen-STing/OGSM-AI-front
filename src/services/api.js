@@ -24,6 +24,37 @@ export const api = {
   // AI 生成整份 OGSM
   generate: (body) => request('/ai/generate', { method: 'POST', body: JSON.stringify(body) }),
 
+  // AI 生成（含文件 / 圖片）— multipart/form-data
+  generateWithDocs: async ({ objective, deadline, additionalContext, assignees, files }) => {
+    const form = new FormData()
+    form.append('objective', objective)
+    if (deadline)           form.append('deadline', deadline)
+    if (additionalContext)  form.append('additionalContext', additionalContext)
+    if (assignees?.length)  form.append('assignees', assignees.join(','))
+    files.forEach(f => form.append('files', f))
+    // ⚠️ 不手動設定 Content-Type，讓瀏覽器自動帶 boundary
+    const res = await fetch('/api/ai/generate-with-docs', { method: 'POST', body: form })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      throw new Error(err.message || `HTTP ${res.status}`)
+    }
+    return res.json()
+  },
+
+  // AI 批次匯入 OGSM — multipart/form-data
+  importOgsm: async ({ files, additionalContext }) => {
+    const form = new FormData()
+    files.forEach(f => form.append('files', f))
+    if (additionalContext) form.append('additionalContext', additionalContext)
+    const res = await fetch('/api/ai/import', { method: 'POST', body: form })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      console.error('[importOgsm] 400 response body:', err)
+      throw new Error(err.message || err.error || err.detail || JSON.stringify(err) || `HTTP ${res.status}`)
+    }
+    return res.json()
+  },
+
   // AI 局部生成（不儲存，直接回傳結果供前端合併）
   generateForGoal:     (body) => request('/ai/generate-for-goal',     { method: 'POST', body: JSON.stringify(body) }),
   generateForStrategy: (body) => request('/ai/generate-for-strategy', { method: 'POST', body: JSON.stringify(body) }),
