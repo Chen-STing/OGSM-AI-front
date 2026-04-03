@@ -73,31 +73,37 @@ function AddChoiceDialog({ itemLabel, dark, onManual, onAi, onClose }) {
   const overlayRef = useRef(null)
   const T = dark ? DARK : LIGHT
   const sh = dark ? '#686868' : '#000'
+  const dialogBg = dark ? 'rgba(34,34,34,0.85)' : 'rgba(255,255,255,0.7)'
+  const headerBg = dark ? T.headerBg : 'rgba(248,248,248,0.8)'
+  const textColor = dark ? '#F0F0F0' : '#111'
+  const closeColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'
+  const overlayBg = dark ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.6)'
+  const aiAccent = dark ? B_YELLOW : '#bb9900'
 
   return (
     <div ref={overlayRef} onClick={e => { if (e.target === overlayRef.current) onClose() }}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(4px)', zIndex:10100, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
-      <div style={{ background:T.bg, border:`3px solid ${T.border}`, boxShadow:`6px 6px 0 ${sh}`, width:'100%', maxWidth:'400px', animation:'qe-pop 0.2s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
+      style={{ position:'fixed', inset:0, background:overlayBg, backdropFilter:'blur(4px)', zIndex:10100, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
+      <div style={{ background:dialogBg, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:`3px solid ${T.border}`, boxShadow:`6px 6px 0 ${sh}`, width:'100%', maxWidth:'400px', animation:'qe-pop 0.2s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', inset:0, pointerEvents:'none', backgroundImage:`linear-gradient(to right,${T.grid} 1px,transparent 1px),linear-gradient(to bottom,${T.grid} 1px,transparent 1px)`, backgroundSize:'20px 20px' }} />
 
-        <div style={{ position:'relative', zIndex:1, padding:'14px 20px', borderBottom:`2px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', background:T.headerBg }}>
+        <div style={{ position:'relative', zIndex:1, padding:'14px 20px', borderBottom:`2px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', background:headerBg }}>
           <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-            <div style={{ background:B_YELLOW, color:'#000', padding:'3px 8px', fontSize:'9px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase' }}>新增</div>
-            <span style={{ fontSize:'13px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, textTransform:'uppercase', fontStyle:'italic', color:'#F0F0F0' }}>{itemLabel}</span>
+            <div style={{ background:aiAccent, color:dark?'#000':'#fff', padding:'3px 8px', fontSize:'9px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase' }}>新增</div>
+            <span style={{ fontSize:'13px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, textTransform:'uppercase', fontStyle:'italic', color:textColor }}>{itemLabel}</span>
           </div>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:'20px', lineHeight:1, fontWeight:900, transition:'color 0.15s' }}
-            onMouseEnter={e=>e.currentTarget.style.color=B_PINK} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.6)'}>✕</button>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:closeColor, cursor:'pointer', fontSize:'20px', lineHeight:1, fontWeight:900, transition:'color 0.15s' }}
+            onMouseEnter={e=>e.currentTarget.style.color=dark?B_PINK:'#FF0000'} onMouseLeave={e=>e.currentTarget.style.color=closeColor}>✕</button>
         </div>
 
         <div style={{ position:'relative', zIndex:1, padding:'16px 20px', display:'flex', flexDirection:'column', gap:'10px' }}>
           {[
             { icon:'✏️', label:'手動輸入', sub:'新增空白項目，自行填寫內容', onClick:onManual, accent:T.border },
-            { icon:'⚡', label:'AI 生成',  sub:'根據現有內容，由 AI 自動生成建議', onClick:onAi,    accent:B_YELLOW },
+            { icon:'⚡', label:'AI 生成',  sub:'根據現有內容，由 AI 自動生成建議', onClick:onAi,    accent:aiAccent },
           ].map(({ icon, label, sub, onClick, accent }) => (
             <button key={label} onClick={onClick}
-              style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', background:T.inputBg, border:`2px solid ${dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`, cursor:'pointer', textAlign:'left', transition:'border-color 0.15s,background 0.15s' }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=accent;e.currentTarget.style.background=dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)';e.currentTarget.style.background=T.inputBg}}>
+              style={{ display:'flex', alignItems:'center', gap:'14px', padding:'14px 16px', background:dark?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.4)', border:`2px solid ${dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.15)'}`, cursor:'pointer', textAlign:'left', transition:'border-color 0.15s,background 0.15s' }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=accent;e.currentTarget.style.background=dark?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.8)'}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.15)';e.currentTarget.style.background=dark?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.4)'}}>
               <span style={{ fontSize:'22px', flexShrink:0 }}>{icon}</span>
               <div>
                 <div style={{ fontSize:'12px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, color:accent===T.border?T.text:accent, textTransform:'uppercase', marginBottom:'3px' }}>{label}</div>

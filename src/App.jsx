@@ -679,7 +679,7 @@ export default function App() {
           </div>
         )}
 
-        {showGenerate && <GenerateModal onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} darkMode={dark} shapeConfig={modalConfigs.generate} />}
+        {showGenerate && <GenerateModal members={members} onClose={() => setShowGenerate(false)} onGenerated={handleGenerated} showToast={showToast} darkMode={dark} shapeConfig={modalConfigs.generate} />}
         {showMembers && <MemberSettings members={members} onChange={handleMembersChange} onClose={() => setShowMembers(false)} darkMode={dark} shapeConfig={modalConfigs.member} />}
         {showAudit && <AuditPanel project={auditProject} onClose={() => setShowAudit(false)} darkMode={dark} />}
 
