@@ -39,6 +39,10 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
         const rect = el.getBoundingClientRect();
         window.__OGSM_HOME_RECT__ = { top: rect.top, left: rect.left };
         window.__OGSM_HOME_SIZE__ = parseFloat(window.getComputedStyle(el).fontSize);
+        try {
+          sessionStorage.setItem('__OGSM_HOME_RECT__', JSON.stringify({ top: rect.top, left: rect.left }));
+          sessionStorage.setItem('__OGSM_HOME_SIZE__', String(window.__OGSM_HOME_SIZE__));
+        } catch (_) {}
         el.style.transform = oldT;
       }
     };

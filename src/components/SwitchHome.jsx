@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { calcProgress } from './ProjectList.jsx';
 
@@ -35,10 +35,40 @@ const LOCAL_CSS = `
 function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(null);
+  const assigneesRef = useRef(null);
   const pct = calcProgress(project);
   const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })();
   const isOverdue = project.deadline && project.deadline < today && pct < 100;
   const isDone = pct >= 100;
+
+  const assignees = Array.isArray(project.assignees) ? project.assignees : [];
+  const showMore = visibleCount !== null && visibleCount < assignees.length;
+  const displayAssignees = showMore ? assignees.slice(0, visibleCount) : assignees;
+
+  // Reset when source data or card size changes
+  useLayoutEffect(() => { setVisibleCount(null); }, [project.assignees, size]);
+
+  // Measure and clamp to 2 rows; "..." tag is the last child when showMore
+  useLayoutEffect(() => {
+    const el = assigneesRef.current;
+    if (!el || assignees.length === 0) return;
+    const kids = Array.from(el.children);
+    if (!kids.length) return;
+    const rowH = kids[0].offsetHeight;
+    if (!rowH) return;
+    const maxBottom = kids[0].offsetTop + rowH * 2 + 4;
+    const last = kids[kids.length - 1];
+    if (last.offsetTop + last.offsetHeight <= maxBottom + 1) return;
+    const tagKids = showMore ? kids.slice(0, -1) : kids;
+    let fitCount = 0;
+    for (const k of tagKids) {
+      if (k.offsetTop + k.offsetHeight <= maxBottom + 1) fitCount++;
+      else break;
+    }
+    const desired = Math.max(1, fitCount - 1);
+    setVisibleCount(c => (c !== null && c <= desired) ? c : desired);
+  }, [project.assignees, size, visibleCount]);
 
   const scale        = size / 260;
   const pctFontSize  = Math.round(72  * scale);
@@ -68,15 +98,30 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
         animation: `waterfall 0.35s ${index * 0.06}s cubic-bezier(0.16, 1, 0.3, 1) both`,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "#000" : "#fff"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase", alignSelf: "flex-start" }}>OGSM</div>
-          <div style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: hovered ? "#000" : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.55)"), display: "flex", gap: "4px" }}>
-            <span style={{ opacity: 0.6 }}>建立</span>{project.createdAt ? project.createdAt.slice(0, 10) : ""}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px", minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+          <div style={{ alignSelf: "flex-start", maxWidth: "100%", maxHeight: "46px", overflow: "hidden" }}>
+            <div ref={assigneesRef} style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
+              {assignees.length > 0 ? (
+                <>
+                  {displayAssignees.map(name => (
+                    <div key={name} style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "#000" : "#fff"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase", whiteSpace: "nowrap" }}>{name}</div>
+                  ))}
+                  {showMore && (
+                    <div style={{ color: hovered ? "#000" : (dark ? "#fff" : "#000"), fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 1100, letterSpacing: "0.1em", padding: "4px 4px", textTransform: "uppercase", alignSelf: "center" }}>...</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>無</div>
+              )}
+            </div>
+          </div>
+          <div style={{ fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: hovered ? "#000" : (dark ? "rgba(255, 255, 255, 0.75)" : "rgba(0,0,0,0.75)"), display: "flex", gap: "4px" }}>
+            <span style={{ opacity: 0.8 }}>建立</span>{project.createdAt ? project.createdAt.slice(0, 10) : ""}
           </div>
         </div>
         {(isDone || isOverdue) && (
-          <div style={{ fontSize: "9px", fontWeight: 900, padding: "4px 8px", background: isDone ? ACCENT_GREEN : ACCENT_PINK, color: "#000", textTransform: "uppercase", letterSpacing: "0.08em", border: "2px solid #000" }}>{isDone ? "已完成" : "已逾期"}</div>
+          <div style={{ fontSize: "9px", fontWeight: 900, padding: "4px 8px", background: isDone ? ACCENT_GREEN : ACCENT_PINK, color: "#000", textTransform: "uppercase", letterSpacing: "0.08em", border: "2px solid #000", flexShrink: 0 }}>{isDone ? "已完成" : "已逾期"}</div>
         )}
       </div>
 
@@ -176,50 +221,47 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [showSort, setShowSort]     = useState(false);
   const [filterPos, setFilterPos]   = useState({ top: 0, left: 0 });
   const [sortPos, setSortPos]       = useState({ top: 0, left: 0 });
-  const [cardSize, setCardSize]     = useState(260);
+  const [cardSize, setCardSize]     = useState(() => {
+    const GAP = 32, MIN = 160, MAX_COLS = 6;
+    const w = Math.max(200, window.innerWidth - 48);
+    const cols = Math.min(MAX_COLS, Math.max(1, Math.floor((w + GAP) / (MIN + GAP))));
+    return Math.floor((w - (cols - 1) * GAP) / cols);
+  });
   const [searchFocused, setSearchFocused] = useState(false);
   const [filterHovered, setFilterHovered] = useState(false);
   const [sortHovered, setSortHovered]     = useState(false);
 
   const sliderContainerRef = useRef(null);
   const sliderDragging = useRef(null);
-  const gridRef      = useRef(null);
-  const filterBtnRef = useRef(null);
-  const filterPopRef = useRef(null);
-  const sortBtnRef   = useRef(null);
-  const sortPopRef   = useRef(null);
-  const titleRef     = useRef(null);
-
-  useEffect(() => {
-    const el = gridRef.current;
+  const roRef    = useRef(null);
+  const rafIdRef = useRef(null);
+  const gridRef  = useCallback((el) => {
+    // Disconnect previous observer if element unmounts
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (rafIdRef.current) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
     if (!el) return;
-    const GAP = 32;
-    const MIN = 160;
-    const MAX_COLS = 6;
-    let rafId = null;
-
+    const GAP = 32, MIN = 160, MAX_COLS = 6;
     const calc = (w) => {
       const cols = Math.min(MAX_COLS, Math.max(1, Math.floor((w + GAP) / (MIN + GAP))));
       const size = Math.floor((w - (cols - 1) * GAP) / cols);
       setCardSize(prev => (prev === size ? prev : size));
     };
-
     const ro = new ResizeObserver(entries => {
       for (const e of entries) {
-        if (rafId) cancelAnimationFrame(rafId);
-        const w = e.contentRect.width;
-        rafId = requestAnimationFrame(() => calc(w));
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = requestAnimationFrame(() => calc(e.contentRect.width));
       }
     });
-
     ro.observe(el);
-    calc(el.getBoundingClientRect().width);
-
-    return () => {
-      ro.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-    };
+    // clientWidth - padding matches ResizeObserver's contentRect.width (both exclude scrollbar)
+    calc(el.clientWidth - 48);
+    roRef.current = ro;
   }, []);
+  const filterBtnRef = useRef(null);
+  const filterPopRef = useRef(null);
+  const sortBtnRef   = useRef(null);
+  const sortPopRef   = useRef(null);
+  const titleRef     = useRef(null);
 
   useLayoutEffect(() => {
     if (!showFilter || !filterBtnRef.current) return;
@@ -255,11 +297,15 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
         scale = shSize / currentFontSize;
       } else if (exitingTo === 'home') {
         // 放大的座標運算：對準 HomePage 的字型大小與快取座標
-        const exactLeft = window.__OGSM_HOME_RECT__?.left ?? (Math.max(0, (vw - 1400) / 2) + 64);
-        const exactTop = window.__OGSM_HOME_RECT__?.top ?? (vh * 0.35);
+        const cachedRect = window.__OGSM_HOME_RECT__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_RECT__'); return s ? JSON.parse(s) : null; } catch { return null; } })();
+        const cachedSize = window.__OGSM_HOME_SIZE__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_SIZE__'); return s ? parseFloat(s) : null; } catch { return null; } })();
+        // HomePage: container padding-left 64px + .hp-title marginLeft 64px = 128px total
+        const hpFS = Math.min(100, Math.max(80, vw * 0.1));
+        const exactLeft = cachedRect?.left ?? (Math.max(0, (vw - 1400) / 2) + 128);
+        const exactTop  = cachedRect?.top  ?? Math.max(0, (vh - 64 - hpFS * 2.55 - 200) / 2);
         targetX = exactLeft - rect.left;
         targetY = exactTop - rect.top;
-        const homeSize = window.__OGSM_HOME_SIZE__ ?? Math.max(80, Math.min(vw * 0.1, 100)); // 對齊首頁的 100
+        const homeSize = cachedSize ?? hpFS;
         scale = homeSize / currentFontSize;
       }
 

@@ -4,6 +4,7 @@ import AiConfirmDialog from './AiConfirmDialog.jsx'
 import BrutalistSelect from './BrutalistSelect.jsx'
 import QuickEditModal from './QuickEditModal.jsx'
 import { api } from '../services/api.js'
+import { span } from 'framer-motion/client'
 
 const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignee: '', todos: [], sortOrder: 0 })
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
@@ -471,8 +472,28 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
               placeholder="專案標題"
               readOnly={!editMode}
             />
+            {/* ── Project-level assignees ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ background: dark ? B_BLUE : '#000', color: dark ? '#fff' : B_YELLOW, fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '2px 6px' }}>OGSM</span>
+              <span style={{ fontSize: '12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: dark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', flexShrink: 0 }}>所有人：</span>
+              {editMode ? (
+                <BrutalistSelect
+                  options={members.filter(Boolean)}
+                  value={Array.isArray(draft.assignees) ? draft.assignees : []}
+                  onChange={v => setField('assignees', v)}
+                  placeholder="選擇所有人..."
+                  darkMode={dark}
+                  multiple={true}
+                  style={{ fontSize: '11px', minHeight: '22px', padding: '0 8px' }}
+                />
+              ) : (Array.isArray(draft.assignees) && draft.assignees.length > 0) ? (
+                draft.assignees.map(name => (
+                  <span key={name} style={{ fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '1px 6px', background: dark ? 'rgba(0,0,255,0.25)' : 'rgba(0,0,255,0.1)', color: dark ? '#8ab4f8' : B_BLUE, border: `1px solid ${dark ? 'rgba(0,0,255,0.4)' : 'rgba(0,0,255,0.25)'}`, letterSpacing: '0.04em' }}>
+                    {name}
+                  </span>
+                ))
+              ) : (
+                <span style={{ fontSize: '11px', color: dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }}>全部</span>
+              )}
               {isCompleted && (
                 <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: B_GREEN, color: '#000', padding: '2px 8px', border: '1.5px solid rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -485,7 +506,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                   計畫已逾期
                 </span>
               )}
-              <span style={{ fontSize: '9px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>更新：{new Date(draft.updatedAt).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
+              <span style={{ fontSize: '9px', marginLeft: '8px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>更新：{new Date(draft.updatedAt).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
             </div>
           </div>
         </div>

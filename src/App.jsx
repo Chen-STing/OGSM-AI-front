@@ -524,14 +524,18 @@ export default function App() {
         scale = shSize / currentFontSize;
       } else { 
         // ✨ 飛向首頁 (HomePage)：直接讀取首頁留下的快取座標 (比照原本的做法)
-        const exactLeft = window.__OGSM_HOME_RECT__?.left ?? (Math.max(0, (cw - 1400) / 2) + 64);
-        const exactTop  = window.__OGSM_HOME_RECT__?.top ?? (window.innerHeight * 0.35);
+        const cachedRect = window.__OGSM_HOME_RECT__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_RECT__'); return s ? JSON.parse(s) : null; } catch { return null; } })();
+        const cachedSize = window.__OGSM_HOME_SIZE__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_SIZE__'); return s ? parseFloat(s) : null; } catch { return null; } })();
+        // HomePage: container padding-left 64px + .hp-title marginLeft 64px = 128px total
+        const hpFS = Math.min(100, Math.max(80, cw * 0.1));
+        const exactLeft = cachedRect?.left ?? (Math.max(0, (cw - 1400) / 2) + 128);
+        const exactTop  = cachedRect?.top  ?? Math.max(0, (window.innerHeight - 64 - hpFS * 2.55 - 200) / 2);
         
         targetX = exactLeft - rect.left;
         targetY = exactTop - rect.top;
         
         // 讀取首頁標題大小的快取
-        const homeSize = window.__OGSM_HOME_SIZE__ ?? Math.max(80, Math.min(cw * 0.1, 100));
+        const homeSize = cachedSize ?? hpFS;
         scale = homeSize / currentFontSize;
       }
 

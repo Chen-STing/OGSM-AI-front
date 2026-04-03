@@ -132,7 +132,7 @@ export default function GenerateModal({ members = [], onClose, onGenerated, show
         project = await api.generate({
           objective: objective.trim(),
           deadline: deadline.trim() || undefined,
-          assignees: assignees.length > 0 ? assignees : undefined,
+          assignees: assignees.length > 0 ? assignees : [],
           additionalContext: finalContext || undefined
         })
       } else {
