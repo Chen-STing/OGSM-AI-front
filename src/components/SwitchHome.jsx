@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { calcProgress } from './ProjectList.jsx';
+import MpCalendarPanel from './MpCalendarPanel.jsx';
 
 const ACCENT_BLUE   = "#0000FF";
 const ACCENT_PINK   = "#ff0000";
@@ -121,7 +122,7 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
                   )}
                 </>
               ) : (
-                <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>無</div>
+                <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>全部</div>
               )}
           </div>
 
@@ -211,7 +212,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo }) {
+export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -239,9 +240,48 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [searchFocused, setSearchFocused] = useState(false);
   const [filterHovered, setFilterHovered] = useState(false);
   const [sortHovered, setSortHovered]     = useState(false);
+  const [memberHovered, setMemberHovered] = useState(false);
 
+  // New states for Assignees filter
+  const allMembers = React.useMemo(() => {
+    const s = new Set();
+    projects.forEach(p => {
+      if (Array.isArray(p.assignees)) p.assignees.forEach(m => s.add(m));
+    });
+    return Array.from(s).sort();
+  }, [projects]);
+  const [memberFilters, setMemberFilters] = useState(new Set());
+  const toggleMemberFilter = (m) => setMemberFilters(prev => {
+    const n = new Set(prev);
+    if (n.has(m)) {
+      n.delete(m);
+    } else {
+      if (m === '__UNASSIGNED__') {
+        // 選「未設定」時清除所有其他成員
+        n.clear();
+      } else {
+        // 選一般成員時移除「未設定」
+        n.delete('__UNASSIGNED__');
+      }
+      n.add(m);
+    }
+    return n;
+  });
+  const [showMemberPop, setShowMemberPop] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+
+  const memberPopTimer = useRef(null);
+  const handleMemberEnter = () => {
+    if (memberPopTimer.current) clearTimeout(memberPopTimer.current);
+    setShowMemberPop(true);
+  };
+  const handleMemberLeave = () => {
+    memberPopTimer.current = setTimeout(() => {
+      setShowMemberPop(false);
+    }, 100);
+  };
+  const sliderDragging    = useRef(null);
   const sliderContainerRef = useRef(null);
-  const sliderDragging = useRef(null);
   const roRef    = useRef(null);
   const rafIdRef = useRef(null);
   const gridRef  = useCallback((el) => {
@@ -300,7 +340,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       if (exitingTo === 'editor') {
         const ew = window.innerWidth;
         const shSize = 20; // 改為 Editor 的 20px
-        // 取 Editor 目標絕對位置，左距 24px, 上距 16px (與上方 App.jsx 的 padding 相呼應)
+        // 取 Editor 目標絕對位置：左距 24px，上距 16px (與 Editor App.jsx padding 一致)
         targetX = 24 - rect.left;
         targetY = 16 - rect.top;
         scale = shSize / currentFontSize;
@@ -321,8 +361,8 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       el.style.transformOrigin = "top left";
       
       requestAnimationFrame(() => {
-        el.style.transition = "transform 0.55s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.55s ease";
-        el.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
+        el.style.transition = "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease";
+        el.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) scale(${scale})`;
         el.style.zIndex = 9999;
         el.style.position = "relative";
       });
@@ -383,6 +423,10 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       const match = (statusFilters.has("inProgress") && inProgress) || (statusFilters.has("overdue") && overdue) || (statusFilters.has("done") && done);
       if (!match) return false;
     }
+    if (memberFilters.size > 0) {
+      const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];
+      if (pAssignees.length > 0 && !pAssignees.some(m => memberFilters.has(m))) return false;
+    }
     return true;
   });
 
@@ -439,18 +483,121 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
     <div className={wrapperClass} style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative", zIndex: 10, overflow: "hidden" }}>
       <style>{LOCAL_CSS}</style>
 
-      <div style={{ padding: "32px 48px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, position: "relative", zIndex: 10 }}>
-        {/* 恢復這裡的標題運算，不套用 CSS 動畫 */}
+      <div style={{ padding: "32px 48px 20px", display: "flex", alignItems: "center", flexShrink: 0, position: "relative", zIndex: 10 }}>
+        {/* 獨立的標題，避免右側元素消失時牽連排版 */}
         <h1 ref={titleRef} onClick={onBack} className="cursor-pointer"
           style={{ 
-            fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(20px, 3vw, 40px)", lineHeight: 0.85, 
-            letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, cursor: 'pointer'
+            fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(20px, 3vw, 40px)", lineHeight: 0.9, 
+            letterSpacing: "-0.02em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0, cursor: 'pointer',
+            transformOrigin: 'top left', transform: 'translateZ(0)', backfaceVisibility: 'hidden', willChange: 'transform, opacity',
+            WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale',
+            flexShrink: 0, marginRight: "80px"
           }}
           onMouseEnter={e => { if(!exitingTo) e.currentTarget.style.opacity = "0.6" }}
           onMouseLeave={e => { if(!exitingTo) e.currentTarget.style.opacity = "1" }}
         >
-          STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
+          <img src={dark ? "/logo_dark.svg" : "/logo_sun.svg"} alt="STRATEGIC OGSM PLANNER." style={{ height: "3em", width: 'auto', display: 'block' }} draggable={false} />
         </h1>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", opacity: exitingTo ? 0 : 1, pointerEvents: exitingTo ? 'none' : 'auto', transition: 'opacity 0.2s', flex: 1 }}>
+            <div style={{ position: "relative" }} onMouseEnter={handleMemberEnter} onMouseLeave={handleMemberLeave}>
+              <button 
+                style={{ 
+                  background: memberFilters.size > 0 ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"),
+                  color: memberFilters.size > 0 ? "#fff" : (dark ? "#fff" : "#000"),
+                  border: `2px solid ${memberFilters.size > 0 ? ACCENT_BLUE : "transparent"}`,
+                  backdropFilter: "blur(4px)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "8px",
+                  borderRadius: "50%",
+                  transition: "all 0.2s ease",
+                  transform: memberHovered ? "scale(1.15)" : "scale(1)"
+                }}
+                onMouseEnter={() => setMemberHovered(true)}
+                onMouseLeave={() => setMemberHovered(false)}
+                title="依人員篩選專案"
+              >
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                {memberFilters.size > 0 && (
+                  <div style={{ position: "absolute", top: 0, right: 0, minWidth: "26px", height: "26px", background: ACCENT_PINK, color: "#000", borderRadius: "13px", border: `2px solid ${dark ? "#2e2e2e" : "#f0f0f0"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 900, padding: "0 4px", boxShadow: "2px 2px 0 rgba(0,0,0,0.2)" }}>
+                    {memberFilters.size}
+                  </div>
+                )}
+              </button>
+              {showMemberPop && (
+                <div style={{ ...popBase, position: "absolute", top: "87%", left: "190%", transform: "translateX(-50%)", marginTop: "16px", width: "240px", padding: "12px", zIndex: 100000, cursor: "default", opacity: exitingTo ? 0 : 1, pointerEvents: exitingTo ? 'none' : 'auto', transition: "opacity 0.2s" }}>
+                  <div style={{ fontSize: "10px", fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase", color: dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", alignSelf: "flex-start" }}>依所有人篩選 (多選)</div>
+                  
+                  <div style={{ position: "relative", marginBottom: "1px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="搜尋人員..." 
+                      value={memberSearchQuery}
+                      onChange={(e) => setMemberSearchQuery(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        paddingRight: "28px",
+                        borderRadius: "4px",
+                        border: `1px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`,
+                        background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.5)",
+                        backdropFilter: "blur(3px)",
+                        WebkitBackdropFilter: "blur(3px)",
+                        color: dark ? "#fff" : "#000",
+                        outline: "none",
+                        fontSize: "12px",
+                        fontFamily: "inherit"
+                      }}
+                    />
+                    {memberSearchQuery && (
+                      <div 
+                        onClick={() => setMemberSearchQuery("")}
+                        style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        title="清除搜尋"
+                        onMouseEnter={e => e.currentTarget.style.color = dark ? "#fff" : "#000"}
+                        onMouseLeave={e => e.currentTarget.style.color = dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="custom-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "4px", height: "240px", overflowY: "auto", paddingRight: "4px", paddingTop: "8px", borderTop: `2px solid ${dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.3)"}` }}>
+                    <div onClick={() => setMemberFilters(new Set())} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px", cursor: "pointer", background: memberFilters.size === 0 ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent", flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"} onMouseLeave={e => e.currentTarget.style.background = memberFilters.size === 0 ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent"}>
+                      <span style={{ width: "14px", height: "14px", border: `2px solid ${dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {memberFilters.size === 0 && <span style={{ width: "8px", height: "8px", background: dark ? "#fff" : "#000" }} />}
+                      </span>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000" }}>全部人員</span>
+                    </div>
+
+                    {(!memberSearchQuery || "全部 (未設定)".includes(memberSearchQuery)) && (
+                      <div onClick={() => toggleMemberFilter('__UNASSIGNED__')} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px", cursor: "pointer", background: memberFilters.has('__UNASSIGNED__') ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent", flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"} onMouseLeave={e => e.currentTarget.style.background = memberFilters.has('__UNASSIGNED__') ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent"}>
+                        <span style={{ width: "14px", height: "14px", border: `2px solid ${dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {memberFilters.has('__UNASSIGNED__') && <span style={{ width: "8px", height: "8px", background: ACCENT_BLUE }} />}
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000" }}>全部 (未設定)</span>
+                      </div>
+                    )}
+
+                    {allMembers.filter(m => m.toLowerCase().includes(memberSearchQuery.toLowerCase())).map(m => (
+                      <div key={m} onClick={() => toggleMemberFilter(m)} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px", cursor: "pointer", background: memberFilters.has(m) ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent", flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"} onMouseLeave={e => e.currentTarget.style.background = memberFilters.has(m) ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent"}>
+                        <span style={{ width: "14px", height: "14px", border: `2px solid ${dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {memberFilters.has(m) && <span style={{ width: "8px", height: "8px", background: ACCENT_BLUE }} />}
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000" }}>{m}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <MpCalendarPanel projects={sorted} dark={dark} onUpdateProject={onUpdateProject} />
+          </div>
+
+        <div style={{ flex: 1 }} />
 
         <div className="sh-controls-anim" style={{ display: "flex", gap: "16px", alignItems: "center" }}>
           {(query || isFiltering) && (

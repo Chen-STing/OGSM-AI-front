@@ -18,7 +18,7 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
       id: crypto.randomUUID(),
       text,
       done: false,
-      assignee: '',
+      assignees: [],
       deadline: '',
       createdAt: new Date().toISOString()
     }])
@@ -80,9 +80,10 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
               {/* Meta: assignee + deadline */}
               <div style={s.todoMeta}>
                 <BrutalistSelect
-                  value={t.assignee || ''}
-                  onChange={v => updateTodoField(t.id, 'assignee', v)}
-                  options={[{ value: '', label: '— 負責人 —' }, ...members.map(mb => ({ value: mb, label: mb }))]}
+                  multiple
+                  value={t.assignees ?? []}
+                  onChange={v => updateTodoField(t.id, 'assignees', v)}
+                  options={members.map(mb => ({ value: mb, label: mb }))}
                   darkMode={darkMode}
                   style={{ ...s.assigneeInput, padding: '1px 4px' }}
                 />

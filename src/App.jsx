@@ -520,15 +520,16 @@ export default function App() {
       const currentFontSize = parseFloat(window.getComputedStyle(el).fontSize); // 動態取得實際大小，避免 hardcode
       let targetX = 0, targetY = 0, scale = 1;
       
-      const cw = document.documentElement.clientWidth;
+      const cw = window.innerWidth;
 
       if (isExitingEditorToProjects) {
         // 飛向管理專案頁 (SwitchHome)
+        // 絕對位置：左距 48px，上距 32px
         targetX = 48 - rect.left;
         targetY = 32 - rect.top;
         const shSize = Math.max(20, Math.min(cw * 0.03, 40)); 
         scale = shSize / currentFontSize;
-      } else { 
+      } else {
         // ✨ 飛向首頁 (HomePage)：直接讀取首頁留下的快取座標 (比照原本的做法)
         const cachedRect = window.__OGSM_HOME_RECT__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_RECT__'); return s ? JSON.parse(s) : null; } catch { return null; } })();
         const cachedSize = window.__OGSM_HOME_SIZE__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_SIZE__'); return s ? parseFloat(s) : null; } catch { return null; } })();
@@ -549,9 +550,9 @@ export default function App() {
       el.style.willChange = "transform"; // 保留這行硬體加速，讓放大過程不模糊
       
       requestAnimationFrame(() => {
-        // ✨ 動畫時間與曲線「完全對齊」 550ms 切換時機
-        el.style.transition = "transform 0.55s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.55s ease";
-        el.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
+        // ✨ 動畫時間必須「完全對齊」切換時機的 450ms，否則最後幾毫秒會在半空中被砍斷導致瞬間歸位抖動！
+        el.style.transition = "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease";
+        el.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) scale(${scale})`;
         el.style.zIndex = 9999;
         el.style.position = "relative"; 
       });
@@ -575,12 +576,16 @@ export default function App() {
           transition: 'border-color 0.15s ease-out', display: "flex", justifyContent: "space-between", alignItems: "flex-start" 
         }}>
           <div onClick={goHome} className="cursor-pointer">
-            <h1 ref={sidebarTitleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "20px", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0, cursor: 'pointer' }}
-
+            <h1 ref={sidebarTitleRef} style={{
+              fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "20px",
+              lineHeight: 0.9, letterSpacing: "-0.02em", textTransform: "uppercase",
+              color: dark ? "#fff" : "#000", margin: 0, padding: 0, cursor: 'pointer',
+              transformOrigin: 'top left', transform: 'translateZ(0)', backfaceVisibility: 'hidden', willChange: 'transform, opacity'
+            }}
               onMouseEnter={e => { e.currentTarget.style.opacity = "0.6" }}
               onMouseLeave={e => { if (isEditorExiting || transition !== 'idle') return; e.currentTarget.style.opacity = 1; }}
             >
-              STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
+              <img src={dark ? "/logo_dark.svg" : "/logo_sun.svg"} alt="STRATEGIC OGSM PLANNER." style={{ height: "3em", width: 'auto', display: 'block' }} draggable={false} />
             </h1>
           </div>
           <button onClick={() => setSidebarOpen(false)} data-sidebar-toggle="" className="b-action-hover"
@@ -658,6 +663,7 @@ export default function App() {
               onToggleDark={() => setDark(d => !d)}
               entering={isEnteringProjects ? 'home' : isEnteringProjectsFromEditor ? 'editor' : null}
               exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : null}
+              onUpdateProject={handleSave}
             />
           </div>
         )}

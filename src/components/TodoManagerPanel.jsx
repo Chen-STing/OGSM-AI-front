@@ -353,8 +353,8 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onU
             <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', paddingTop: '1px' }} onClick={e => e.stopPropagation()}>
               <BrutalistSelect
                 multiple
-                value={Array.isArray(todo.assignee) ? todo.assignee : (todo.assignee ? [todo.assignee] : [])}
-                onChange={v => onUpdate && onUpdate('assignee', v)}
+                value={todo.assignees ?? []}
+                onChange={v => onUpdate && onUpdate('assignees', v)}
                 options={(members || []).map(mb => ({ value: mb, label: mb }))}
                 darkMode={darkMode}
                 overdue={todo.todoOverdue}

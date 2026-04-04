@@ -6,7 +6,7 @@ import QuickEditModal from './QuickEditModal.jsx'
 import { api } from '../services/api.js'
 import { span } from 'framer-motion/client'
 
-const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignee: '', todos: [], sortOrder: 0 })
+const emptyMeasure  = () => ({ id: null, kpi: '', target: '', actual: '', progress: 0, status: 'NotStarted', deadline: '', assignees: [], todos: [], sortOrder: 0 })
 const emptyStrategy = () => ({ id: null, text: '', sortOrder: 0, measures: [emptyMeasure()], todos: [] })
 const emptyGoal     = () => ({ id: null, text: '', sortOrder: 0, strategies: [emptyStrategy()] })
 
@@ -305,8 +305,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     const { type, gi, si, mi } = aiDialog
     setAiLoading(true)
 
-    const makeTodos = (arr) => (arr || []).map(t => ({ id: crypto.randomUUID(), text: typeof t === 'string' ? t : (t.text || ''), done: false, assignee: typeof t === 'object' ? (t.assignee || '') : '', deadline: typeof t === 'object' ? (t.deadline || '') : '', createdAt: new Date().toISOString() }))
-    const makeMeasure = (m, sortOrder) => ({ id: null, kpi: m.kpi || '', target: m.target || '', deadline: m.deadline || '', assignee: '', actual: '', progress: 0, status: 'NotStarted', sortOrder, todos: makeTodos(m.todos) })
+    const makeTodos = (arr) => (arr || []).map(t => ({ id: crypto.randomUUID(), text: typeof t === 'string' ? t : (t.text || ''), done: false, assignees: Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []), deadline: typeof t === 'object' ? (t.deadline || '') : '', createdAt: new Date().toISOString() }))
+    const makeMeasure = (m, sortOrder) => ({ id: null, kpi: m.kpi || '', target: m.target || '', deadline: m.deadline || '', assignees: [], actual: '', progress: 0, status: 'NotStarted', sortOrder, todos: makeTodos(m.todos) })
 
     try {
       if (type === 'goal') {
@@ -341,9 +341,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     if (!qeModal) return
     const { type, gi, si, mi } = qeModal
     const normMeasure = m => {
-      const assignee = m.assignees !== undefined ? m.assignees : (m.assignee ?? [])
-      const { assignees: _a, ...mRest } = m
-      return { ...mRest, assignee, todos: (mRest.todos || []).map(t => { const { assignees: ta, ...tRest } = t; return { ...tRest, assignee: ta !== undefined ? ta : (tRest.assignee ?? []) } }) }
+      const assignees = Array.isArray(m.assignees) ? m.assignees : (m.assignee ? [m.assignee] : [])
+      const { assignee: _a, assignees: _as, ...mRest } = m
+      return { ...mRest, assignees, todos: (mRest.todos || []).map(t => { const { assignee: ta, assignees: tas, ...tRest } = t; return { ...tRest, assignees: Array.isArray(tas) ? tas : (ta ? [ta] : []) } }) }
     }
     const normStrategy = s => ({ ...s, measures: (s.measures || []).map(normMeasure) })
     if (type === 'goal') {
@@ -708,14 +708,14 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                         {editMode ? (
                                           <BrutalistSelect
                                             multiple
-                                            value={Array.isArray(m.assignee) ? m.assignee : (m.assignee ? [m.assignee] : [])}
-                                            onChange={v => setMField(gi,si,mi,'assignee',v)}
+                                            value={m.assignees ?? []}
+                                            onChange={v => setMField(gi,si,mi,'assignees',v)}
                                             options={members.map(mb => ({ value: mb, label: mb }))}
                                             darkMode={dark}
                                             style={{ width: '100%', fontSize: '11px', fontWeight: 700, minHeight: '22px', boxSizing: 'border-box' }}
                                           />
                                         ) : (
-                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#a0b8ff' : '#000' }}>{Array.isArray(m.assignee) ? (m.assignee.length ? m.assignee.join(', ') : '—') : (m.assignee || '—')}</span>
+                                          <span style={{ fontSize: '11px', fontWeight: 700, color: dark ? '#a0b8ff' : '#000' }}>{(m.assignees?.length) ? m.assignees.join(', ') : '—'}</span>
                                         )}
                                       </div>
 
@@ -771,7 +771,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       const now = new Date(); const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
                                       const updateTodo = (tid, field, val) => setMTodos(gi, si, mi, (m.todos || []).map(t => t.id === tid ? { ...t, [field]: val } : t))
                                       const removeTodo = (tid) => setMTodos(gi, si, mi, (m.todos || []).filter(t => t.id !== tid))
-                                      const addTodo = () => setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignee: '', deadline: '', createdAt: new Date().toISOString() }])
+                                      const addTodo = () => setMTodos(gi, si, mi, [...(m.todos || []), { id: crypto.randomUUID(), text: '', done: false, assignees: [], deadline: '', createdAt: new Date().toISOString() }])
                                       return (
                                         <div data-todo-zone style={{ borderTop: `1px dashed ${dark ? 'rgba(0,0,255,0.3)' : 'rgba(0,0,255,0.2)'}`, padding: '6px 10px 6px 10px', borderLeft: `3px solid ${B_BLUE}`, background: dark ? 'rgba(0,0,255,0.03)' : 'rgba(0,0,255,0.025)', width: dynKpi + dynTarget + dynValP + COL_OWNER + COL_DL + COL_STATUS + COL_PROG + COL_ACT, boxSizing: 'border-box' }}>
                                           {(m.todos || []).length === 0 && !editMode ? null : (m.todos || []).map((t, ti) => {
@@ -795,8 +795,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                                         multiple
                                                         tagLayout="wrap"
                                                         maxTagCols={3}
-                                                        value={Array.isArray(t.assignee) ? t.assignee : (t.assignee ? [t.assignee] : [])}
-                                                        onChange={v => updateTodo(t.id, 'assignee', v)}
+                                                        value={t.assignees ?? []}
+                                                        onChange={v => updateTodo(t.id, 'assignees', v)}
                                                         options={members.map(mb => ({ value: mb, label: mb }))}
                                                         darkMode={dark}
                                                         overdue={tOverdue}
@@ -813,7 +813,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                                     <span style={{ fontSize: '11px', fontFamily: 'monospace', color: dark ? '#3d62dd' : '#2209c5', flexShrink: 0, marginTop: '3px', lineHeight: 1.5, fontWeight: 700 }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>
                                                     <span style={{ fontSize: '11px', lineHeight: 1.5, color: t.done ? (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)') : (dark ? '#fff' : '#000'), textDecoration: t.done ? 'line-through' : 'none', cursor: 'pointer', flex: 1, wordBreak: 'break-word', fontWeight: 700 }} onClick={() => updateTodo(t.id, 'done', !t.done)}>{t.text}</span>
                                                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center', alignSelf: 'flex-start', marginTop: '2px' }}>
-                                                      {(Array.isArray(t.assignee) ? t.assignee.length > 0 : !!t.assignee) && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#ffffff' : '#000', background: dark ? 'rgba(80,110,255,0.35)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(140,170,255,0.6)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>{Array.isArray(t.assignee) ? t.assignee.join(', ') : t.assignee}</span>}
+                                                      {!!t.assignees?.length && <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: dark ? '#ffffff' : '#000', background: dark ? 'rgba(80,110,255,0.35)' : 'rgba(0,0,0,0.06)', border: `1px solid ${dark ? 'rgba(140,170,255,0.6)' : 'rgba(0,0,0,0.2)'}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>{t.assignees.join(', ')}</span>}
                                                       {t.deadline && <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'), background: tOverdue ? 'rgba(204,0,0,0.08)' : 'transparent', border: `1px solid ${tOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.2)')}`, padding: '2px 6px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>{tOverdue ? <span style={{ fontSize: '11px' }}>⚠</span> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0 }}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}{t.deadline}</span>}
                                                     </div>
                                                   </>
@@ -822,7 +822,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                             )
                                           })}
                                           {editMode && (
-                                            <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '5px 0 0 0', marginTop: '4px', width: '100%', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addTodo}>+ 新增檢核步驟</button>
+                                            <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, marginTop: '4px', width: '100%', textAlign: 'left' }}>
+                                              <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '5px 0 0 0', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addTodo}>+ 新增檢核步驟</button>
+                                            </div>
                                           )}
                                         </div>
                                       )
@@ -831,14 +833,18 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                 )
                               })}
                               {editMode && (
-                                <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px 16px', textAlign: 'left', width: '100%', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
+                                <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, width: '100%', textAlign: 'left' }}>
+                                  <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addMeasure(gi, si)}>+ MD 定量指標</button>
+                                </div>
                               )}
                             </div>
                           </div>
                         )
                       })}
                       {editMode && (
-                        <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px', textAlign: 'left', borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, width: '100%', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addStrategy(gi)}>+ 新增 Strategy</button>
+                        <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, width: '100%', textAlign: 'left' }}>
+                          <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '12px', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={() => addStrategy(gi)}>+ 新增 Strategy</button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -847,8 +853,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
             </div>
 
             {editMode && (
-              <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` }}>
-                <button className="ogsm-add-btn" style={{ width: '100%', background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '20px 16px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addGoal}>+ 新增 Goal</button>
+              <div style={{ borderTop: `2px dashed ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, width: '100%', textAlign: 'left' }}>
+                <button className="ogsm-add-btn" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '20px 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }} onClick={addGoal}>+ 新增 Goal</button>
               </div>
             )}
           </div>

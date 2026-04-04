@@ -1,6 +1,6 @@
 import React, { useRef, useLayoutEffect } from 'react';
 
-const ACCENT_BLUE   = "#0000FF";
+const ACCENT_BLUE   = "#2222f0";
 const ACCENT_PINK   = "#FF00FF";
 const ACCENT_YELLOW = "#FFFF00";
 
@@ -47,7 +47,8 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
       }
     };
     updateCache();
-    const timer = setTimeout(updateCache, 500);
+    // 必須大於等於 800ms，等待 animate-slide-up 動畫完全結束後再擷取，否則會抓到動畫半途的錯誤作標導致回程抖動
+    const timer = setTimeout(updateCache, 850);
     window.addEventListener('resize', updateCache);
     return () => {
       clearTimeout(timer);
@@ -75,7 +76,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
       
       requestAnimationFrame(() => {
         el.style.transition = "transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease";
-        el.style.transform = `translate(${targetX}px, ${targetY}px) scale(${scale})`;
+        el.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) scale(${scale})`;
         el.style.zIndex = 9999;
         el.style.position = "relative";
       });
@@ -93,9 +94,9 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
         position: "relative", zIndex: 10,
       }}>
         {/* 嚴格判斷：若是轉場回來則完全不加上 animate-slide-up，保證落地不跳躍 */}
-        <div className={`hp-title ${isFirstMount.current && !entering && !exiting ? "animate-slide-up" : ""}`} style={{ marginBottom: "48px", marginLeft: "64px", opacity: hideTitle ? 0 : 1 }}>
-          <h1 id="home-title-target" ref={titleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(80px, 10vw, 100px)", lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0 }}>
-            STRATEGIC<br /><span style={{ color: ACCENT_BLUE }}>OGSM</span><br />PLANNER.
+        <div className={`hp-title ${isFirstMount.current && !entering && !exiting ? "animate-slide-up" : ""}`} style={{ marginBottom: "36px", marginLeft: "64px", opacity: hideTitle ? 0 : 1 }}>
+          <h1 id="home-title-target" ref={titleRef} style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(80px, 10vw, 100px)", lineHeight: 0.9, letterSpacing: "-0.02em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0, transformOrigin: 'top left', transform: 'translateZ(0)', backfaceVisibility: 'hidden', willChange: 'transform, opacity' }}>
+            <img src={dark ? "/logo_dark.svg" : "/logo_sun.svg"} alt="STRATEGIC OGSM PLANNER." style={{ height: "3em", width: 'auto', display: 'block' }} draggable={false} />
           </h1>
         </div>
 
