@@ -18,6 +18,22 @@ function formatTaiwanDate(iso) {
 
 const LOCAL_CSS = `
   @keyframes waterfall { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+  .top-drawer-container { 
+    width: 600px;
+    max-width: 90vw;
+    margin: 0 auto;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 1s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.8s ease;
+  }
+  .top-drawer-container.is-open {
+    max-height: 300px;
+  }
+  .top-drawer-inner { 
+    display: flex; flex-direction: column; justify-content: flex-end; 
+    padding-bottom: 40px; /* 給陰影空間，避免被 overflow hidden 裁切 */
+    margin-bottom: -40px; /* 抵銷 padding，讓原本版面不被影響 */
+  }
   .sh-range::-webkit-slider-thumb {
     -webkit-appearance: none; width: 14px; height: 14px; border-radius: 0;
     background: #0000FF; border: 2px solid #fff; box-shadow: 2px 2px 0 #000;
@@ -212,7 +228,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject }) {
+export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -241,6 +257,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [filterHovered, setFilterHovered] = useState(false);
   const [sortHovered, setSortHovered]     = useState(false);
   const [memberHovered, setMemberHovered] = useState(false);
+  const [showTopDrawer, setShowTopDrawer] = useState(false);
 
   // New states for Assignees filter
   const allMembers = React.useMemo(() => {
@@ -483,10 +500,14 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
     <div className={wrapperClass} style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative", zIndex: 10, overflow: "hidden" }}>
       <style>{LOCAL_CSS}</style>
 
-      <div style={{ padding: "32px 48px 20px", display: "flex", alignItems: "center", flexShrink: 0, position: "relative", zIndex: 10 }}>
+      {/* Header 區塊：主列固定，抽屜+按鈕浮空疊在 grid 上 */}
+      <div style={{ flexShrink: 0, position: 'relative', zIndex: 10 }}>
+
+        {/* 主列： logo + controls */}
+        <div style={{ padding: "32px 48px 20px", display: "flex", alignItems: "center", position: "relative" }}>
         {/* 獨立的標題，避免右側元素消失時牽連排版 */}
         <h1 ref={titleRef} onClick={onBack} className="cursor-pointer"
-          style={{ 
+          style={{
             fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "clamp(20px, 3vw, 40px)", lineHeight: 0.9, 
             letterSpacing: "-0.02em", textTransform: "uppercase", color: dark ? "#fff" : "#000", margin: 0, padding: 0, cursor: 'pointer',
             transformOrigin: 'top left', transform: 'translateZ(0)', backfaceVisibility: 'hidden', willChange: 'transform, opacity',
@@ -620,6 +641,97 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transition: "transform 0.2s", transform: sortDir === "asc" ? "rotate(180deg)" : "rotate(0deg)" }}><path d="M12 5v14m-7-7l7-7 7 7"/></svg>
           </button>
         </div>
+
+        </div>
+
+        {/* 浮空層：從 header 頂端開始，滑鼠 Hover 時展開，離開時收起 */}
+        <div 
+          onMouseLeave={() => setShowTopDrawer(false)}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none', opacity: exitingTo ? 0 : 1, transition: 'opacity 0.2s' }}
+        >
+          <div className={`top-drawer-container ${showTopDrawer ? 'is-open' : ''}`} style={{
+            opacity: showTopDrawer ? 1 : 0,
+            pointerEvents: showTopDrawer ? 'auto' : 'none'
+          }}>
+            <div className="top-drawer-inner">
+              <div className="top-drawer-panel" style={{
+                width: '100%',
+                minHeight: '120px',
+                padding: '32px 32px',
+                borderLeft: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
+                borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
+                borderBottom: `2px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
+                borderRadius: '0 0 16px 16px',
+                background: dark ? 'rgba(18,18,18,0.97)' : 'rgba(248,248,248,0.97)',
+                backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: dark ? '0 16px 48px rgba(0,0,0,0.6)' : '0 16px 48px rgba(0,0,0,0.12)',
+                display: 'flex', gap: '24px', flexWrap: 'wrap',
+                pointerEvents: 'auto'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <button 
+                    onClick={() => { setShowTopDrawer(false); if (onOpenMemberSettings) onOpenMemberSettings(); }}
+                    style={{
+                      width: '64px', height: '64px',
+                      borderRadius: '16px',
+                      background: `linear-gradient(135deg, ${ACCENT_BLUE}, #3B5BDB)`,
+                      border: `2px solid ${dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.8)'}`,
+                      boxShadow: '0 6px 16px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.2)',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', padding: 0,
+                      transition: 'transform 0.1s, box-shadow 0.1s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.1)'; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    title="人員管理設定"
+                  >
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="15" r="3" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M10 15H6a4 4 0 0 0-4 4v2" />
+                      <path d="m21.7 16.4-.9-.3" />
+                      <path d="m15.2 13.9-.9-.3" />
+                      <path d="m16.6 18.7.3-.9" />
+                      <path d="m19.1 12.2.3-.9" />
+                      <path d="m19.6 18.7-.4-1" />
+                      <path d="m16.8 12.3-.4-1" />
+                      <path d="m14.3 16.6 1-.4" />
+                      <path d="m20.7 13.8 1-.4" />
+                    </svg>
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)', fontFamily: '"Space Grotesk", sans-serif' }}>
+                    人員管理
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            onMouseEnter={() => setShowTopDrawer(true)}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = dark ? '0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.1)'; }}
+            onMouseDown={e => { e.currentTarget.style.boxShadow = 'none'; }}
+            onMouseUp={e => { e.currentTarget.style.boxShadow = dark ? '0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.1)'; }}
+            style={{
+              pointerEvents: 'auto',
+              width: '48px', height: '16px',
+              background: showTopDrawer ? ACCENT_BLUE : (dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'),
+              border: `2px solid ${showTopDrawer ? ACCENT_BLUE : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')}`,
+              borderTop: 'none', borderRadius: '0 0 24px 24px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: showTopDrawer ? '#fff' : (dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)'),
+              transition: 'background 0.2s, border-color 0.2s, transform 0.12s ease, box-shadow 0.12s ease', padding: 0,
+              boxShadow: dark ? '0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.1)',
+            }}
+            title={showTopDrawer ? '收起' : '展開'}
+          >
+            <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: 'transform 0.35s cubic-bezier(0.34, 1.18, 0.64, 1)', transform: showTopDrawer ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -643,7 +755,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
           onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.25)"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} title="切換主題"
         >
           <div style={{ width: "100%", display: "flex", justifyContent: dark ? "flex-end" : "flex-start", padding: dark ? "0 12px 0 0" : "0 0 0 12px", boxSizing: "border-box" }}>
-            <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "12px", letterSpacing: "0.05em", color: dark ? "#fff" : "#787878", transition: "all 0.3s ease" }}>{dark ? "DARK" : "LIGHT"}</span>
+            <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "12px", letterSpacing: "0.05em", color: dark ? "#fff" : "#464646", transition: "all 0.3s ease" }}>{dark ? "DARK" : "LIGHT"}</span>
           </div>
           <div style={{ position: "absolute", top: "2px", left: dark ? "3px" : "calc(100% - 30px)", width: "32px", height: "32px", borderRadius: "50%", background: dark ? "#fff" : "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", transition: "left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" }}>
             {dark ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4a4a4a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#909090" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>}

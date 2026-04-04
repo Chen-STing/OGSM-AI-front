@@ -1,5 +1,6 @@
 // ─── bgConfig.js ─────────────────────────────────────────────────────────────
 // Pure data & helpers — no React, safe to import anywhere.
+export const APP_START_TIME = Date.now();
 
 export const PALETTE = [
   '#0d0dd0ff', '#FF00FF', '#bcbc31', '#00FF00',

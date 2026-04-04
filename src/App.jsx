@@ -479,7 +479,7 @@ export default function App() {
     try {
       const { api } = await import("./services/api.js");
       await api.saveMembers(newMembers);
-    } catch (e) { showToast("負責人儲存失敗", "error"); }
+    } catch (e) { showToast("人員儲存失敗", "error"); }
   }, [showToast]);
 
   const [bgConfig, setBgConfig]       = useState(loadSavedBgConfig);
@@ -609,7 +609,7 @@ export default function App() {
               onMouseEnter={() => setMembersHovered(true)}
               onMouseLeave={() => setMembersHovered(false)}
               style={{ width: "42px", height: "42px", flexShrink: 0, background: membersHovered ? '#FF00FF' : (dark ? "#222" : "#fff"), border: `3px solid ${dark ? '#fff' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", position: "relative", color: membersHovered ? '#fff' : (dark ? '#fff' : '#000'), transition: 'all 0.15s', cursor: 'pointer' }}
-              title="負責人管理">
+              title="人員管理">
               <Users size={22} />
               <span style={{ position: "absolute", top: "-10px", right: "-10px", background: "#000", color: membersHovered ? '#FF00FF' : "#fff", fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: "2px 6px", border: `2px solid ${membersHovered ? '#FF00FF' : '#fff'}`, borderRadius: "12px", transition: 'all 0.15s' }}>
                 {members.length > 0 ? members.length : '12'}
@@ -664,6 +664,7 @@ export default function App() {
               entering={isEnteringProjects ? 'home' : isEnteringProjectsFromEditor ? 'editor' : null}
               exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : null}
               onUpdateProject={handleSave}
+              onOpenMemberSettings={() => setShowMembers(true)}
             />
           </div>
         )}

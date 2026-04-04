@@ -99,7 +99,7 @@ export default function MemberSettings({ members=[], onChange, onClose, darkMode
         <div style={{ ...D.header, position:'relative', zIndex:1 }}>
           <div>
             <div style={{ fontSize:'12px', fontFamily:'"DM Mono",monospace', color:ACCENT_BLUE, fontWeight:900, letterSpacing:'1px', marginBottom:'4px' }}>[ SETTINGS ]</div>
-            <div style={{ fontFamily:'"Space Grotesk","Syne",sans-serif', fontWeight:900, fontSize:'20px', color:T.text }}>負責人管理</div>
+            <div style={{ fontFamily:'"Space Grotesk","Syne",sans-serif', fontWeight:900, fontSize:'20px', color:T.text }}>人員管理</div>
           </div>
           <button style={{ background:'none', border:'none', color:T.text, cursor:'pointer', fontSize:'20px', padding:'4px', fontWeight:900, transition:'color 0.15s' }} onClick={handleCancel}
             onMouseEnter={e=>{e.currentTarget.style.color='#c96e6e'}} onMouseLeave={e=>{e.currentTarget.style.color=T.text}}>✕</button>

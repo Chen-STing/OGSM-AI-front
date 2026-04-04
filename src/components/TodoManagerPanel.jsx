@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
-import BrutalistBackground from './BrutalistBackground'
 import BrutalistSelect from './BrutalistSelect'
 import { loadSavedBgConfig } from '../bgConfig.js'
+import BrutalistBackground from './BrutalistBackground.jsx'
 
 // ─── BRUTALIST TOKENS ────────────────────────────────────────────────────────
 const B_YELLOW = '#FFFF00'
@@ -165,7 +165,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
         animation: 'todoExpandPanel 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       }}>
         {/* 佈局層 */}
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: dark ? 'rgba(18,18,18,0.92)' : 'rgba(246,246,246,0.92)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
           <BrutalistBackground dark={darkMode} bgConfig={bgConfig} />
 
       {/* ── Header ── */}

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
-import BrutalistBackground from './BrutalistBackground'
-import { loadSavedBgConfig } from '../bgConfig.js' // 加入這行載入設定
+import { loadSavedBgConfig } from '../bgConfig.js'
+import BrutalistBackground from './BrutalistBackground.jsx'
 
 // ─── DESIGN TOKENS (Brutalist Edition) ──────────────────────────────────────
 const ACCENT_BLUE   = "#4242e3";
@@ -79,7 +79,6 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
   const [pptHovered, setPptHovered] = useState(false)
   const [pdfHovered, setPdfHovered] = useState(false)
 
-  // 接收背景的動態變更
   const [bgConfig, setBgConfig] = useState(() => loadSavedBgConfig())
   useEffect(() => {
     const handleBgChange = () => setBgConfig(loadSavedBgConfig())
@@ -815,9 +814,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
             animation: 'auditExpandPanel 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both',
           }}>
             <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-
-        {/* 自動填滿側邊欄寬高、防溢出的背景 */}
-        <BrutalistBackground dark={darkMode} bgConfig={bgConfig} />
+              <BrutalistBackground dark={darkMode} bgConfig={bgConfig} />
 
         {/* Header */}
         <div style={s.header}>
@@ -1173,6 +1170,9 @@ function buildAuditStyles(dark) {
     panel: {
       position: 'fixed', top: 0, right: 0, bottom: 0,
       width: '800px', maxWidth: '95vw',
+      background: dark ? 'rgba(18,18,18,0.92)' : 'rgba(246,246,246,0.92)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
       borderLeft: `2px solid ${T.border}`,
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden', // 【關鍵防呆】防止星星動畫導致溢出螢幕左側
