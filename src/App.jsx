@@ -7,6 +7,7 @@ import OgsmEditor from './components/OgsmEditor.jsx';
 import GenerateModal from './components/GenerateModal.jsx';
 import MemberSettings from './components/MemberSettings.jsx';
 import AuditPanel from './components/AuditPanel.jsx';
+import DashboardPanel from './components/DashboardPanel.jsx';
 import BrutalistBackground from './components/BrutalistBackground.jsx';
 import KonamiCode from './components/KonamiCode.jsx';
 import CipherPopup, { CipherApi } from './components/CipherPopup.jsx';
@@ -395,6 +396,12 @@ export default function App() {
     }
   }, [displayedPage, transition]);
 
+  const goDashboard = useCallback(() => {
+    navigate('/dashboard');
+    setDisplayedPage('dashboard');
+    setTransition('idle');
+  }, []);
+
   const goProjects = useCallback(() => {
     if (displayedPage === 'projects') return;
     if (transition !== 'idle') return;
@@ -665,6 +672,20 @@ export default function App() {
               exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : null}
               onUpdateProject={handleSave}
               onOpenMemberSettings={() => setShowMembers(true)}
+              onOpenDashboard={goDashboard}
+            />
+          </div>
+        )}
+
+        {/* ── DASHBOARD PAGE ── */}
+        {displayedPage === 'dashboard' && (
+          <div style={{ flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+            <DashboardPanel
+              projects={projects}
+              dark={dark}
+              onBack={() => { navigate('/management'); setDisplayedPage('projects'); setTransition('idle'); }}
+              onGoHome={goHome}
+              onToggleDark={() => setDark(d => !d)}
             />
           </div>
         )}

@@ -25,6 +25,7 @@ const LOCAL_CSS = `
     max-height: 0;
     overflow: hidden;
     transition: max-height 1s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.8s ease;
+    border-radius: 0 0 16px 16px;
   }
   .top-drawer-container.is-open {
     max-height: 300px;
@@ -115,7 +116,7 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
         background: hovered ? ACCENT_YELLOW : "transparent",
         color: dark ? "#fff" : "#000",
         border: `${borderW}px solid ${dark ? "rgba(255,255,255,0.3)" : "#000"}`,
-        boxShadow: hovered ? `${shadowOffset}px ${shadowOffset}px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}` : `8px 8px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "#000"}`,
+        boxShadow: hovered ? `${shadowOffset}px ${shadowOffset}px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "rgba(0, 0, 0, 0.7)"}` : `8px 8px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "rgba(0, 0, 0, 0.7)"}`,
         transform: hovered ? "translate(-6px,-6px)" : "translate(0,0)",
         transition: "all 0.15s ease",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
@@ -228,7 +229,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings }) {
+export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings, onOpenDashboard }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -274,15 +275,17 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       n.delete(m);
     } else {
       if (m === '__UNASSIGNED__') {
-        // 選「未設定」時清除所有其他成員
         n.clear();
       } else {
-        // 選一般成員時移除「未設定」
         n.delete('__UNASSIGNED__');
       }
       n.add(m);
     }
     return n;
+  });
+  const [assigneeConditions, setAssigneeConditions] = useState(new Set());
+  const toggleAssigneeCondition = (val) => setAssigneeConditions(prev => {
+    const n = new Set(prev); n.has(val) ? n.delete(val) : n.add(val); return n;
   });
   const [showMemberPop, setShowMemberPop] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
@@ -444,6 +447,16 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];
       if (pAssignees.length > 0 && !pAssignees.some(m => memberFilters.has(m))) return false;
     }
+    if (assigneeConditions.size > 0) {
+      const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];
+      const cnt = pAssignees.length;
+      if (assigneeConditions.has('excludeUnassigned') && cnt === 0) return false;
+      const hasSingle = assigneeConditions.has('single');
+      const hasMultiple = assigneeConditions.has('multiple');
+      if (hasSingle || hasMultiple) {
+        if (!(hasSingle && cnt === 1) && !(hasMultiple && cnt >= 2)) return false;
+      }
+    }
     return true;
   });
 
@@ -524,9 +537,9 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
             <div style={{ position: "relative" }} onMouseEnter={handleMemberEnter} onMouseLeave={handleMemberLeave}>
               <button 
                 style={{ 
-                  background: memberFilters.size > 0 ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"),
-                  color: memberFilters.size > 0 ? "#fff" : (dark ? "#fff" : "#000"),
-                  border: `2px solid ${memberFilters.size > 0 ? ACCENT_BLUE : "transparent"}`,
+                  background: (memberFilters.size > 0 || assigneeConditions.size > 0) ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"),
+                  color: (memberFilters.size > 0 || assigneeConditions.size > 0) ? "#fff" : (dark ? "#fff" : "#000"),
+                  border: `2px solid ${(memberFilters.size > 0 || assigneeConditions.size > 0) ? ACCENT_BLUE : "transparent"}`,
                   backdropFilter: "blur(4px)",
                   cursor: "pointer",
                   display: "flex",
@@ -542,9 +555,9 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
                 title="依人員篩選專案"
               >
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                {memberFilters.size > 0 && (
+{(memberFilters.size + assigneeConditions.size) > 0 && (
                   <div style={{ position: "absolute", top: 0, right: 0, minWidth: "26px", height: "26px", background: ACCENT_PINK, color: "#000", borderRadius: "13px", border: `2px solid ${dark ? "#2e2e2e" : "#f0f0f0"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 900, padding: "0 4px", boxShadow: "2px 2px 0 rgba(0,0,0,0.2)" }}>
-                    {memberFilters.size}
+                    {memberFilters.size + assigneeConditions.size}
                   </div>
                 )}
               </button>
@@ -609,6 +622,23 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
                           {memberFilters.has(m) && <span style={{ width: "8px", height: "8px", background: ACCENT_BLUE }} />}
                         </span>
                         <span style={{ fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000" }}>{m}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ─ Assignee-count conditions ─ */}
+                  <div style={{ borderTop: `2px solid ${dark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"}`, paddingTop: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <div style={{ fontSize: "9px", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", padding: "2px 8px 4px" }}>數量條件（可多選）</div>
+                    {[['single', '只限單一所有人'], ['multiple', '多人以上'], ['excludeUnassigned', '排除全部 (未設定)']].map(([val, label]) => (
+                      <div key={val} onClick={() => toggleAssigneeCondition(val)}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 8px", cursor: "pointer", background: assigneeConditions.has(val) ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent", flexShrink: 0 }}
+                        onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"}
+                        onMouseLeave={e => e.currentTarget.style.background = assigneeConditions.has(val) ? (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent"}
+                      >
+                        <span style={{ width: "14px", height: "14px", border: `2px solid ${assigneeConditions.has(val) ? ACCENT_YELLOW : (dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)")}`, background: assigneeConditions.has(val) ? ACCENT_YELLOW : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {assigneeConditions.has(val) && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000" }}>{label}</span>
                       </div>
                     ))}
                   </div>
@@ -705,6 +735,38 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
                     人員管理
                   </span>
                 </div>
+
+                {/* Dashboard */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={() => { setShowTopDrawer(false); if (onOpenDashboard) onOpenDashboard(); }}
+                    style={{
+                      width: '64px', height: '64px',
+                      borderRadius: '16px',
+                      background: `linear-gradient(135deg, #b7b700, #8a8a00)`,
+                      border: `2px solid ${dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.8)'}`,
+                      boxShadow: '0 6px 16px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.2)',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', padding: 0,
+                      transition: 'transform 0.1s, box-shadow 0.1s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.95)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.1)'; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)'; }}
+                    title="統計儀表板"
+                  >
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1"/>
+                      <rect x="14" y="3" width="7" height="7" rx="1"/>
+                      <rect x="14" y="14" width="7" height="7" rx="1"/>
+                      <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)', fontFamily: '"Space Grotesk", sans-serif' }}>
+                    儀表板
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -751,13 +813,13 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
 
       <div className="sh-grid-anim" style={{ position: "absolute", bottom: "24px", right: "40px", zIndex: 10 }}>
         <button onClick={onToggleDark}
-          style={{ width: "96px", height: "40px", borderRadius: "999px", background: dark ? "#4a4a4a" : "#b0b0b0", border: `2px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)"}`, boxShadow: `4px 4px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.25)"}`, display: "flex", alignItems: "center", position: "relative", cursor: "pointer", padding: "0", transition: "all 0.3s ease", overflow: "hidden" }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.25)"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)"}`; }} title="切換主題"
+          style={{ width: "96px", height: "40px", borderRadius: "999px", background: dark ? "#222222" : "#e4e4e4", border: `2px solid ${dark ? "#b7b6b6" : "#000"}`, boxShadow: `4px 4px 0 0 ${dark ? "#b7b6b6" : "#000"}`, display: "flex", alignItems: "center", position: "relative", cursor: "pointer", padding: "0", transition: "all 0.3s ease", overflow: "hidden" }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "#b7b6b6" : "#000"}`; }} onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${dark ? "#b7b6b6" : "#000"}`; }} onMouseDown={e => { e.currentTarget.style.transform = "translate(2px,2px)"; e.currentTarget.style.boxShadow = `2px 2px 0 0 ${dark ? "#b7b6b6" : "#000"}`; }} onMouseUp={e => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = `6px 6px 0 0 ${dark ? "#b7b6b6" : "#000"}`; }} title="切換主題"
         >
           <div style={{ width: "100%", display: "flex", justifyContent: dark ? "flex-end" : "flex-start", padding: dark ? "0 12px 0 0" : "0 0 0 12px", boxSizing: "border-box" }}>
             <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: "12px", letterSpacing: "0.05em", color: dark ? "#fff" : "#464646", transition: "all 0.3s ease" }}>{dark ? "DARK" : "LIGHT"}</span>
           </div>
-          <div style={{ position: "absolute", top: "2px", left: dark ? "3px" : "calc(100% - 30px)", width: "32px", height: "32px", borderRadius: "50%", background: dark ? "#fff" : "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", transition: "left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" }}>
+          <div style={{ position: "absolute", top: "2px", left: dark ? "calc(0% - 3px)" : "calc(100% - 30px)", width: "32px", height: "32px", borderRadius: "50%", background: dark ? "#fff" : "#e8e8e8", display: "flex", alignItems: "center", justifyContent: "center", transition: "left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" }}>
             {dark ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4a4a4a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#909090" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>}
           </div>
         </button>
