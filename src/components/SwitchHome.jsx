@@ -56,6 +56,7 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260, onC
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [clampCount, setClampCount] = useState(Infinity);
+  const [showAssigneesTooltip, setShowAssigneesTooltip] = useState(false);
   const displayRef = useRef(null);
   const pct = calcProgress(project);
   const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })();
@@ -129,18 +130,69 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260, onC
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px", minWidth: 0 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1, overflow: "visible" }}>
           {/* Assignee tags: measure directly on this container; position:relative makes it the offsetParent */}
-          <div ref={displayRef} style={{ position: "relative", maxHeight: "23px", overflow: "hidden", display: "flex", flexWrap: "wrap", gap: "3px" }}>
-              {assignees.length > 0 ? (
-                <>
-                  {displayAssignees.map(name => (
-                    <div key={name} style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "#000" : "#fff"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase", whiteSpace: "nowrap" }}>{name}</div>
-                  ))}
-                  {showMore && (
-                    <div style={{ color: hovered ? "#000" : (dark ? "#fff" : "#000"), fontSize: "11px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 1100, letterSpacing: "0.1em", padding: "4px 4px", textTransform: "uppercase", alignSelf: "center" }}>...</div>
+          <div ref={displayRef} style={{ position: "relative", maxHeight: "23px", overflow: "visible", display: "flex", flexWrap: "wrap", gap: "3px", alignItems: "center" }}>
+              {assignees.length > 1 ? (
+                <div 
+                  style={{ position: "relative", display: "inline-flex" }}
+                  onMouseEnter={() => setShowAssigneesTooltip(true)}
+                  onMouseLeave={() => setShowAssigneesTooltip(false)}
+                >
+                  <button
+                    type="button"
+                    onClick={e => e.stopPropagation()}
+                    style={{ 
+                      fontSize: "9px", 
+                      fontFamily: '"Space Grotesk", sans-serif', 
+                      fontWeight: 900, 
+                      letterSpacing: "0.1em", 
+                      background: showAssigneesTooltip
+                        ? (dark ? "#8ea5ff" : "#2052f7")
+                        : (hovered ? "#000" : (dark ? "#fff" : "#000")), 
+                      color: showAssigneesTooltip
+                        ? (dark ? "#111" : "#fff")
+                        : (hovered ? ACCENT_YELLOW : (dark ? "#000" : "#fff")), 
+                      border: "none",
+                      padding: "4px 8px", 
+                      textTransform: "uppercase", 
+                      cursor: "pointer",
+                      transition: "background 0.15s ease, color 0.15s ease",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {assignees.length} 人
+                  </button>
+                  {showAssigneesTooltip && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 4px)',
+                        left: 0,
+                        minWidth: '160px',
+                        maxWidth: '280px',
+                        background: dark ? 'rgba(73, 73, 73)' : 'rgb(224, 221, 221)',
+                        border: `1px solid ${dark ? 'rgba(120,140,255,0.5)' : 'rgba(0,0,0,0.2)'}`,
+                        boxShadow: dark ? '3px 3px 0 rgba(120,140,255,0.25)' : '3px 3px 0 rgba(0,0,0,0.12)',
+                        padding: '8px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '4px',
+                        zIndex: 50,
+                      }}
+                    >
+                      {assignees.map(name => (
+                        <span key={name} style={{ fontSize: "10px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '1px 6px', background: dark ? 'rgba(126, 126, 126, 0.6)' : 'rgba(124, 122, 122, 0.8)', color: dark ? '#ffffff' : '#000000', border: `1px solid ${dark ? 'rgba(0,0,255,0.4)' : 'rgba(0,0,255,0.25)'}`, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                </>
+                </div>
+              ) : assignees.length === 1 ? (
+                <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "#000" : "#fff"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                  {assignees[0]}
+                </div>
               ) : (
                 <div style={{ background: hovered ? "#000" : (dark ? "#fff" : "#000"), color: hovered ? ACCENT_YELLOW : (dark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)"), fontSize: "9px", fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: "0.1em", padding: "4px 8px", textTransform: "uppercase" }}>全部</div>
               )}
@@ -609,7 +661,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       <div style={{ flexShrink: 0, position: 'relative', zIndex: 10 }}>
 
         {/* 主列： logo + controls */}
-        <div style={{ padding: "32px 48px 20px", display: "flex", alignItems: "center", position: "relative" }}>
+        <div style={{ padding: "24px 48px 12px", display: "flex", alignItems: "center", position: "relative" }}>
         {/* 獨立的標題，避免右側元素消失時牽連排版 */}
         <h1 ref={titleRef} onClick={onBack} className="cursor-pointer"
           style={{
@@ -629,9 +681,15 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
             <div style={{ position: "relative" }} onMouseEnter={handleMemberEnter} onMouseLeave={handleMemberLeave}>
               <button 
                 style={{ 
-                  background: (memberFilters.size > 0 || assigneeConditions.size > 0) ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"),
-                  color: (memberFilters.size > 0 || assigneeConditions.size > 0) ? "#fff" : (dark ? "#fff" : "#000"),
-                  border: `2px solid ${(memberFilters.size > 0 || assigneeConditions.size > 0) ? ACCENT_BLUE : "transparent"}`,
+                  background: (memberFilters.size > 0 || assigneeConditions.size > 0)
+                    ? ACCENT_BLUE
+                    : (memberHovered ? (dark ? "rgba(122,122,255,0.24)" : "rgba(0,0,255,0.14)") : (dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)")),
+                  color: (memberFilters.size > 0 || assigneeConditions.size > 0)
+                    ? "#fff"
+                    : (memberHovered ? (dark ? "#afc4f8" : ACCENT_BLUE) : (dark ? "#fff" : "#000")),
+                  border: `2px solid ${(memberFilters.size > 0 || assigneeConditions.size > 0)
+                    ? ACCENT_BLUE
+                    : (memberHovered ? (dark ? "rgba(100,120,255,0.55)" : "rgba(0,0,255,0.45)") : "transparent")}`,
                   backdropFilter: "blur(4px)",
                   cursor: "pointer",
                   display: "flex",
@@ -640,7 +698,9 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
                   padding: "8px",
                   borderRadius: "50%",
                   transition: "all 0.2s ease",
-                  transform: memberHovered ? "scale(1.15)" : "scale(1)"
+                  transform: memberHovered
+                    ? (dark ? "scale(1.15)" : "translate(-2px,-2px) scale(1.22)")
+                    : "scale(1)"
                 }}
                 onMouseEnter={() => setMemberHovered(true)}
                 onMouseLeave={() => setMemberHovered(false)}

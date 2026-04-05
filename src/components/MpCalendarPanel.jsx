@@ -55,9 +55,13 @@ function buildPopBase(dark) {
 
 function triggerBtnStyle(active, hovered, dark) {
   return {
-    background: active ? ACCENT_BLUE : (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"),
-    color: active ? '#fff' : (dark ? '#fff' : '#000'),
-    border: `2px solid ${active ? ACCENT_BLUE : 'transparent'}`,
+    background: active
+      ? ACCENT_BLUE
+      : (hovered ? (dark ? 'rgba(118,118,255,0.24)' : 'rgba(68,68,204,0.16)') : (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)")),
+    color: active
+      ? '#fff'
+      : (hovered ? (dark ? '#afc4f8' : ACCENT_BLUE) : (dark ? '#fff' : '#000')),
+    border: `2px solid ${active ? ACCENT_BLUE : (hovered ? (dark ? 'rgba(118,118,255,0.55)' : 'rgba(68,68,204,0.55)') : 'transparent')}`,
     backdropFilter: "blur(4px)",
     cursor: 'pointer',
     display: 'flex',
@@ -66,7 +70,9 @@ function triggerBtnStyle(active, hovered, dark) {
     padding: '8px',
     borderRadius: '50%',
     transition: 'all 0.2s ease',
-    transform: hovered ? 'scale(1.15)' : 'scale(1)',
+    transform: hovered
+      ? (dark ? 'scale(1.15)' : 'translate(-2px,-2px) scale(1.22)')
+      : 'scale(1)',
   };
 }
 

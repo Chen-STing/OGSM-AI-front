@@ -599,9 +599,9 @@ export default function App() {
 
       if (isExitingEditorToProjects) {
         // 飛向管理專案頁 (SwitchHome)
-        // 絕對位置：左距 48px，上距 32px
+        // 絕對位置：左距 48px，上距 24px
         targetX = 48 - rect.left;
-        targetY = 32 - rect.top;
+        targetY = 24 - rect.top;
         const shSize = Math.max(20, Math.min(cw * 0.03, 40)); 
         scale = shSize / currentFontSize;
       } else {

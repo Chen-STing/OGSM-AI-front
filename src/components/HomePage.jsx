@@ -65,7 +65,7 @@ export default function HomePage({ onNewProject, onManageProjects, dark, exiting
       
       const rect = el.getBoundingClientRect();
       const targetX = 48 - rect.left;
-      const targetY = 32 - rect.top;
+      const targetY = 24 - rect.top;
       
       const currentFontSize = parseFloat(window.getComputedStyle(el).fontSize);
       const cw = document.documentElement.clientWidth;

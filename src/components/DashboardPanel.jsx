@@ -793,11 +793,11 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
         scale = targetLogoHeight / currentLogoHeight;
       } else if (exitingTo === 'projects') {
         // SwitchHome (Projects) logo is 3em of clamped responsive font size.
-        // Left 48, Top 32. Font size: clamp(20px, 3vw, 40px)
+        // Left 48, Top 24. Font size: clamp(20px, 3vw, 40px)
         const shFS = Math.min(40, Math.max(20, vw * 0.03));
         const targetLogoHeight = shFS * 3;
         targetX = 48 - rect.left;
-        targetY = 32 - rect.top;
+        targetY = 24 - rect.top;
         scale = targetLogoHeight / rect.height;
       }
 
@@ -816,6 +816,8 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showProjectPop, setShowProjectPop] = useState(false);
   const [showAssigneePop, setShowAssigneePop] = useState(false);
+  const [projectBtnHovered, setProjectBtnHovered] = useState(false);
+  const [assigneeBtnHovered, setAssigneeBtnHovered] = useState(false);
   const projectBtnRef = useRef(null);
   const assigneeBtnRef = useRef(null);
   const projectPopRef = useRef(null);
@@ -959,13 +961,18 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
             <button
               ref={projectBtnRef}
               onClick={() => { setShowAssigneePop(false); setShowProjectPop(v => !v); }}
+              onMouseEnter={() => setProjectBtnHovered(true)}
+              onMouseLeave={() => setProjectBtnHovered(false)}
               style={{
-                flex: 1, background: (showProjectPop || selectedIds.size > 0) ? (dark ? 'rgba(66,66,227,0.18)' : 'rgba(66,66,227,0.08)') : 'transparent',
+                flex: 1,
+                background: (showProjectPop || selectedIds.size > 0)
+                  ? (dark ? 'rgba(66,66,227,0.18)' : 'rgba(66,66,227,0.08)')
+                  : (projectBtnHovered ? (dark ? 'rgba(90,90,255,0.16)' : 'rgba(66,66,227,0.13)') : 'transparent'),
                 border: 'none',
-                color: selectedIds.size > 0 ? B_BLUE : T.text,
+                color: selectedIds.size > 0 ? B_BLUE : (projectBtnHovered ? (dark ? '#afc4f8' : B_BLUE) : T.text),
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 padding: '14px 0', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
-                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.15s',
+                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'background 0.15s, color 0.15s',
               }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -994,13 +1001,18 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
             <button
               ref={assigneeBtnRef}
               onClick={() => { setShowProjectPop(false); setShowAssigneePop(v => !v); }}
+              onMouseEnter={() => setAssigneeBtnHovered(true)}
+              onMouseLeave={() => setAssigneeBtnHovered(false)}
               style={{
-                flex: 1, background: (showAssigneePop || selectedAssignees.size > 0) ? (dark ? 'rgba(255,0,255,0.1)' : 'rgba(255,0,255,0.06)') : 'transparent',
+                flex: 1,
+                background: (showAssigneePop || selectedAssignees.size > 0)
+                  ? (dark ? 'rgba(255,0,255,0.1)' : 'rgba(255,0,255,0.06)')
+                  : (assigneeBtnHovered ? (dark ? 'rgba(255,90,255,0.12)' : 'rgba(255,0,255,0.12)') : 'transparent'),
                 border: 'none',
-                color: selectedAssignees.size > 0 ? B_PINK : T.text,
+                color: selectedAssignees.size > 0 ? B_PINK : (assigneeBtnHovered ? (dark ? '#ffb3e9' : B_PINK) : T.text),
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 padding: '14px 0', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
-                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.15s',
+                fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'background 0.15s, color 0.15s',
               }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

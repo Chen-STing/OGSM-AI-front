@@ -20,7 +20,13 @@ const STATUS_CONFIG = {
   Overdue:     { label: '已逾期', color: '#e05252' },
 }
 
-const FILTERS = ['全部', '未完成', '已完成', '今日到期', '已逾期']
+const FILTERS = ['全部', '未完成', '已完成', '即將到期', '已逾期']
+
+function diffDays(d1, d2) {
+  const date1 = new Date(d1 + 'T12:00:00')
+  const date2 = new Date(d2 + 'T12:00:00')
+  return Math.round((date1 - date2) / (1000 * 60 * 60 * 24))
+}
 
 function flattenTodos(project) {
   const items = []
@@ -29,15 +35,19 @@ function flattenTodos(project) {
     goal.strategies.forEach((st, si) => {
       st.measures.forEach((m, mi) => {
         ;(m.todos || []).forEach((t, ti) => {
+          const remainingDays = t.deadline ? diffDays(t.deadline, today) : null
+          const overdueDays = t.deadline && !t.done && t.deadline < today ? diffDays(today, t.deadline) : 0
           items.push({
             ...t,
             goalIndex: gi, stratIndex: si, measureIndex: mi, todoIndex: ti,
             measureKpi: m.kpi, measureDeadline: m.deadline || '',
             measureStatus: m.status, goalText: goal.text, stratText: st.text,
             isOverdue: !t.done && !!(t.deadline && t.deadline < today),
-            isDueToday: !t.done && t.deadline === today,
+            isUpcoming: !t.done && remainingDays !== null && remainingDays >= 0 && remainingDays <= 7,
+            remainingDays,
+            overdueDays,
             todoOverdue: t.deadline && t.deadline < today && !t.done,
-            todoDueToday: t.deadline === today && !t.done,
+            todoUpcoming: !t.done && remainingDays !== null && remainingDays >= 0 && remainingDays <= 7,
           })
         })
       })
@@ -70,7 +80,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
     total:    allTodos.length,
     done:     allTodos.filter(t => t.done).length,
     overdue:  allTodos.filter(t => t.isOverdue).length,
-    dueToday: allTodos.filter(t => t.isDueToday).length,
+    upcoming: allTodos.filter(t => t.isUpcoming).length,
     pct:      allTodos.length ? Math.round(allTodos.filter(t => t.done).length / allTodos.length * 100) : 0,
   }), [allTodos])
 
@@ -78,9 +88,9 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
     let items = allTodos
     if (search.trim()) items = items.filter(t => t.text.includes(search.trim()) || t.measureKpi.includes(search.trim()))
     switch (filter) {
-      case '未完成': items = items.filter(t => !t.done); break
+      case '未完成': items = items.filter(t => !t.done && !t.isOverdue && !t.isUpcoming); break
       case '已完成': items = items.filter(t => t.done); break
-      case '今日到期': items = items.filter(t => t.isDueToday); break
+      case '即將到期': items = items.filter(t => t.isUpcoming); break
       case '已逾期': items = items.filter(t => t.isOverdue); break
     }
     if (sortDate !== 'none') {
@@ -103,8 +113,8 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
         key = `G${t.goalIndex + 1}`
         label = `G${t.goalIndex + 1} — ${t.goalText || '未命名'}`
       } else if (groupBy === 'status') {
-        key   = t.done ? 'done' : t.isOverdue ? 'overdue' : t.isDueToday ? 'today' : 'pending'
-        label = t.done ? '✓ 已完成' : t.isOverdue ? '⚠ 已逾期' : t.isDueToday ? '📅 今日到期' : '○ 待處理'
+        key   = t.done ? 'done' : t.isOverdue ? 'overdue' : t.isUpcoming ? 'upcoming' : 'pending'
+        label = t.done ? '✓ 已完成' : t.isOverdue ? '⚠ 已逾期' : t.isUpcoming ? '📅 即將到期' : '○ 待處理'
       } else {
         key   = `G${t.goalIndex+1}-S${t.goalIndex+1}.${t.stratIndex+1}-D${t.goalIndex+1}.${t.stratIndex+1}.${t.measureIndex+1}`
         label = `D${t.goalIndex+1}.${t.stratIndex+1}.${t.measureIndex+1} — ${t.measureKpi || '未命名'}`
@@ -183,7 +193,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
             { label: '總計', value: stats.total, color: dark ? '#fff' : '#000' },
             { label: '完成', value: stats.done, color: CG },
             { label: '逾期', value: stats.overdue, color: B_PINK },
-            { label: '今日', value: stats.dueToday, color: CY },
+            { label: '即將', value: stats.upcoming, color: CY },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ flex: '0 0 56px', textAlign: 'center', padding: '4px 8px' }}>
               <div style={{ fontSize: '24px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color, lineHeight: 1, fontStyle: 'italic', textShadow: color !== (dark?'#fff':'#000') ? `0 0 8px ${color}` : 'none' }}>{value}</div>
@@ -214,6 +224,24 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="清除搜尋"
+                style={{
+                  position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                  width: '20px', height: '20px',
+                  border: 'none', background: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                  color: dark ? '#fff' : '#000',
+                  cursor: 'pointer', fontSize: '12px', fontWeight: 900, lineHeight: 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = B_PINK; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -348,6 +376,27 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onU
                 <span style={{ fontFamily: 'monospace', fontSize: '10px', color: dark ? '#7090ff' : B_BLUE, marginRight: '5px', fontWeight: 900 }}>P{todo.goalIndex+1}.{todo.stratIndex+1}.{todo.measureIndex+1}.{todo.todoIndex+1}</span>
                 {todo.text}
               </span>
+              {todo.todoOverdue && (
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.05em', textTransform: 'uppercase', background: B_PINK, color: '#fff', padding: '2px 6px', border: '1px solid rgba(0,0,0,0.2)' }}>
+                    已逾期 {todo.overdueDays} 天
+                  </span>
+                </div>
+              )}
+              {todo.todoUpcoming && !todo.todoOverdue && (
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{
+                    fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    background: todo.remainingDays === 0 ? B_BLUE : CY,
+                    color: todo.remainingDays === 0 ? '#fff' : '#000',
+                    padding: '2px 6px',
+                    border: `1px solid ${todo.remainingDays === 0 ? '#fff' : 'rgba(0,0,0,0.2)'}`,
+                    boxShadow: todo.remainingDays === 0 ? '0 0 8px rgba(0,0,255,0.45)' : 'none'
+                  }}>
+                    {todo.remainingDays === 0 ? '本日到期' : `剩餘 ${todo.remainingDays} 天`}
+                  </span>
+                </div>
+              )}
             </div>
             {/* Inline assignee + deadline */}
             <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center', paddingTop: '1px' }} onClick={e => e.stopPropagation()}>
@@ -365,7 +414,12 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onU
                 className={`tmp-date${todo.todoOverdue ? ' tmp-date-overdue' : ''}`}
                 style={{ width: '108px', height: '26px', boxSizing: 'border-box', background: dark ? '#2b2b2b' : '#f0f0f0', border: `2px solid ${todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)')}`, color: todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.7)' : '#000'), fontSize: '9px', fontFamily: 'monospace', padding: '0 4px', outline: 'none', colorScheme: dark ? 'dark' : 'light', fontWeight: 700 }}
                 value={todo.deadline || ''}
-                onChange={e => onUpdate && onUpdate('deadline', e.target.value)}
+                max={todo.measureDeadline || undefined}
+                onChange={e => {
+                  const nextDeadline = e.target.value
+                  if (todo.measureDeadline && nextDeadline && nextDeadline > todo.measureDeadline) return
+                  onUpdate && onUpdate('deadline', nextDeadline)
+                }}
               />
             </div>
           </div>

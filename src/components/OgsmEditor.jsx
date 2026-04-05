@@ -165,6 +165,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [showProjectAssigneesTip, setShowProjectAssigneesTip] = useState(false)
   
   const [showTodoPanel, setShowTodoPanel] = useState(false)
   const [todoPanelOrigin, setTodoPanelOrigin] = useState(null)
@@ -418,6 +419,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const overallProgress = allMeasures.length ? Math.round(allMeasures.reduce((sum, m) => sum + (m.progress || 0), 0) / allMeasures.length) : 0
   const isCompleted = allMeasures.length > 0 && overallProgress >= 100
   const isProjectOverdue = draft.deadline && draft.deadline < (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })() && !isCompleted
+  const previewAssignees = (Array.isArray(draft.assignees) && draft.assignees.length > 0) ? draft.assignees : members.filter(Boolean)
   const dark = darkMode
 
   return (
@@ -483,14 +485,72 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                   placeholder="選擇所有人..."
                   darkMode={dark}
                   multiple={true}
+                  showSelectedCount={true}
+                  selectedCountUnit="位"
                   style={{ fontSize: '11px', minHeight: '22px', padding: '0 8px' }}
                 />
+              ) : (Array.isArray(draft.assignees) && draft.assignees.length > 3) ? (
+                <div
+                  style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+                  onMouseEnter={() => setShowProjectAssigneesTip(true)}
+                  onMouseLeave={() => setShowProjectAssigneesTip(false)}
+                >
+                  <button
+                    type="button"
+                    style={{
+                      fontSize: '10px',
+                      fontFamily: '"Space Grotesk", sans-serif',
+                      fontWeight: 900,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      background: showProjectAssigneesTip
+                        ? (dark ? '#8ea5ff' : '#1f33ff')
+                        : (dark ? 'rgba(77, 77, 214, 0.55)' : 'rgba(0,0,255,0.12)'),
+                      color: showProjectAssigneesTip
+                        ? (dark ? '#111' : '#fff')
+                        : (dark ? '#afc4f8' : B_BLUE),
+                      border: `1px solid ${dark ? 'rgba(60, 60, 245, 0.45)' : 'rgba(0,0,255,0.25)'}`,
+                      padding: '2px 8px',
+                      transition: 'background 0.15s ease, color 0.15s ease',
+                      cursor: 'default'
+                    }}
+                  >
+                    {draft.assignees.length}人
+                  </button>
+                  {showProjectAssigneesTip && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 6px)',
+                        left: 0,
+                        minWidth: '180px',
+                        maxWidth: '360px',
+                        background: dark ? 'rgba(73, 73, 73)' : 'rgb(235, 235, 235)',
+                        border: `1px solid ${dark ? 'rgba(120,140,255,0.5)' : 'rgba(0,0,0,0.2)'}`,
+                        boxShadow: dark ? '3px 3px 0 rgba(120,140,255,0.25)' : '3px 3px 0 rgba(0,0,0,0.12)',
+                        padding: '8px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '4px',
+                        zIndex: 50,
+                      }}
+                    >
+                      {draft.assignees.map(name => (
+                        <span key={name} style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '1px 6px', background: dark ? 'rgba(126, 126, 126, 0.6)' : 'rgba(77, 77, 77, 0.4)', color: dark ? '#ffffff' : "#000000", border: `1px solid ${dark ? 'rgba(0,0,255,0.4)' : 'rgba(0,0,255,0.25)'}`, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (Array.isArray(draft.assignees) && draft.assignees.length > 0) ? (
-                draft.assignees.map(name => (
-                  <span key={name} style={{ fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '1px 6px', background: dark ? 'rgba(0,0,255,0.25)' : 'rgba(0,0,255,0.1)', color: dark ? '#8ab4f8' : B_BLUE, border: `1px solid ${dark ? 'rgba(0,0,255,0.4)' : 'rgba(0,0,255,0.25)'}`, letterSpacing: '0.04em' }}>
-                    {name}
-                  </span>
-                ))
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {draft.assignees.map(name => (
+                    <span key={name} style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, padding: '1px 6px', background: dark ? 'rgba(126, 126, 126, 0.6)' : 'rgba(77, 77, 77, 0.4)', color: dark ? '#ffffff' : '#000000', border: `1px solid ${dark ? 'rgba(109, 109, 109, 0.4)' : 'rgba(0, 0, 0, 0.25)'}`, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
               ) : (
                 <span style={{ fontSize: '11px', color: dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }}>全部</span>
               )}

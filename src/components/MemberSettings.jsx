@@ -175,7 +175,10 @@ export default function MemberSettings({ members=[], onChange, onClose, darkMode
           )}
         </div>
 
-        <div style={{ position:'relative', zIndex:1, display:'flex', justifyContent:'flex-end', marginTop:'20px' }}>
+        <div style={{ position:'relative', zIndex:1, display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px', marginTop:'20px' }}>
+          <span style={{ fontSize:'12px', fontFamily:'"DM Mono",monospace', fontWeight:700, color:T.textSub }}>
+            操作更動後，請點擊 DONE 儲存資料。
+          </span>
           <button style={{ ...D.closeBtn, background:ACCENT_YELLOW, color:'#000', border:`3px solid ${darkMode?'#a9a9a9':'#000'}`, fontWeight:900, boxShadow:`4px 4px 0 0 ${shadowColor}`, transition:'all 0.15s' }} onClick={handleDone} {...doneBtnHandlers}>DONE</button>
         </div>
       </div>

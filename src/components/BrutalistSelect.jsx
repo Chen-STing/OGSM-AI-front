@@ -25,6 +25,8 @@ export default function BrutalistSelect({
   disabled = false,
   overdue = false,
   multiple = false,
+  showSelectedCount = false,
+  selectedCountUnit = '位',
 }) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, maxHeight: 260 })
@@ -40,6 +42,9 @@ export default function BrutalistSelect({
 
   // 多選模式：統一成 string[] 處理
   const selectedValues = multiple ? (Array.isArray(value) ? value : []) : null
+  const selectedCountLabel = multiple
+    ? `已選擇 ${selectedValues.length}${selectedCountUnit}`
+    : ''
 
   const displayLabel = multiple
     ? null  // 多選模式用 tag 列表取代
@@ -179,7 +184,11 @@ export default function BrutalistSelect({
         {/* 多選 tag 列 or 單選文字 */}
         {multiple ? (
           <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '3px', padding: '3px 0', minWidth: 0 }}>
-            {selectedValues.length === 0 ? (
+            {showSelectedCount ? (
+              <span style={{ opacity: 0.85, fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedCountLabel}
+              </span>
+            ) : selectedValues.length === 0 ? (
               <span style={{ opacity: 0.4 }}>{placeholder}</span>
             ) : (
               selectedValues.map(v => {
