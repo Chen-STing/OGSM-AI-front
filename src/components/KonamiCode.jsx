@@ -546,6 +546,246 @@ function ExperienceSettings({ dark, onExpChange }) {
   )
 }
 
+// ─── Forbidden Tab ────────────────────────────────────────────────────────────
+const DOOM_CSS = `
+  @keyframes doom-flicker {
+    0%,19%,21%,23%,25%,54%,56%,100% { opacity:1; text-shadow:0 0 10px #FF0000,0 0 30px #FF0000,0 0 60px #FF0000; }
+    20%,22%,24%,55% { opacity:0.2; text-shadow:none; }
+  }
+  @keyframes doom-shake {
+    0%,100% { transform:translateX(0); }
+    10% { transform:translateX(-8px) rotate(-1deg); }
+    20% { transform:translateX(8px)  rotate(1deg);  }
+    30% { transform:translateX(-6px) rotate(-0.5deg); }
+    40% { transform:translateX(6px)  rotate(0.5deg);  }
+    50% { transform:translateX(-4px); }
+    60% { transform:translateX(4px);  }
+    70% { transform:translateX(-2px); }
+    80% { transform:translateX(2px);  }
+    90% { transform:translateX(-1px); }
+  }
+  @keyframes doom-scanline-fast {
+    0% { background-position:0 0; }
+    100% { background-position:0 200px; }
+  }
+  @keyframes doom-char-in {
+    from { opacity:0; transform:translateY(12px) skewX(-8deg); }
+    to   { opacity:1; transform:translateY(0)    skewX(0deg); }
+  }
+  @keyframes doom-pulse-border {
+    0%,100% { box-shadow:0 0 0 2px #FF0000,0 0 20px #FF000088; }
+    50%     { box-shadow:0 0 0 4px #FF0000,0 0 60px #FF0000BB; }
+  }
+  @keyframes doom-countdown {
+    from { width:100%; }
+    to   { width:0%; }
+  }
+  @keyframes doom-glitch-stripe {
+    0%   { clip-path:inset(0 0 95% 0); transform:translateX(-10px); }
+    20%  { clip-path:inset(30% 0 60% 0); transform:translateX(8px);  }
+    40%  { clip-path:inset(60% 0 30% 0); transform:translateX(-6px); }
+    60%  { clip-path:inset(80% 0 10% 0); transform:translateX(4px);  }
+    80%  { clip-path:inset(10% 0 80% 0); transform:translateX(-3px); }
+    100% { clip-path:inset(95% 0 0 0);   transform:translateX(0);    }
+  }
+  .doom-flicker { animation: doom-flicker 2.5s infinite; }
+  .doom-shake   { animation: doom-shake 0.4s ease infinite; }
+  .doom-pulse   { animation: doom-pulse-border 1.2s ease-in-out infinite; }
+  @keyframes doom-page-flash {
+    0%   { opacity: 0; }
+    8%   { opacity: 1; }
+    16%  { opacity: 0; }
+    28%  { opacity: 0.9; }
+    36%  { opacity: 0; }
+    52%  { opacity: 0.6; }
+    58%  { opacity: 0; }
+    72%  { opacity: 1; }
+    80%  { opacity: 0.1; }
+    90%  { opacity: 1; }
+    100% { opacity: 1; }
+  }`
+
+const WARNINGS = [
+  {
+    title: '⚠ 警告',
+    body:  '此功能具有不可逆的後果。\n你確定要繼續嗎？',
+    btn:   '我了解，繼續',
+    color: '#FFFF00',
+  },
+  {
+    title: '⛔ 嚴重警告',
+    body:  '你即將踏入禁區。\n\n系統記錄已開始。所有操作將被記錄。\n此舉無法撤銷，請三思而後行。\n\n你真的確定嗎？',
+    btn:   '是的，我不在乎',
+    color: '#FF8800',
+  },
+  {
+    title: '☠ 最終警告 ☠',
+    body:  '你已被警告兩次。\n\n你的選擇將永久改變一切。\n沒有後悔的機會。沒有重來的機會。\n\n⚡ 你將為你的決定付出代價。⚡\n\n——這是你最後的機會——',
+    btn:   '啟動禁忌',
+    color: '#FF0000',
+  },
+]
+
+const DOOM_LINES = [
+  '系統解鎖中...',
+  '正在覆寫現實...',
+  '所有路徑已封閉...',
+  '你以為自己有選擇嗎？',
+  '歡迎來到終點站。',
+  'ERROR: 返回路徑不存在',
+  '你早應該聽警告的。',
+  '⚠ HOME.EXE 已重寫 ⚠',
+  '現在已無法回頭...',
+  '你會為你的決定感到後悔的。',
+]
+
+function ForbiddenTab({ dark, onClose }) {
+  const [warningStep, setWarningStep] = useState(0)  // 0 = idle, 1/2/3 = showing warning N
+  const [showDoom, setShowDoom]       = useState(false)
+  const [doomLines, setDoomLines]     = useState([])
+  const [shaking, setShaking]         = useState(false)
+  const doomTimer = useRef(null)
+
+  const bg      = dark ? '#0A0000' : '#1A0000'
+  const borderC = '#FF0000'
+
+  const handleActivate = () => {
+    if (warningStep < 3) {
+      // show next browser confirm-style warning
+      const w = WARNINGS[warningStep]
+      setShaking(true)
+      setTimeout(() => setShaking(false), 500)
+      // eslint-disable-next-line no-alert
+      const confirmed = window.confirm(`${w.title}\n\n${w.body}`)
+      if (!confirmed) {
+        setWarningStep(0)
+        return
+      }
+      if (warningStep === 2) {
+        // all 3 confirmed → DOOM
+        setShowDoom(true)
+        let i = 0
+        const addLine = () => {
+          if (i >= DOOM_LINES.length) {
+            // final redirect to home with OtherHome
+            setTimeout(() => {
+              setDoomFlash(true)
+              setTimeout(() => {
+                onClose()
+                window.dispatchEvent(new CustomEvent('forbidden-activated'))
+                window.history.replaceState(null, '', '/')
+                window.dispatchEvent(new PopStateEvent('popstate'))
+              }, 1400)
+            }, 1200)
+            return
+          }
+          setDoomLines(prev => [...prev, DOOM_LINES[i]])
+          i++
+          doomTimer.current = setTimeout(addLine, 320 + Math.random() * 280)
+        }
+        doomTimer.current = setTimeout(addLine, 400)
+      } else {
+        setWarningStep(s => s + 1)
+      }
+    }
+  }
+
+  const [doomFlash, setDoomFlash]     = useState(false)
+
+  useEffect(() => () => clearTimeout(doomTimer.current), [])
+
+  const terminalRef = useRef(null)
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [doomLines])
+
+  const btnStep = warningStep  // 0-indexed into WARNINGS
+
+  return (
+    <>
+      <style>{DOOM_CSS}</style>
+      {doomFlash && createPortal(
+        <div style={{ position:'fixed', inset:0, zIndex:9999999, background:'#FF0000', pointerEvents:'none', animation:'doom-page-flash 1.4s steps(1) forwards' }} />,
+        document.body
+      )}
+      <div style={{ padding:'20px 18px', display:'flex', flexDirection:'column', gap:16, background:bg, minHeight: 220 }}>
+
+        {/* ominous header */}
+        <div style={{ textAlign:'center', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:11, letterSpacing:'0.2em', textTransform:'uppercase', color:'#FF0000', animation:'doom-flicker 3s infinite' }}>
+          ── 禁忌區域 ── FORBIDDEN ──
+        </div>
+
+        {/* skull art */}
+        <div style={{ textAlign:'center', fontSize:48, lineHeight:1, filter:'drop-shadow(0 0 12px #FF0000)', userSelect:'none', transition:'transform 0.15s', transform: shaking ? 'scale(1.1)' : 'scale(1)' }}>
+          ☠
+        </div>
+
+        {/* description */}
+        <div style={{ fontFamily:'"DM Mono",monospace', fontSize:10, color:'#FF4444', letterSpacing:'0.08em', textAlign:'center', lineHeight:1.7 }}>
+          此區域包含不可逆的操作。<br/>
+          <span style={{ color:'#FF0000', fontWeight:700 }}>後果由你自行承擔。</span>
+        </div>
+
+        {/* progress indicator */}
+        {warningStep > 0 && !showDoom && (
+          <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{ width:24, height:6, background: i < warningStep ? '#FF0000' : '#330000', border:'1px solid #FF000066', transition:'background 0.3s' }} />
+            ))}
+          </div>
+        )}
+
+        {/* DOOM terminal */}
+        {showDoom && (
+          <div ref={terminalRef} style={{ background:'#000', border:`2px solid #FF0000`, padding:'12px', fontFamily:'"DM Mono",monospace', fontSize:11, color:'#FF0000', lineHeight:2, animation:'doom-pulse-border 1s infinite', maxHeight:180, overflowY:'auto' }}>
+            {doomLines.map((line, i) => (
+              <div key={i} style={{ animation:`doom-char-in 0.2s ease ${i * 0.05}s both` }}>
+                {'> '}{line}
+              </div>
+            ))}
+            {doomLines.length < DOOM_LINES.length && (
+              <span style={{ animation:'konami-blink 0.6s step-end infinite', color:'#FF4444' }}>█</span>
+            )}
+          </div>
+        )}
+
+        {/* THE BUTTON */}
+        {!showDoom && (
+          <button data-nodrag className="k-btn doom-pulse"
+            onClick={handleActivate}
+            style={{
+              width:'100%', padding:'13px 0',
+              background: warningStep === 0 ? 'transparent' : `${WARNINGS[Math.min(warningStep, 2)].color}22`,
+              color: warningStep === 0 ? '#FF0000' : WARNINGS[Math.min(warningStep, 2)].color,
+              border:`3px solid #FF0000`,
+              boxShadow:`4px 4px 0 0 #880000`,
+              fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:13,
+              textTransform:'uppercase', letterSpacing:'0.1em',
+              transition:'all 0.15s',
+            }}
+            onMouseEnter={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='6px 6px 0 0 #880000'; e.currentTarget.style.background='#FF000033' }}
+            onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='4px 4px 0 0 #880000'; e.currentTarget.style.background = warningStep === 0 ? 'transparent' : `${WARNINGS[Math.min(warningStep,2)].color}22` }}
+            onMouseDown={e=>{ e.currentTarget.style.transform='translate(2px,2px)'; e.currentTarget.style.boxShadow='2px 2px 0 0 #880000' }}
+            onMouseUp={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='6px 6px 0 0 #880000' }}
+          >
+            {warningStep === 0 ? '⚡ 啟動禁忌開關' : warningStep === 1 ? '⛔ 我確定，繼續' : '☠ 我不悔，執行'}
+          </button>
+        )}
+
+        {/* reset warning state */}
+        {warningStep > 0 && !showDoom && (
+          <button data-nodrag onClick={() => setWarningStep(0)}
+            style={{ background:'transparent', border:'none', color:'#444', fontFamily:'"DM Mono",monospace', fontSize:10, letterSpacing:'0.08em', textDecoration:'underline', cursor:'pointer', padding:'4px' }}>
+            我反悔了，取消
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
 // ─── Flash ────────────────────────────────────────────────────────────────────
 function FlashOverlay({ onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 900); return () => clearTimeout(t) }, [onDone])
@@ -609,9 +849,10 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
   const dimBg = dark ? '#1D1D1D' : '#f5f5f5'
 
   const TABS = [
-    { id:'exp',    label:'⚙ 樣式設定',  accent:PINK },
-    { id:'bg',     label:'🌐 主背景',   accent:'#d0bd27' },
-    { id:'modals', label:'🪟 彈窗背景', accent:'#ff3300' },
+    { id:'exp',      label:'⚙ 樣式設定',  accent:PINK },
+    { id:'bg',       label:'🌐 主背景',   accent:'#d0bd27' },
+    { id:'modals',   label:'🪟 彈窗背景', accent:'#ff3300' },
+    { id:'forbidden',label:'☠ 禁忌',     accent:'#FF0000' },
   ]
 
   return createPortal(
@@ -656,9 +897,10 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
 
       {/* Content */}
       <div style={{ overflowY:'auto', flex:1 }}>
-        {tab === 'bg'     && <BgCustomizer dark={dark} onApply={onBgApply} />}
-        {tab === 'modals' && <UnifiedModalCustomizer dark={dark} onApply={onModalApply} />}
-        {tab === 'exp'    && <ExperienceSettings dark={dark} onExpChange={handleExpApply} />}
+        {tab === 'bg'       && <BgCustomizer dark={dark} onApply={onBgApply} />}
+        {tab === 'modals'   && <UnifiedModalCustomizer dark={dark} onApply={onModalApply} />}
+        {tab === 'exp'      && <ExperienceSettings dark={dark} onExpChange={handleExpApply} />}
+        {tab === 'forbidden'&& <ForbiddenTab dark={dark} onClose={onClose} />}
       </div>
 
       {/* Footer */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, Fragment, useLayoutEffect } from "react";
 import { Zap, Users, Sun, Moon, PanelLeftClose, Menu } from 'lucide-react';
 import HomePage from './components/HomePage.jsx';
+import OtherHome from './pages/OtherHome.jsx';
 import SwitchHome from './components/SwitchHome.jsx';
 import ProjectList, { calcProgress } from './components/ProjectList.jsx';
 import OgsmEditor from './components/OgsmEditor.jsx';
@@ -202,6 +203,22 @@ export default function App() {
   const [darkToggleHovered, setDarkToggleHovered] = useState(false);
   const [aiGenerateHovered, setAiGenerateHovered] = useState(false);
   const [expSettings, setExpSettings] = useState(loadSavedExpSettings);
+  const [forbiddenHome, setForbiddenHome] = useState(false);
+
+  // ── Listen for forbidden tab activation ──
+  useEffect(() => {
+    const onForbidden = () => {
+      setForbiddenHome(true);
+      // Lock all future navigation to home only
+      window.history.replaceState(null, '', '/');
+    };
+    window.addEventListener('forbidden-activated', onForbidden);
+    return () => window.removeEventListener('forbidden-activated', onForbidden);
+  }, []);
+
+  // ── When forbidden, intercept all popstate and force home ──
+  const forbiddenHomeRef = useRef(false);
+  useEffect(() => { forbiddenHomeRef.current = forbiddenHome; }, [forbiddenHome]);
 
   // ── Translation popup state ──
   const [translatePopup, setTranslatePopup] = useState(null); // { result, position, loading }
@@ -211,7 +228,16 @@ export default function App() {
   const [cipherPopup, setCipherPopup] = useState(null);
 
   useEffect(() => {
-    const onPop = () => setRoute(parseRoute());
+    const onPop = () => {
+      if (forbiddenHomeRef.current) {
+        // Lock all routes to home after forbidden activated
+        window.history.replaceState(null, '', '/');
+        setRoute({ page: 'home' });
+        setDisplayedPage('home');
+        return;
+      }
+      setRoute(parseRoute());
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -680,6 +706,11 @@ export default function App() {
   );
 
   const { page } = route;
+
+  // ── Forbidden home: completely bypass all App wrappers ──
+  if (forbiddenHome) {
+    return <OtherHome />;
+  }
 
   return (
     <>
