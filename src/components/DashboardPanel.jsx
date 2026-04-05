@@ -4,17 +4,23 @@ import { loadSavedBgConfig } from '../bgConfig.js';
 import BrutalistBackground from './BrutalistBackground.jsx';
 import BrutalistSelect from './BrutalistSelect.jsx';
 import { navigate } from '../utils/router.js';
+import {
+  DonutChart, HBarChart, RadarChart, ScatterPlot, TreemapChart,
+  ChartLegend, StackedHBarChart, DistributionCard, OverdueRiskMatrix,
+  WorkloadBalanceChart, AssigneeBarChart, RadarSection, ChartsSection,
+  SORT_OPTIONS, CHART_VIEW_OPTIONS,
+} from './DashboardCharts.jsx';
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-const B_YELLOW = '#e0de0b';
-const B_GREEN  = '#00FF00';
-const B_BLUE   = '#4242e3';
-const B_PINK   = '#FF00FF';
-const B_CYAN   = '#14d3d3';
-const B_ORANGE = '#dd800f';
+const B_YELLOW = '#c8b800';
+const B_GREEN  = '#18c96a';
+const B_BLUE   = '#3a5bd9';
+const B_PINK   = '#d63fa0';
+const B_CYAN   = '#0fb8b8';
+const B_ORANGE = '#d4750a';
 
-const DARK  = { bg: '#121212', border: '#b7b6b6', text: '#FFFFFF', textSub: '#B8B8B8', textMuted: '#888888', cardBg: 'rgba(255,255,255,0.04)', headerBg: 'rgba(17,17,17,0.85)', grid: 'rgba(255,255,255,0.04)' };
-const LIGHT = { bg: '#f8f9fa', border: '#000000', text: '#111111', textSub: '#484848', textMuted: '#666666', cardBg: 'rgba(0,0,0,0.02)',         headerBg: 'rgba(248,248,248,0.9)',  grid: 'rgba(0,0,0,0.04)' };
+const DARK  = { bg: '#1a1c1e', border: '#5a5a5a', text: '#e8e8e8', textSub: '#a8a8a8', textMuted: '#707070', cardBg: 'rgba(255,255,255,0.055)', headerBg: 'rgba(22,24,26,0.92)', grid: 'rgba(255,255,255,0.05)' };
+const LIGHT = { bg: '#edeef0', border: '#3a3a3a', text: '#1a1a1a', textSub: '#404040', textMuted: '#707070', cardBg: 'rgba(0,0,0,0.035)',          headerBg: 'rgba(237,238,240,0.93)', grid: 'rgba(0,0,0,0.05)' };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function progressColor(pct) {
@@ -138,6 +144,196 @@ function buildStats(projects, selectedIds) {
   return { list, unassignedMeasures, unassignedTodos };
 }
 
+
+// ─── MEMBER DETAIL MODAL ─────────────────────────────────────────────────────
+function MemberDetailModal({ stat, dark, onClose }) {
+  const T = dark ? DARK : LIGHT;
+  const mColor = progressColor(stat.measurePct);
+  const tColor = progressColor(stat.todoPct);
+  const overdueTot = stat.overdueMeasures + stat.overdueTodos;
+  const totalTasks = stat.totalMeasures + stat.totalTodos;
+  const completedTot = stat.completedMeasures + stat.doneTodos;
+  const healthPct = (completedTot + overdueTot) > 0
+    ? Math.round(completedTot / (completedTot + overdueTot) * 100) : 0;
+
+  // Mini bar helper
+  const Bar = ({ pct, color, h = 8 }) => (
+    <div style={{ height: h, background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', border: `1px solid ${T.border}`, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: color, transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)' }} />
+    </div>
+  );
+
+  // Stacked segment bar helper
+  const StackBar = ({ segments, total }) => (
+    <div style={{ height: 10, background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', border: `1px solid ${T.border}`, overflow: 'hidden', display: 'flex' }}>
+      {segments.filter(s => s.value > 0).map((s, i) => (
+        <div key={i} style={{ height: '100%', width: `${total > 0 ? (s.value / total) * 100 : 0}%`, background: s.color, flexShrink: 0 }} />
+      ))}
+    </div>
+  );
+
+  const mdSegments = [
+    { label: '完成', value: stat.completedMeasures, color: B_GREEN },
+    { label: '進行中', value: stat.inProgressMeasures, color: B_CYAN },
+    { label: '逾期', value: stat.overdueMeasures, color: B_PINK },
+    { label: '未開始', value: Math.max(0, stat.totalMeasures - stat.completedMeasures - stat.inProgressMeasures - stat.overdueMeasures), color: dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)' },
+  ];
+  const mpSegments = [
+    { label: '完成', value: stat.doneTodos, color: B_GREEN },
+    { label: '逾期', value: stat.overdueTodos, color: B_PINK },
+    { label: '未完成', value: Math.max(0, stat.totalTodos - stat.doneTodos - stat.overdueTodos), color: dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)' },
+  ];
+
+  const KV = ({ label, value, color }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '70px' }}>
+      <span style={{ fontSize: '18px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: color || T.text, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: '8px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
+    </div>
+  );
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: '680px', maxHeight: '88vh', overflowY: 'auto',
+          background: dark ? '#1e2124' : '#f2f3f5',
+          border: `3px solid ${T.border}`,
+          boxShadow: `8px 8px 0 ${dark ? '#5a5a5a' : '#000'}`,
+          display: 'flex', flexDirection: 'column',
+        }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px 16px', borderBottom: `2px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: '22px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.text, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>{stat.name}</div>
+            <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '2px' }}>
+              負責 {stat.projects?.length ?? 0} 個專案 · 共 {totalTasks} 項任務
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: '32px', height: '32px', background: 'transparent', border: `2px solid ${T.border}`, color: T.text, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900 }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* KPI row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 24px' }}>
+            <KV label="MD 完成率" value={`${stat.measurePct}%`} color={mColor} />
+            <KV label="MP 完成率" value={`${stat.todoPct}%`}    color={tColor} />
+            <KV label="任務健康度" value={`${healthPct}%`}      color={healthPct >= 80 ? B_GREEN : healthPct >= 50 ? B_CYAN : B_PINK} />
+            <KV label="MD 完成" value={`${stat.completedMeasures}/${stat.totalMeasures}`} color={B_BLUE} />
+            <KV label="MP 完成" value={`${stat.doneTodos}/${stat.totalTodos}`}           color={B_PINK} />
+            <KV label="逾期合計" value={overdueTot}  color={overdueTot > 0 ? B_PINK : B_GREEN} />
+          </div>
+
+          {/* MD section */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_BLUE }}>MD 定量指標</span>
+              <span style={{ fontSize: '13px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: mColor }}>{stat.measurePct}%</span>
+            </div>
+            <Bar pct={stat.measurePct} color={mColor} h={10} />
+            <StackBar segments={mdSegments} total={stat.totalMeasures} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
+              {mdSegments.map(s => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
+                  <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ borderTop: `1px dashed ${T.border}`, opacity: 0.4 }} />
+
+          {/* MP section */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_PINK }}>MP 檢核步驟</span>
+              <span style={{ fontSize: '13px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: tColor }}>{stat.todoPct}%</span>
+            </div>
+            <Bar pct={stat.todoPct} color={tColor} h={10} />
+            <StackBar segments={mpSegments} total={stat.totalTodos} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
+              {mpSegments.map(s => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
+                  <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ borderTop: `1px dashed ${T.border}`, opacity: 0.4 }} />
+
+          {/* Risk & Performance grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Overdue breakdown */}
+            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px' }}>
+              <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: B_PINK, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>逾期分析</div>
+              {[
+                { label: 'MD 逾期', value: stat.overdueMeasures, total: stat.totalMeasures },
+                { label: 'MP 逾期', value: stat.overdueTodos,    total: stat.totalTodos },
+              ].map(row => (
+                <div key={row.label} style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{row.label}</span>
+                    <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: row.value > 0 ? B_PINK : B_GREEN }}>
+                      {row.value} / {row.total}
+                    </span>
+                  </div>
+                  <Bar pct={row.total > 0 ? (row.value / row.total) * 100 : 0} color={row.value > 0 ? B_PINK : B_GREEN} h={6} />
+                </div>
+              ))}
+              <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${T.border}`, opacity: 0.6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>逾期比率</span>
+                  <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: overdueTot > 0 ? B_PINK : B_GREEN }}>
+                    {totalTasks > 0 ? Math.round(overdueTot / totalTasks * 100) : 0}%
+                  </span>
+                </div>
+                <div style={{ fontSize: '8.5px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, opacity: 0.8, marginTop: '5%' }}>
+                  逾期比率 = (逾期項目總數) ÷ (任務總數) × 100
+                </div>
+              </div>
+            </div>
+
+            {/* Performance radar mini */}
+            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px' }}>
+              <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: B_CYAN, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>執行指標</div>
+              {[
+                { label: 'MD 完成率',  value: stat.measurePct,  color: B_BLUE },
+                { label: 'MP 完成率',  value: stat.todoPct,     color: B_PINK },
+                { label: '任務健康度', value: healthPct,         color: healthPct >= 80 ? B_GREEN : healthPct >= 50 ? B_CYAN : B_PINK },
+                { label: '進行中積極度', value: stat.totalMeasures > 0 ? Math.round(stat.inProgressMeasures / stat.totalMeasures * 100) : 0, color: B_YELLOW },
+              ].map(row => (
+                <div key={row.label} style={{ marginBottom: '7px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{row.label}</span>
+                    <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: row.color }}>{row.value}%</span>
+                  </div>
+                  <Bar pct={row.value} color={row.color} h={5} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer note */}
+          <div style={{ fontSize: '8.5px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, textAlign: 'center', opacity: 0.7 }}>
+            進行中積極度 ＝ MD 進行中數 ÷ MD 總量<br />
+            任務健康度 ＝ (MD、MP完成數) ÷ (MD、MP完成數 + MD、MP逾期數)
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── MEMBER CARD ─────────────────────────────────────────────────────────────
 function MemberCard({ stat, dark, rank }) {
   const T = dark ? DARK : LIGHT;
@@ -148,18 +344,27 @@ function MemberCard({ stat, dark, rank }) {
   const rankColors = { 1: B_YELLOW, 2: '#C0C0C0', 3: '#CD7F32' };
   const rankColor = rankColors[rank] || null;
 
+  const [showModal, setShowModal] = useState(false);
   return (
-    <div style={{
-      background: T.cardBg,
-      border: `3px solid ${rankColor || T.border}`,
-      boxShadow: rankColor ? `6px 6px 0 ${rankColor}` : `4px 4px 0 ${sh}`,
-      padding: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      position: 'relative',
-      transition: 'transform 0.15s, box-shadow 0.15s',
-    }}>
+    <>
+    {showModal && <MemberDetailModal stat={stat} dark={dark} onClose={() => setShowModal(false)} />}
+    <div
+      onClick={() => setShowModal(true)}
+      style={{
+        background: T.cardBg,
+        border: `3px solid ${rankColor || T.border}`,
+        boxShadow: rankColor ? `6px 6px 0 ${rankColor}` : `4px 4px 0 ${sh}`,
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'transform 0.15s, box-shadow 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = rankColor ? `8px 8px 0 ${rankColor}` : `6px 6px 0 ${sh}`; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = rankColor ? `6px 6px 0 ${rankColor}` : `4px 4px 0 ${sh}`; }}
+    >
       {/* Rank badge */}
       {rankColor && (
         <div style={{
@@ -216,6 +421,11 @@ function MemberCard({ stat, dark, rank }) {
         </div>
       </div>
     </div>
+    {/* Click hint */}
+    <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '8px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, opacity: 0.5, letterSpacing: '0.05em', pointerEvents: 'none' }}>
+      點擊查看詳情
+    </div>
+    </>
   );
 }
 
@@ -331,637 +541,7 @@ function FilterDropdown({ items, selectedKeys, onToggle, onClear, accentColor, d
   );
 }
 
-// ─── CHART COMPONENTS ───────────────────────────────────────────────────────
-function DonutChart({ segments, dark, total, size = 110, centerKey = 'done', centerLabel }) {
-  const T = dark ? DARK : LIGHT;
-  const cx = size / 2, cy = size / 2, rOut = size * 0.4, rIn = size * 0.24;
-  if (total === 0) return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={(rOut + rIn) / 2} fill="none"
-        stroke={dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'} strokeWidth={rOut - rIn} />
-      <text x={cx} y={cy + 5} textAnchor="middle" fontSize={size * 0.12}
-        fontWeight="900" fontFamily='"Space Grotesk", sans-serif' fill={T.textMuted}>-</text>
-    </svg>
-  );
-  let a = -Math.PI / 2;
-  const paths = [];
-  segments.filter(s => s.value > 0).forEach((s, i) => {
-    const sweep = Math.max(0, (s.value / total) * 2 * Math.PI - 0.025);
-    if (sweep <= 0) return;
-    const x1 = cx + rOut * Math.cos(a), y1 = cy + rOut * Math.sin(a);
-    const x2 = cx + rOut * Math.cos(a + sweep), y2 = cy + rOut * Math.sin(a + sweep);
-    const xi1 = cx + rIn * Math.cos(a + sweep), yi1 = cy + rIn * Math.sin(a + sweep);
-    const xi2 = cx + rIn * Math.cos(a), yi2 = cy + rIn * Math.sin(a);
-    const lg = sweep > Math.PI ? 1 : 0;
-    paths.push(<path key={i} d={`M${x1},${y1} A${rOut},${rOut} 0 ${lg},1 ${x2},${y2} L${xi1},${yi1} A${rIn},${rIn} 0 ${lg},0 ${xi2},${yi2} Z`} fill={s.color} />);
-    a += sweep + 0.025;
-  });
-  const centerSeg = segments.find(s => s.key === centerKey);
-  const centerVal = centerSeg ? Math.round((centerSeg.value / total) * 100) : total;
-  const centerText = centerLabel ?? `${centerSeg ? centerVal + '%' : centerVal}`;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {paths}
-      <text x={cx} y={cy + 5} textAnchor="middle" fontSize={size * 0.14}
-        fontWeight="900" fontFamily='"Space Grotesk", sans-serif' fill={dark ? '#fff' : '#111'}>{centerText}</text>
-    </svg>
-  );
-}
 
-function HBarChart({ members, dark, barH = 18, valueKey = 'measurePct', maxValue, color, colorFn, labelFn }) {
-  const T = dark ? DARK : LIGHT;
-  if (!members.length) return null;
-  const max = maxValue != null ? maxValue : Math.max(...members.map(m => m[valueKey] ?? 0), 1);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      {members.map(m => {
-        const val = m[valueKey] ?? 0;
-        const barPct = max > 0 ? Math.min(100, (val / max) * 100) : 0;
-        const c = colorFn ? colorFn(val) : (color ?? B_BLUE);
-        return (
-          <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '72px', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0, textAlign: 'right' }}>
-              {m.name}
-            </div>
-            <div style={{ flex: 1, height: barH, background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', border: `1px solid ${T.border}`, overflow: 'hidden', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${barPct}%`, background: c, transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)' }} />
-            </div>
-            <div style={{ width: '38px', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: c, flexShrink: 0, textAlign: 'right' }}>
-              {labelFn ? labelFn(val) : val}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function RadarChart({ members, dark, size = 260 }) {
-  const T = dark ? DARK : LIGHT;
-  const cx = size / 2, cy = size / 2;
-  const r = size * 0.36;
-  const maxMD   = Math.max(...members.map(m => m.totalMeasures), 1);
-  const maxMP   = Math.max(...members.map(m => m.totalTodos), 1);
-  const maxProj = Math.max(...members.map(m => m.projects?.size ?? 0), 1);
-  const AXES = [
-    { label: 'MD完成率', val: m => m.measurePct / 100 },
-    { label: 'MP完成率', val: m => m.todoPct / 100 },
-    { label: 'MD任務量', val: m => m.totalMeasures / maxMD },
-    { label: 'MP任務量', val: m => m.totalTodos / maxMP },
-    { label: '指派專案', val: m => (m.projects?.size ?? 0) / maxProj },
-  ];
-  const n = AXES.length;
-  const COLORS = [B_BLUE, B_PINK, B_GREEN, B_CYAN, B_ORANGE, B_YELLOW];
-  const pt = (axIdx, v) => {
-    const a = (axIdx / n) * 2 * Math.PI - Math.PI / 2;
-    return [cx + r * v * Math.cos(a), cy + r * v * Math.sin(a)];
-  };
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-      <svg width={size} height={size} style={{ overflow: 'visible' }}>
-        {[0.25, 0.5, 0.75, 1.0].map(ring => (
-          <polygon key={ring} points={AXES.map((_, i) => pt(i, ring).join(',')).join(' ')} fill="none" stroke={T.border} strokeWidth="0.5" opacity="0.25" />
-        ))}
-        {[25, 50, 75].map(pct => {
-          const [x, y] = pt(0, pct / 100);
-          return <text key={pct} x={x + 4} y={y} fontSize="7" fontFamily='"Space Grotesk",sans-serif' fontWeight="700" fill={T.textMuted} opacity="0.5">{pct}%</text>;
-        })}
-        {AXES.map((_, i) => {
-          const [x, y] = pt(i, 1);
-          return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke={T.border} strokeWidth="0.8" opacity="0.22" />;
-        })}
-        {AXES.map((ax, i) => {
-          const [x, y] = pt(i, 1.24);
-          return <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="8.5" fontFamily='"Space Grotesk",sans-serif' fontWeight="900" fill={T.textMuted} letterSpacing="0.04em">{ax.label}</text>;
-        })}
-        {members.map((m, mi) => {
-          const pts = AXES.map((ax, i) => pt(i, Math.max(ax.val(m), 0.02)).join(',')).join(' ');
-          const c = COLORS[mi % COLORS.length];
-          return (
-            <g key={m.name}>
-              <polygon points={pts} fill={c} fillOpacity="0.12" stroke={c} strokeWidth="1.5" strokeOpacity="0.8" />
-              {AXES.map((ax, i) => {
-                const [px, py] = pt(i, Math.max(ax.val(m), 0.02));
-                return <circle key={i} cx={px} cy={py} r="2.5" fill={c} opacity="0.75" />;
-              })}
-            </g>
-          );
-        })}
-      </svg>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', justifyContent: 'center' }}>
-        {members.map((m, mi) => (
-          <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <div style={{ width: '8px', height: '8px', background: COLORS[mi % COLORS.length], flexShrink: 0 }} />
-            <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, whiteSpace: 'nowrap' }}>{m.name}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ScatterPlot({ members, dark }) {
-  const T = dark ? DARK : LIGHT;
-  const [hovered, setHovered] = useState(null);
-  const W = 460, H = 320;
-  const mg = { t: 20, r: 24, b: 48, l: 50 };
-  const pw = W - mg.l - mg.r;
-  const ph = H - mg.t - mg.b;
-  const maxTasks = Math.max(...members.map(m => m.totalMeasures + m.totalTodos), 1);
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg width={W} height={H}>
-        <defs>
-          <clipPath id="sc-clip"><rect x={0} y={0} width={pw} height={ph} /></clipPath>
-        </defs>
-        <g transform={`translate(${mg.l},${mg.t})`}>
-          <rect x={0} y={0} width={pw} height={ph} fill={dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'} />
-          {[0, 25, 50, 75, 100].map(v => (
-            <g key={v}>
-              <line x1={0} y1={ph - ph*v/100} x2={pw} y2={ph - ph*v/100} stroke={T.border} strokeWidth="0.5" opacity="0.18" strokeDasharray="3 3" />
-              <line x1={pw*v/100} y1={0} x2={pw*v/100} y2={ph} stroke={T.border} strokeWidth="0.5" opacity="0.18" strokeDasharray="3 3" />
-              <text x={pw*v/100} y={ph+16} textAnchor="middle" fontSize="8" fontFamily='"Space Grotesk",sans-serif' fontWeight="700" fill={T.textMuted}>{v}%</text>
-              <text x={-7} y={ph - ph*v/100 + 3} textAnchor="end" fontSize="8" fontFamily='"Space Grotesk",sans-serif' fontWeight="700" fill={T.textMuted}>{v}%</text>
-            </g>
-          ))}
-          <rect x={0} y={0} width={pw} height={ph} fill="none" stroke={T.border} strokeWidth="1" opacity="0.3" />
-          <text x={pw/2} y={ph+38} textAnchor="middle" fontSize="9" fontFamily='"Space Grotesk",sans-serif' fontWeight="900" fill={T.textMuted} letterSpacing="0.08em">MD 完成率</text>
-          <text x={-ph/2} y={-38} textAnchor="middle" fontSize="9" fontFamily='"Space Grotesk",sans-serif' fontWeight="900" fill={T.textMuted} letterSpacing="0.08em" transform="rotate(-90)">MP 完成率</text>
-          <g clipPath="url(#sc-clip)">
-            {members.map((m, i) => {
-              const x = (m.measurePct / 100) * pw;
-              const y = ph - (m.todoPct / 100) * ph;
-              const bR = 5 + Math.sqrt((m.totalMeasures + m.totalTodos) / maxTasks) * 18;
-              const color = progressColor((m.measurePct + m.todoPct) / 2);
-              const isHov = hovered === i;
-              return (
-                <g key={m.name} style={{ cursor: 'pointer' }} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
-                  <circle cx={x} cy={y} r={bR} fill={color} fillOpacity={isHov ? 0.85 : 0.38} stroke={color} strokeWidth={isHov ? 2.5 : 1.5} />
-                  {members.length <= 15 && !isHov && (
-                    <text x={x} y={y + 3.5} textAnchor="middle" fontSize="7.5" fontFamily='"Space Grotesk",sans-serif' fontWeight="900" fill={T.text} opacity="0.75" style={{ pointerEvents: 'none' }}>
-                      {m.name.slice(0, 3)}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-            {hovered !== null && (() => {
-              const m = members[hovered];
-              const x = (m.measurePct / 100) * pw;
-              const y = ph - (m.todoPct / 100) * ph;
-              const bR = 5 + Math.sqrt((m.totalMeasures + m.totalTodos) / maxTasks) * 18;
-              const txY = y - bR - 8 < 22 ? y + bR + 20 : y - bR - 8;
-              const color = progressColor((m.measurePct + m.todoPct) / 2);
-              return (
-                <g key="tip" style={{ pointerEvents: 'none' }}>
-                  <text x={x} y={txY} textAnchor="middle" fontSize="10" fontFamily='"Space Grotesk",sans-serif' fontWeight="900" fill={T.text}>{m.name}</text>
-                  <text x={x} y={txY + 14} textAnchor="middle" fontSize="8.5" fontFamily='"Space Grotesk",sans-serif' fontWeight="700" fill={color}>MD {m.measurePct}% · MP {m.todoPct}%</text>
-                </g>
-              );
-            })()}
-          </g>
-        </g>
-      </svg>
-      <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, textAlign: 'center', marginTop: '4px' }}>
-        氣泡大小 ＝ 總任務量；游標懸停顯示詳情
-      </div>
-    </div>
-  );
-}
-
-function computeTreemap(nodes, x, y, w, h) {
-  if (!nodes.length) return [];
-  if (nodes.length === 1) return [{ ...nodes[0], x, y, w, h }];
-  const total = nodes.reduce((s, n) => s + n.value, 0);
-  if (!total) return nodes.map(n => ({ ...n, x, y, w: 0, h: 0 }));
-  let acc = 0, pivot = 1;
-  for (let i = 0; i < nodes.length; i++) {
-    acc += nodes[i].value;
-    if (acc >= total / 2 || i >= nodes.length - 2) { pivot = i + 1; break; }
-  }
-  const left  = nodes.slice(0, pivot);
-  const right = nodes.slice(pivot);
-  const frac  = left.reduce((s, n) => s + n.value, 0) / total;
-  if (w >= h) {
-    return [
-      ...computeTreemap(left,  x,           y, w * frac,        h),
-      ...computeTreemap(right, x + w * frac, y, w * (1 - frac), h),
-    ];
-  }
-  return [
-    ...computeTreemap(left,  x, y,           w, h * frac),
-    ...computeTreemap(right, x, y + h * frac, w, h * (1 - frac)),
-  ];
-}
-const TM_COLORS = [B_BLUE, B_PINK, B_CYAN, B_GREEN, B_ORANGE, B_YELLOW, '#9b59b6', '#e67e22', '#16a085', '#c0392b', '#2980b9', '#8e44ad'];
-
-function TreemapChart({ items, dark, W = 580, H = 300 }) {
-  const T = dark ? DARK : LIGHT;
-  const [hovered, setHovered] = useState(null);
-  const sorted = [...items].filter(i => i.value > 0).sort((a, b) => b.value - a.value);
-  const rects  = computeTreemap(sorted, 0, 0, W, H);
-  const GAP = 3;
-  const hovR = hovered ? rects.find(r => r.label === hovered) : null;
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg width={W} height={H} style={{ display: 'block' }}>
-        {rects.map(r => {
-          const isHov = hovered === r.label;
-          const rx = r.x + GAP / 2, ry = r.y + GAP / 2;
-          const rw = Math.max(0, r.w - GAP), rh = Math.max(0, r.h - GAP);
-          return (
-            <g key={r.label}
-              onMouseEnter={() => setHovered(r.label)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: 'default' }}
-            >
-              <rect x={rx} y={ry} width={rw} height={rh}
-                fill={r.color} fillOpacity={isHov ? 0.88 : 0.58}
-                stroke={isHov ? T.text : T.border}
-                strokeWidth={isHov ? 2 : 0.8} strokeOpacity={isHov ? 0.8 : 0.45}
-              />
-              {rw > 36 && rh > 20 && (
-                <text x={rx + 6} y={ry + 14} fontSize="9" fontFamily='"Space Grotesk",sans-serif'
-                  fontWeight="900" fill={T.text} style={{ pointerEvents: 'none' }}>
-                  {r.label.length * 7.5 > rw - 12
-                    ? r.label.slice(0, Math.max(1, Math.floor((rw - 16) / 7.5))) + '\u2026'
-                    : r.label}
-                </text>
-              )}
-              {rw > 50 && rh > 36 && (
-                <text x={rx + 6} y={ry + 27} fontSize="8" fontFamily='"Space Grotesk",sans-serif'
-                  fontWeight="700" fill={T.textMuted} style={{ pointerEvents: 'none' }}>
-                  MD {r.md} \u00b7 MP {r.mp}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-      {hovR && (
-        <div style={{ fontSize: '10px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900,
-          color: hovR.color, marginTop: '6px', textAlign: 'center', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          {hovR.label} \u2014 MD {hovR.md} \u00b7 MP {hovR.mp} \u00b7 \u5171 {hovR.value} \u9805
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RadarSection({ stats, dark }) {
-  const T = dark ? DARK : LIGHT;
-  const sh = dark ? 'rgba(255,255,255,0.15)' : '#000';
-  const [radarFocus, setRadarFocus] = useState('__top5__');
-  const top5 = useMemo(
-    () => [...stats].sort((a, b) => (b.measurePct + b.todoPct) - (a.measurePct + a.todoPct)).slice(0, 5),
-    [stats]
-  );
-  const radarOptions = [
-    { value: '__top5__', label: '\u524d\u4e94\u540d\u5c0d\u6bd4' },
-    ...stats.map(m => ({ value: m.name, label: m.name })),
-  ];
-  const displayMembers = radarFocus === '__top5__'
-    ? top5
-    : stats.filter(m => m.name === radarFocus);
-  const radarTitle = radarFocus === '__top5__'
-    ? '\u8ca0\u8cac\u4eba\u591a\u7dad\u96f7\u9054\u5716 \u2014 \u524d\u4e94\u540d'
-    : `\u8ca0\u8cac\u4eba\u591a\u7dad\u96f7\u9054\u5716 \u2014 ${radarFocus}`;
-  return (
-    <div style={{ background: T.cardBg, border: `3px solid ${T.border}`, boxShadow: `4px 4px 0 ${sh}`, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_YELLOW }}>{radarTitle}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900,
-          letterSpacing: '0.1em', textTransform: 'uppercase', color: T.textMuted }}>\u986f\u793a</span>
-        <BrutalistSelect
-          value={radarFocus}
-          onChange={setRadarFocus}
-          options={radarOptions}
-          darkMode={dark}
-          style={{ minWidth: '150px', fontSize: '10px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900 }}
-        />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <RadarChart members={displayMembers} dark={dark} size={300} />
-      </div>
-    </div>
-  );
-}
-
-function ChartLegend({ segments, dark }) {
-  const T = dark ? DARK : LIGHT;
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px', justifyContent: 'center' }}>
-      {segments.filter(s => s.value > 0).map(s => (
-        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0 }} />
-          <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: T.textMuted, whiteSpace: 'nowrap' }}>
-            {s.label} <strong style={{ color: T.text }}>{s.value}</strong>
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StackedHBarChart({ members, dark, segments, barH = 18 }) {
-  const T = dark ? DARK : LIGHT;
-  const sorted = [...members]
-    .sort((a, b) => {
-      const totA = segments.reduce((s, seg) => s + seg.getVal(a), 0);
-      const totB = segments.reduce((s, seg) => s + seg.getVal(b), 0);
-      return totB - totA;
-    })
-    .slice(0, 10);
-  const maxTot = Math.max(...sorted.map(m => segments.reduce((s, seg) => s + seg.getVal(m), 0)), 1);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', marginBottom: '4px' }}>
-        {segments.map(seg => (
-          <div key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <div style={{ width: '8px', height: '8px', background: seg.color, flexShrink: 0 }} />
-            <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: T.textMuted }}>{seg.label}</span>
-          </div>
-        ))}
-      </div>
-      {sorted.map(m => {
-        const tot = segments.reduce((s, seg) => s + seg.getVal(m), 0);
-        return (
-          <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '72px', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0, textAlign: 'right' }}>
-              {m.name}
-            </div>
-            <div style={{ flex: 1, height: barH, background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', border: `1px solid ${T.border}`, overflow: 'hidden', display: 'flex' }}>
-              {segments.map(seg => {
-                const val = seg.getVal(m);
-                const w = maxTot > 0 ? (val / maxTot) * 100 : 0;
-                return w > 0 ? <div key={seg.key} style={{ height: '100%', width: `${w}%`, background: seg.color, transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)', flexShrink: 0 }} /> : null;
-              })}
-            </div>
-            <div style={{ width: '24px', fontSize: '11px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: T.textSub, flexShrink: 0, textAlign: 'right' }}>
-              {tot}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function DistributionCard({ title, titleColor, donuts, dark, sh, T }) {
-  const [activeIdx, setActiveIdx] = useState(null);
-  return (
-    <div style={{ background: T.cardBg, border: `3px solid ${T.border}`, boxShadow: `4px 4px 0 ${sh}`, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: titleColor }}>{title}</span>
-      <div style={{ display: 'flex' }}>
-        {donuts.map((d, i) => {
-          const isActive = activeIdx === i;
-          return (
-            <div
-              key={i}
-              onClick={() => setActiveIdx(isActive ? null : i)}
-              style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-                cursor: 'pointer', padding: '10px 8px',
-                background: isActive ? (dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)') : 'transparent',
-                outline: isActive ? `2px solid ${d.subColor}55` : '2px solid transparent',
-                transition: 'background 0.15s, outline 0.15s',
-              }}
-            >
-              <DonutChart segments={d.segments} dark={dark} total={d.total} centerKey={d.centerKey ?? 'done'} size={120} />
-              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: d.subColor }}>{d.subLabel}</span>
-              <ChartLegend segments={d.segments} dark={dark} />
-              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: isActive ? d.subColor : T.textMuted, opacity: 0.8 }}>
-                {isActive ? '▲ 收起' : '▼ 明細'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {activeIdx !== null && (
-        <div style={{ borderTop: `2px solid ${T.border}`, paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: donuts[activeIdx].subColor }}>
-            {donuts[activeIdx].drillTitle}
-          </span>
-          {donuts[activeIdx].drillContent}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ChartsSection({ stats, dark, unassignedMeasures = 0, unassignedTodos = 0, chartView = 'all' }) {
-  const T = dark ? DARK : LIGHT;
-  const sh = dark ? 'rgba(255,255,255,0.15)' : '#000';
-  if (!stats.length) return null;
-
-  const totMD = stats.reduce((s, x) => s + x.totalMeasures, 0);
-  const doneMD = stats.reduce((s, x) => s + x.completedMeasures, 0);
-  const overMD = stats.reduce((s, x) => s + x.overdueMeasures, 0);
-  const progMD = stats.reduce((s, x) => s + x.inProgressMeasures, 0);
-  const otherMD = Math.max(0, totMD - doneMD - overMD - progMD);
-  const totMP = stats.reduce((s, x) => s + x.totalTodos, 0);
-  const doneMP = stats.reduce((s, x) => s + x.doneTodos, 0);
-  const overMP = stats.reduce((s, x) => s + x.overdueTodos, 0);
-  const otherMP = Math.max(0, totMP - doneMP - overMP);
-
-  const mdSegments = [
-    { key: 'done',     label: '完成',  value: doneMD,  color: B_GREEN },
-    { key: 'progress', label: '進行中', value: progMD,  color: B_CYAN },
-    { key: 'overdue',  label: '逾期',  value: overMD,  color: B_PINK },
-    { key: 'other',    label: '未開始', value: otherMD, color: dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)' },
-  ];
-  const mpSegments = [
-    { key: 'done',    label: '完成',  value: doneMP,  color: B_GREEN },
-    { key: 'overdue', label: '逾期',  value: overMP,  color: B_PINK },
-    { key: 'other',   label: '未完成', value: otherMP, color: dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)' },
-  ];
-  const mdAssignSegs = [
-    { key: 'assigned',   label: '已指派', value: totMD,             color: B_BLUE },
-    { key: 'unassigned', label: '未指派', value: unassignedMeasures, color: B_ORANGE },
-  ];
-  const mpAssignSegs = [
-    { key: 'assigned',   label: '已指派', value: totMP,         color: B_PINK },
-    { key: 'unassigned', label: '未指派', value: unassignedTodos, color: B_ORANGE },
-  ];
-
-  const byPctMD  = [...stats].sort((a, b) => b.measurePct        - a.measurePct        || b.totalMeasures  - a.totalMeasures).slice(0, 10);
-  const byPctMP  = [...stats].sort((a, b) => b.todoPct           - a.todoPct           || b.totalTodos      - a.totalTodos).slice(0, 10);
-  const byCntMD  = [...stats].sort((a, b) => b.completedMeasures - a.completedMeasures || a.name.localeCompare(b.name)).slice(0, 10);
-  const byCntMP  = [...stats].sort((a, b) => b.doneTodos         - a.doneTodos         || a.name.localeCompare(b.name)).slice(0, 10);
-  const maxCntMD = Math.max(...byCntMD.map(m => m.completedMeasures), 1);
-  const maxCntMP = Math.max(...byCntMP.map(m => m.doneTodos), 1);
-
-  const card = (title, titleColor, children) => (
-    <div style={{ background: T.cardBg, border: `3px solid ${T.border}`, boxShadow: `4px 4px 0 ${sh}`, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: titleColor }}>{title}</span>
-      {children}
-    </div>
-  );
-
-  const statsWI     = stats.map(m => ({ ...m, incompMDPct: 100 - m.measurePct, incompMPPct: 100 - m.todoPct, incompMeasures: m.totalMeasures - m.completedMeasures, incompTodos: m.totalTodos - m.doneTodos }));
-  const byIncRateMD = [...statsWI].sort((a, b) => b.incompMDPct     - a.incompMDPct     || b.totalMeasures - a.totalMeasures).slice(0, 10);
-  const byIncRateMP = [...statsWI].sort((a, b) => b.incompMPPct     - a.incompMPPct     || b.totalTodos    - a.totalTodos).slice(0, 10);
-  const byCntIncMD  = [...statsWI].sort((a, b) => b.incompMeasures  - a.incompMeasures  || a.name.localeCompare(b.name)).slice(0, 10);
-  const byCntIncMP  = [...statsWI].sort((a, b) => b.incompTodos     - a.incompTodos     || a.name.localeCompare(b.name)).slice(0, 10);
-  const maxIncMD    = Math.max(...byCntIncMD.map(m => m.incompMeasures), 1);
-  const maxIncMP    = Math.max(...byCntIncMP.map(m => m.incompTodos), 1);
-
-  const showRate         = chartView === 'rate_count';
-  const showCount        = chartView === 'rate_count';
-  const showStatus       = chartView === 'status';
-  const showAssign       = chartView === 'assign';
-  const showIncompRate   = chartView === 'incomp_both';
-  const showIncompCount  = chartView === 'incomp_both';
-  const showTreemap      = chartView === 'treemap';
-  const showRadar        = chartView === 'radar';
-  const showScatter      = chartView === 'scatter';
-  const tmItems = [
-    ...stats.map((m, i) => ({ label: m.name, value: m.totalMeasures + m.totalTodos, md: m.totalMeasures, mp: m.totalTodos, color: TM_COLORS[i % TM_COLORS.length] })),
-    ...(unassignedMeasures + unassignedTodos > 0 ? [{ label: '\u672a\u6307\u6d3e', value: unassignedMeasures + unassignedTodos, md: unassignedMeasures, mp: unassignedTodos, color: dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.18)' }] : []),
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Row 1 — 完成率排行 */}
-      {showRate && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {card('MD 完成率排行', B_BLUE,
-            <HBarChart members={byPctMD} dark={dark} valueKey="measurePct" colorFn={progressColor} labelFn={v => `${v}%`} />
-          )}
-          {card('MP 完成率排行', B_PINK,
-            <HBarChart members={byPctMP} dark={dark} valueKey="todoPct" colorFn={progressColor} labelFn={v => `${v}%`} />
-          )}
-        </div>
-      )}
-      {/* Row 2 — 完成數排行 */}
-      {showCount && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {card('MD 完成數排行', B_GREEN,
-            <HBarChart members={byCntMD} dark={dark} valueKey="completedMeasures" maxValue={maxCntMD} color={B_GREEN} labelFn={v => v} />
-          )}
-          {card('MP 完成數排行', B_CYAN,
-            <HBarChart members={byCntMP} dark={dark} valueKey="doneTodos" maxValue={maxCntMP} color={B_CYAN} labelFn={v => v} />
-          )}
-        </div>
-      )}
-      {/* Row 3 — 任務狀態分布 + 指派分布 */}
-      {(showStatus || showAssign) && (
-        <div style={{ display: 'grid', gridTemplateColumns: (showStatus && showAssign) ? '1fr 1fr' : '1fr', gap: '16px' }}>
-          {showStatus && (
-            <DistributionCard
-              title="任務狀態分布" titleColor={T.textMuted} dark={dark} sh={sh} T={T}
-              donuts={[
-                {
-                  segments: mdSegments, total: totMD, subLabel: 'MD 定量指標', subColor: B_BLUE,
-                  drillTitle: 'MD 各負責人狀態明細',
-                  drillContent: (
-                    <StackedHBarChart members={stats} dark={dark} segments={[
-                      { key: 'done',     label: '完成',  color: B_GREEN,  getVal: m => m.completedMeasures },
-                      { key: 'progress', label: '進行中', color: B_CYAN,   getVal: m => m.inProgressMeasures },
-                      { key: 'overdue',  label: '逾期',  color: B_PINK,   getVal: m => m.overdueMeasures },
-                      { key: 'other',    label: '未開始', color: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.13)', getVal: m => Math.max(0, m.totalMeasures - m.completedMeasures - m.inProgressMeasures - m.overdueMeasures) },
-                    ]} />
-                  ),
-                },
-                {
-                  segments: mpSegments, total: totMP, subLabel: 'MP 檢核步驟', subColor: B_PINK,
-                  drillTitle: 'MP 各負責人狀態明細',
-                  drillContent: (
-                    <StackedHBarChart members={stats} dark={dark} segments={[
-                      { key: 'done',    label: '完成',  color: B_GREEN,  getVal: m => m.doneTodos },
-                      { key: 'overdue', label: '逾期',  color: B_PINK,   getVal: m => m.overdueTodos },
-                      { key: 'other',   label: '未完成', color: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.13)', getVal: m => Math.max(0, m.totalTodos - m.doneTodos - m.overdueTodos) },
-                    ]} />
-                  ),
-                },
-              ]}
-            />
-          )}
-          {showAssign && (
-            <DistributionCard
-              title="MD / MP 指派分布" titleColor={B_ORANGE} dark={dark} sh={sh} T={T}
-              donuts={[
-                {
-                  segments: mdAssignSegs, total: totMD + unassignedMeasures, subLabel: 'MD 定量指標', subColor: B_BLUE, centerKey: 'assigned',
-                  drillTitle: 'MD 各負責人指派數量',
-                  drillContent: (
-                    <HBarChart
-                      members={[...stats].sort((a, b) => b.totalMeasures - a.totalMeasures).slice(0, 10)}
-                      dark={dark} valueKey="totalMeasures" color={B_BLUE} labelFn={v => v}
-                    />
-                  ),
-                },
-                {
-                  segments: mpAssignSegs, total: totMP + unassignedTodos, subLabel: 'MP 檢核步驟', subColor: B_PINK, centerKey: 'assigned',
-                  drillTitle: 'MP 各負責人指派數量',
-                  drillContent: (
-                    <HBarChart
-                      members={[...stats].sort((a, b) => b.totalTodos - a.totalTodos).slice(0, 10)}
-                      dark={dark} valueKey="totalTodos" color={B_PINK} labelFn={v => v}
-                    />
-                  ),
-                },
-              ]}
-            />
-          )}
-        </div>
-      )}
-      {/* 未完成率排行 */}
-      {showIncompRate && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {card('MD 未完成率排行', B_PINK,
-            <HBarChart members={byIncRateMD} dark={dark} valueKey="incompMDPct" colorFn={incompleteColor} labelFn={v => `${v}%`} />
-          )}
-          {card('MP 未完成率排行', B_ORANGE,
-            <HBarChart members={byIncRateMP} dark={dark} valueKey="incompMPPct" colorFn={incompleteColor} labelFn={v => `${v}%`} />
-          )}
-        </div>
-      )}
-      {/* 未完成數排行 */}
-      {showIncompCount && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {card('MD 未完成數排行', B_PINK,
-            <HBarChart members={byCntIncMD} dark={dark} valueKey="incompMeasures" maxValue={maxIncMD} color={B_PINK} labelFn={v => v} />
-          )}
-          {card('MP 未完成數排行', B_ORANGE,
-            <HBarChart members={byCntIncMP} dark={dark} valueKey="incompTodos" maxValue={maxIncMP} color={B_ORANGE} labelFn={v => v} />
-          )}
-        </div>
-      )}
-      {/* 雷達圖 */}
-      {showRadar && <RadarSection stats={stats} dark={dark} />}
-      {/* 矩形樹狀圖 */}
-      {showTreemap && card('任務指派總量矩形樹狀圖', B_CYAN,
-        <TreemapChart items={tmItems} dark={dark} />
-      )}
-      {/* 散佈圖 */}
-      {showScatter && card('MD × MP 完成率散佈圖', B_CYAN,
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <ScatterPlot members={stats} dark={dark} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── SORT CONTROLS ────────────────────────────────────────────────────────────
-const SORT_OPTIONS = [
-  { key: 'measurePct',        label: 'MD 完成率' },
-  { key: 'todoPct',           label: 'MP 完成率' },
-  { key: 'totalMeasures',     label: 'MD 總量' },
-  { key: 'totalTodos',        label: 'MP 總量' },
-  { key: 'completedMeasures', label: 'MD 完成數' },
-  { key: 'doneTodos',         label: 'MP 完成數' },
-];
-const CHART_VIEW_OPTIONS = [
-  { value: 'rate_count',   label: '完成率 / 完成數排行' },
-  { value: 'incomp_both',  label: '未完成率 / 未完成數排行' },
-  { value: 'treemap',      label: '矩形樹狀圖' },
-  { value: 'status',       label: '任務狀態分布' },
-  { value: 'assign',       label: '指派分布' },
-  { value: 'radar',        label: '雷達圖' },
-  { value: 'scatter',      label: '散佈圖' },
-];
 
 // ─── OVERVIEW CARDS ───────────────────────────────────────────────────────────
 function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark }) {
@@ -990,7 +570,7 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
       {items.map(({ label, value, color }) => (
         <div key={label} style={{
           flex: '1 1 120px', minWidth: '100px',
-          background: T.cardBg, border: `3px solid ${T.border}`,
+          background: T.cardBg, backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', border: `2px solid ${T.border}`,
           boxShadow: `4px 4px 0 ${sh}`, padding: '16px 20px',
           display: 'flex', flexDirection: 'column', gap: '4px',
         }}>
