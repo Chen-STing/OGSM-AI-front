@@ -55,6 +55,11 @@ function progressColor(pct) {
   return B_GREEN
 }
 
+function clampDateToMax(date, maxDate) {
+  if (!date || !maxDate) return date || ''
+  return date > maxDate ? maxDate : date
+}
+
 const autoResize = (e) => {
   const el = e.target
   // 找到最近的 scroll container，儲存 scrollTop 避免跳位
@@ -307,7 +312,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     setAiLoading(true)
 
     const makeTodos = (arr) => (arr || []).map(t => ({ id: crypto.randomUUID(), text: typeof t === 'string' ? t : (t.text || ''), done: false, assignees: Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []), deadline: typeof t === 'object' ? (t.deadline || '') : '', createdAt: new Date().toISOString() }))
-    const makeMeasure = (m, sortOrder) => ({ id: null, kpi: m.kpi || '', target: m.target || '', deadline: m.deadline || '', assignees: [], actual: '', progress: 0, status: 'NotStarted', sortOrder, todos: makeTodos(m.todos) })
+    const makeMeasure = (m, sortOrder) => ({ id: null, kpi: m.kpi || '', target: m.target || '', deadline: clampDateToMax(m.deadline || '', draft.deadline || ''), assignees: [], actual: '', progress: 0, status: 'NotStarted', sortOrder, todos: makeTodos(m.todos) })
 
     try {
       if (type === 'goal') {
@@ -331,7 +336,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         const res = await api.generateForMeasure({ kpiText: text, strategyText: draft.goals[gi].strategies[si].text, objective: draft.objective, deadline: draft.deadline || undefined })
         update(d => {
           const m = d.goals[gi].strategies[si].measures[mi]
-          m.kpi = text.trim() || res.kpiText || m.kpi || ''; m.target = res.target || m.target || ''; m.deadline = res.deadline || m.deadline || ''; m.todos = makeTodos(res.todos)
+          m.kpi = text.trim() || res.kpiText || m.kpi || ''; m.target = res.target || m.target || ''; m.deadline = clampDateToMax(res.deadline || m.deadline || '', d.deadline || ''); m.todos = makeTodos(res.todos)
           return d
         })
       }
@@ -344,7 +349,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     const normMeasure = m => {
       const assignees = Array.isArray(m.assignees) ? m.assignees : (m.assignee ? [m.assignee] : [])
       const { assignee: _a, assignees: _as, ...mRest } = m
-      return { ...mRest, assignees, todos: (mRest.todos || []).map(t => { const { assignee: ta, assignees: tas, ...tRest } = t; return { ...tRest, assignees: Array.isArray(tas) ? tas : (ta ? [ta] : []) } }) }
+      return { ...mRest, deadline: clampDateToMax(mRest.deadline || '', draft?.deadline || ''), assignees, todos: (mRest.todos || []).map(t => { const { assignee: ta, assignees: tas, ...tRest } = t; return { ...tRest, assignees: Array.isArray(tas) ? tas : (ta ? [ta] : []) } }) }
     }
     const normStrategy = s => ({ ...s, measures: (s.measures || []).map(normMeasure) })
     if (type === 'goal') {
@@ -370,7 +375,15 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   if (!draft) return null
 
   // CRUD helpers
-  const setField       = (f,v)          => update(d => { d[f] = v; return d })
+  const setField       = (f,v)          => update(d => {
+    d[f] = v
+    if (f === 'deadline') {
+      d.goals.forEach(g => g.strategies.forEach(s => s.measures.forEach(m => {
+        m.deadline = clampDateToMax(m.deadline || '', d.deadline || '')
+      })))
+    }
+    return d
+  })
   const setGoalText    = (gi,v)          => update(d => { d.goals[gi].text = v; return d })
   const addGoal        = ()              => update(d => { d.goals.push(emptyGoal()); return d })
   const removeGoal     = (gi)            => update(d => { d.goals.splice(gi,1); return d })
@@ -378,7 +391,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const addStrategy    = (gi)            => update(d => { d.goals[gi].strategies.push(emptyStrategy()); return d })
   const removeStrategy = (gi,si)         => update(d => { d.goals[gi].strategies.splice(si,1); return d })
   const setMField      = (gi,si,mi,f,v)  => update(d => {
-    d.goals[gi].strategies[si].measures[mi][f] = v; const m = d.goals[gi].strategies[si].measures[mi]; const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
+    const nextValue = f === 'deadline' ? clampDateToMax(v, d.deadline || '') : v
+    d.goals[gi].strategies[si].measures[mi][f] = nextValue; const m = d.goals[gi].strategies[si].measures[mi]; const today = (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })()
     if (f === 'deadline') {
       if (m.deadline && m.deadline < today && m.status !== 'Completed') m.status = 'Overdue'
       else if ((!m.deadline || m.deadline >= today) && m.status === 'Overdue') m.status = autoStatus(m)
@@ -782,7 +796,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
                                       {/* Deadline */}
                                       <div style={{ width: COL_DL, minWidth: COL_DL, padding: '12px 16px', borderRight: `2px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                                         {editMode ? (
-                                          <input type="date" className="ogsm-date" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: '10px', fontFamily: 'monospace', outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light' }} value={m.deadline || ''} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
+                                          <input type="date" className="ogsm-date" style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: '10px', fontFamily: 'monospace', outline: 'none', width: '100%', colorScheme: dark ? 'dark' : 'light' }} value={m.deadline || ''} max={draft.deadline || undefined} onChange={e => setMField(gi,si,mi,'deadline',e.target.value)} />
                                         ) : (
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, opacity: 0.6, color: dark ? '#fff' : '#000' }}>
                                             {m.deadline || '—'}
@@ -952,6 +966,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
           dark={dark}
           objective={draft.objective || ''}
           goalText={qeModal.type !== 'goal' ? (draft.goals[qeModal.gi]?.text || '') : ''}
+          planDeadline={draft.deadline || ''}
           onSave={handleQeSave}
           onClose={() => setQeModal(null)}
         />

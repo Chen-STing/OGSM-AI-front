@@ -51,6 +51,10 @@ const taChange = (e, cb) => { e.target.style.height = '0px'; e.target.style.heig
 const todayStr = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` }
 const uid      = () => crypto.randomUUID()
 const reorder  = (arr, from, to) => { const a = [...arr]; const [x] = a.splice(from, 1); a.splice(to, 0, x); return a }
+const clampDateToMax = (date, maxDate) => {
+  if (!date || !maxDate) return date || ''
+  return date > maxDate ? maxDate : date
+}
 const parseAssignees = (assignees, assignee) => {
   let arr = [];
   if (Array.isArray(assignees)) arr = assignees;
@@ -298,7 +302,7 @@ function MpList({ todos, mpLabel, members, dark, onChange, maxDate = '' }) {
 }
 
 // ─── MEASURE CARD ─────────────────────────────────────────────────────────────
-function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent, noCollapse, onDelete, hideKpi, dragHandleProps, isDragOver }) {
+function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent, noCollapse, onDelete, hideKpi, dragHandleProps, isDragOver, planDeadline = '' }) {
   const T = dark ? DARK : LIGHT
 
   const inputBase = {
@@ -324,9 +328,10 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
   }
 
   const handleDeadlineChange = (v) => {
-    const isOver = v && v < todayStr()
+    const nextDeadline = clampDateToMax(v, planDeadline)
+    const isOver = nextDeadline && nextDeadline < todayStr()
     const newStatus = isOver&&pct<100?'Overdue':pct>=100?'Completed':pct>0?'InProgress':'NotStarted'
-    onField('deadline', v)
+    onField('deadline', nextDeadline)
     onField('status', newStatus)
   }
 
@@ -357,7 +362,7 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
         </div>
         <div>
           <span style={lbl}>期限</span>
-          <input type="date" style={{ ...inputBase, fontFamily:'monospace', fontSize:'12px', height:'34px', padding:'4px 8px', colorScheme:dark?'dark':'light' }} value={m.deadline||''} onChange={e=>handleDeadlineChange(e.target.value)} />
+          <input type="date" style={{ ...inputBase, fontFamily:'monospace', fontSize:'12px', height:'34px', padding:'4px 8px', colorScheme:dark?'dark':'light' }} value={m.deadline||''} max={planDeadline||undefined} onChange={e=>handleDeadlineChange(e.target.value)} />
         </div>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'14px' }}>
@@ -393,7 +398,7 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
 }
 
 // ─── QUICKEDITMODAL ──────────────────────────────────────────────────────────
-export default function QuickEditModal({ type, data, label, members=[], dark, objective='', goalText='', onSave, onClose }) {
+export default function QuickEditModal({ type, data, label, members=[], dark, objective='', goalText='', planDeadline='', onSave, onClose }) {
   const [local, setLocal]         = useState(()=>JSON.parse(JSON.stringify(data)))
   const [choice, setChoice]       = useState(null)
   const [aiDialog, setAiDialog]   = useState(null)
@@ -455,7 +460,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
 
   // ── AI ────────────────────────────────────────────────────────────────────
   const makeTodos   = arr => (arr||[]).map(t=>({id:crypto.randomUUID(),text:typeof t==='string'?t:(t.text||''),done:false,assignees:[],deadline:typeof t==='object'?(t.deadline||''):'',createdAt:new Date().toISOString()}))
-  const makeMeasure = (m,idx) => ({id:null,kpi:m.kpi||'',target:m.target||'',deadline:m.deadline||'',assignees:[],actual:'',progress:0,status:'NotStarted',sortOrder:idx,todos:makeTodos(m.todos)})
+  const makeMeasure = (m,idx) => ({id:null,kpi:m.kpi||'',target:m.target||'',deadline:clampDateToMax(m.deadline||'', planDeadline),assignees:[],actual:'',progress:0,status:'NotStarted',sortOrder:idx,todos:makeTodos(m.todos)})
 
   const handleAiConfirm = async (text) => {
     if (!aiDialog) return
@@ -521,7 +526,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
                     onDrop={e=>{e.preventDefault();e.stopPropagation();if(dragGM&&dragGM.si===si&&dragGM.mi!==mi)reorderGoalMeasures(si,dragGM.mi,mi);setDragGM(null);setOverGM(null)}}
                     onDragEnd={()=>{setDragGM(null);setOverGM(null)}}
                     style={{ opacity:dragGM?.si===si&&dragGM?.mi===mi?0.35:1, transition:'opacity 0.12s' }}>
-                    <MeasureCard m={m} mdLabel={`${gNum}.${si+1}.${mi+1}`} members={members} dark={dark} indent hideKpi
+                    <MeasureCard m={m} mdLabel={`${gNum}.${si+1}.${mi+1}`} members={members} dark={dark} indent hideKpi planDeadline={planDeadline}
                       onField={(f,v)=>setGoalMField(si,mi,f,v)} onTodosChange={p=>setGoalTodos(si,mi,p)}
                       onDelete={()=>removeGoalMeasure(si,mi)}
                       isDragOver={overGM?.si===si&&overGM?.mi===mi&&!(dragGM?.si===si&&dragGM?.mi===mi)}
@@ -548,7 +553,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
               onDrop={e=>{e.preventDefault();if(dragMI!=null&&dragMI!==mi)reorderStratMeasures(dragMI,mi);setDragMI(null);setOverMI(null)}}
               onDragEnd={()=>{setDragMI(null);setOverMI(null)}}
               style={{ opacity:dragMI===mi?0.35:1, transition:'opacity 0.12s' }}>
-              <MeasureCard m={m} mdLabel={`${sNum}.${mi+1}`} members={members} dark={dark} hideKpi
+              <MeasureCard m={m} mdLabel={`${sNum}.${mi+1}`} members={members} dark={dark} hideKpi planDeadline={planDeadline}
                 onField={(f,v)=>setStratMField(mi,f,v)} onTodosChange={p=>setStratTodos(mi,p)}
                 onDelete={()=>removeStratMeasure(mi)}
                 isDragOver={overMI===mi&&dragMI!==mi}
@@ -561,7 +566,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
     }
 
     /* ── MEASURE ── */
-    return <MeasureCard m={local.measure} mdLabel={label.replace('D','')} members={members} dark={dark} noCollapse hideKpi onField={setMeasureField} onTodosChange={setMeasureTodos} />
+    return <MeasureCard m={local.measure} mdLabel={label.replace('D','')} members={members} dark={dark} noCollapse hideKpi planDeadline={planDeadline} onField={setMeasureField} onTodosChange={setMeasureTodos} />
   }
 
   const btnH = brutalistBtn(sh)

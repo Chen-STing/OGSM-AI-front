@@ -1491,6 +1491,8 @@ function ChartsSection({ stats, dark, unassignedMeasures = 0, unassignedTodos = 
 export const SORT_OPTIONS = [
   { key: 'measurePct',        label: 'MD 完成率' },
   { key: 'todoPct',           label: 'MP 完成率' },
+  { key: 'projectCount',      label: '專案數' },
+  { key: 'overdueTotal',      label: '總逾期數' },
   { key: 'totalMeasures',     label: 'MD 總量' },
   { key: 'totalTodos',        label: 'MP 總量' },
   { key: 'completedMeasures', label: 'MD 完成數' },

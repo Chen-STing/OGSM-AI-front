@@ -166,6 +166,8 @@ function buildStats(projects, selectedIds) {
   const list = Object.values(map).map(st => ({
     ...st,
     projects: [...st.projects],
+    projectCount: st.projects.size,
+    overdueTotal: st.overdueMeasures + st.overdueTodos,
     measurePct: st.totalMeasures ? Math.round((st.completedMeasures / st.totalMeasures) * 100) : 0,
     todoPct:    st.totalTodos    ? Math.round((st.doneTodos    / st.totalTodos)    * 100) : 0,
   })).sort((a, b) => b.measurePct - a.measurePct || a.name.localeCompare(b.name));

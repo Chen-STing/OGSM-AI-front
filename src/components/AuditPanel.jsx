@@ -44,6 +44,19 @@ function calcTodos(goals) {
   return { total: all.length, done, pct: all.length ? Math.round((done / all.length) * 100) : 0 }
 }
 
+function getAssigneeText(item) {
+  const rawAssignees = item?.assignees ?? item?.assignee ?? []
+
+  if (Array.isArray(rawAssignees)) {
+    return rawAssignees
+      .map(name => `${name ?? ''}`.trim())
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  return typeof rawAssignees === 'string' ? rawAssignees.trim() : ''
+}
+
 function ProgressBar({ value, color = ACCENT_ORANGE, height = 10, trackColor = '#000', borderColor = '#FFF' }) {
   return (
     <div style={{ background: trackColor, border: `2px solid ${borderColor}`, height, overflow: 'hidden' }}>
@@ -350,7 +363,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                       <td style="padding:8px 10px;color:#374151;"><span style="font-size:9px;font-weight:700;color:#d97706;font-family:monospace;margin-right:5px;">D${gi+1}.${si+1}.${mi+1}</span>${m.kpi || '—'}</td>
                       <td style="padding:8px 10px;color:#d97706;font-family:monospace;">${m.target || '—'}</td>
                       <td style="padding:8px 10px;color:#16a34a;font-family:monospace;">${m.actual || '—'}</td>
-                      <td style="padding:8px 10px;color:#6b7280;font-size:10px;">${(m.assignees ?? []).join(', ') || '—'}</td>
+                      <td style="padding:8px 10px;color:#6b7280;font-size:10px;">${getAssigneeText(m) || '—'}</td>
                       <td style="padding:8px 10px;color:#6b7280;font-family:monospace;font-size:10px;">${m.deadline || '—'}</td>
                       <td style="padding:8px 10px;text-align:center;">
                         <span style="background:${statusColor[m.status] || '#6b7280'}22;color:${statusColor[m.status] || '#6b7280'};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">
@@ -374,7 +387,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                           <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
                             <span style="font-size:10px;color:${t.done ? '#16a34a' : '#9ca3af'};flex-shrink:0;font-weight:700;align-self:flex-start;line-height:1.5;">${t.done ? '✓' : '○'}</span>
                             <span style="font-size:10px;flex:1;color:${t.done ? '#9ca3af' : '#374151'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.5;word-break:break-word;"><span style="font-size:9px;font-weight:700;color:#d946ef;font-family:monospace;margin-right:4px;">P${gi+1}.${si+1}.${mi+1}.${ti+1}</span>${t.text}</span>
-                            ${((t.assignees?.length > 0) || t.deadline) ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center;align-self:center;">${t.assignees?.length > 0 ? `<span style="font-size:9px;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">👤 ${t.assignees.join(', ')}</span>` : ''}${t.deadline ? `<span style="font-size:9px;color:#6b7280;font-family:monospace;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">📅 ${t.deadline}</span>` : ''}</div>` : ''}
+                            ${(getAssigneeText(t) || t.deadline) ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center;align-self:center;">${getAssigneeText(t) ? `<span style="font-size:9px;color:#6b7280;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">👤 ${getAssigneeText(t)}</span>` : ''}${t.deadline ? `<span style="font-size:9px;color:#6b7280;font-family:monospace;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:3px;padding:1px 5px;white-space:nowrap;">📅 ${t.deadline}</span>` : ''}</div>` : ''}
                           </div>`).join('')}
                       </td>
                     </tr>` : ''}
@@ -568,9 +581,9 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
 
         strategies.forEach((strat, si) => {
           ;(strat.measures || []).forEach((m, mi) => {
-            mdItems.push({ num: `D${gi + 1}.${si + 1}.${mi + 1}`, text: m.kpi || '—', target: m.target || '', deadline: m.deadline || '', assignee: (m.assignees ?? []).join(', ') })
+            mdItems.push({ num: `D${gi + 1}.${si + 1}.${mi + 1}`, text: m.kpi || '—', target: m.target || '', deadline: m.deadline || '', assignee: getAssigneeText(m) })
             ;(m.todos || []).forEach((t, ti) => {
-              mpItems.push({ num: `P${gi + 1}.${si + 1}.${mi + 1}.${ti + 1}`, text: t.text, done: t.done, deadline: t.deadline || '', assignee: (t.assignees ?? []).join(', ') })
+              mpItems.push({ num: `P${gi + 1}.${si + 1}.${mi + 1}.${ti + 1}`, text: t.text, done: t.done, deadline: t.deadline || '', assignee: getAssigneeText(t) })
             })
           })
         })
@@ -1070,7 +1083,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                     </span>
                                     <span style={{ ...s.mCell, flex: 1.2, color: ACCENT_ORANGE }}>{m.target || '—'}</span>
                                     <span style={{ ...s.mCell, flex: 0.8, color: ACCENT_GREEN }}>{m.actual || '—'}</span>
-                                    <span style={{ ...s.mCell, width: '80px' }}>{Array.isArray(m.assignee) ? (m.assignee.length ? m.assignee.join(', ') : '—') : (m.assignee || '—')}</span>
+                                    <span style={{ ...s.mCell, width: '80px' }}>{getAssigneeText(m) || '—'}</span>
                                     <span style={{ ...s.mCell, width: '80px' }}>{m.deadline || '—'}</span>
                                     <span style={{ ...s.mCell, width: '70px' }}>
                                       <span style={{ color: sc.color, fontWeight: 900 }}>{sc.label}</span>
@@ -1117,9 +1130,9 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
                                           <span style={{ fontSize: '13px', flex: 1, color: t.done ? '#888' : T.text, textDecoration: t.done ? 'line-through' : 'none', fontWeight: 600 }}>
                                             <span style={{ fontSize: '10px', fontFamily: '"Space Grotesk", monospace', fontWeight: 900, color: ACCENT_PINK, marginRight: '6px' }}>P{gi+1}.{si+1}.{mi+1}.{ti+1}</span>{t.text}
                                           </span>
-                                          {((Array.isArray(t.assignee) ? t.assignee.length > 0 : !!t.assignee) || t.deadline) && (
+                                          {!!(getAssigneeText(t) || t.deadline) && (
                                             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                              {(Array.isArray(t.assignee) ? t.assignee.length > 0 : !!t.assignee) && <span style={{ fontSize: '10px', background: T.border, color: T.bg, padding: '2px 6px', fontWeight: 700 }}>{Array.isArray(t.assignee) ? t.assignee.join(', ') : t.assignee}</span>}
+                                              {getAssigneeText(t) && <span style={{ fontSize: '10px', background: T.border, color: T.bg, padding: '2px 6px', fontWeight: 700 }}>{getAssigneeText(t)}</span>}
                                               {t.deadline && <span style={{ fontSize: '10px', background: tOverdue ? '#dd1717' : T.border, color: tOverdue ? '#000' : T.bg, padding: '2px 6px', fontWeight: 900 }}>{tOverdue ? '⚠ ' : ''}{t.deadline}</span>}
                                             </div>
                                           )}
