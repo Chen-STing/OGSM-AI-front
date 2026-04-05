@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { genModalShapes, MODAL_DEFAULT_CONFIGS } from '../bgConfig.js'
+import { genModalShapes, MODAL_DEFAULT_CONFIGS, loadSavedModalConfig } from '../bgConfig.js'
 
 const ACCENT_BLUE   = "#0000FF";
 const ACCENT_PINK   = "#FF00FF";
@@ -47,7 +47,7 @@ export default function AiConfirmDialog({ type, currentText='', onConfirm, onCan
   const [text, setText] = useState(currentText)
   const T = darkMode ? DARK : LIGHT
 
-  const cfg    = shapeConfig ?? MODAL_DEFAULT_CONFIGS.aiconfirm
+  const cfg    = shapeConfig ?? loadSavedModalConfig('aiconfirm')
   const shapes = genModalShapes('aiconfirm', cfg, cfg.seed)
 
   const config = {

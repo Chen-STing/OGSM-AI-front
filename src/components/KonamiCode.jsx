@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DEFAULT_CONFIG, ORIGINAL_STARS, ORIGINAL_CIRCLES, ORIGINAL_TRIS, ORIGINAL_CROSSES,
-  MODAL_DEFAULT_CONFIGS, MODAL_SS_KEYS, MODAL_ORIGINAL_SHAPES,
-  genItems, ssLoad, ssSave, ssClear, loadSavedBgConfig,
+  MODAL_DEFAULT_CONFIGS, MODAL_SS_KEYS, MODAL_ORIGINAL_SHAPES, MODAL_UNIFIED_SS_KEY, UNIFIED_SHAPE_SEEDS,
+  genItems, genModalShapes, ssLoad, ssSave, ssClear, loadSavedBgConfig,
   SS_EXP_KEY, DEFAULT_EXP, loadSavedExpSettings,
 } from '../bgConfig.js'
 
@@ -305,6 +305,103 @@ function ModalCustomizer({ modalKey, label, dark, onApply }) {
   )
 }
 
+// ─── Unified Modal Customizer (controls all 3 modal backgrounds together) ─────
+const UNIFIED_DEFAULTS = MODAL_DEFAULT_CONFIGS.member  // member is the reference default
+
+function UnifiedModalCustomizer({ dark, onApply }) {
+  const [draft, setDraft]             = useState(() => ssLoad(MODAL_UNIFIED_SS_KEY) ?? { ...UNIFIED_DEFAULTS })
+  const [justApplied, setJ]           = useState(false)
+  const [previewSeed, setPreviewSeed] = useState(() => ssLoad(MODAL_UNIFIED_SS_KEY)?.seed ?? null)
+  const timer = useRef(null)
+
+  const upd = (key, val) => {
+    setDraft(d => ({ ...d, [key]: val }))
+    setJ(false)
+    setPreviewSeed(Math.floor(Math.random() * 0x7FFFFFFF) + 1)
+  }
+
+  const handleApply = () => {
+    const cfg = previewSeed !== null ? { ...draft, seed: previewSeed, unified: true } : { ...draft, unified: true }
+    // save to unified key + propagate to all individual modal keys
+    ssSave(cfg, MODAL_UNIFIED_SS_KEY)
+    Object.entries(MODAL_SS_KEYS).forEach(([key, ssKey]) => {
+      ssSave(cfg, ssKey)
+      onApply(key, cfg)
+    })
+    setJ(true)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setJ(false), 2500)
+  }
+  const handleReset = () => {
+    ssClear(MODAL_UNIFIED_SS_KEY)
+    Object.entries(MODAL_SS_KEYS).forEach(([key, ssKey]) => {
+      ssClear(ssKey)
+      onApply(key, { ...UNIFIED_DEFAULTS })
+    })
+    setDraft({ ...UNIFIED_DEFAULTS })
+    setPreviewSeed(null)
+    setJ(false)
+  }
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const sliders = [
+    { key:'starCount',   label:'星星', accent:YELLOW, cls:'k-slider-star',   def:UNIFIED_DEFAULTS.starCount   },
+    { key:'circleCount', label:'圓形', accent:PINK,   cls:'k-slider-circle', def:UNIFIED_DEFAULTS.circleCount },
+    { key:'crossCount',  label:'十字', accent:GREEN,  cls:'k-slider-cross',  def:UNIFIED_DEFAULTS.crossCount  },
+    { key:'triCount',    label:'三角', accent:BLUE,   cls:'k-slider-tri',    def:UNIFIED_DEFAULTS.triCount    },
+  ]
+
+  // preview: use genModalShapes with same code path as actual modals — guarantees identical colors/positions
+  const SC = 0.15
+  const origNp = (pos) => Object.fromEntries(Object.entries(pos).map(([k,v]) => [k, typeof v==='string'&&v.endsWith('px') ? `${parseFloat(v)*SC}px` : v]))
+  const previewCfg = { ...draft, seed: previewSeed ?? undefined, unified: true }
+  const previewShapes = genModalShapes('member', previewCfg, previewSeed ?? undefined)
+
+  return (
+    <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ fontSize:10, fontFamily:'"DM Mono",monospace', color:dark?'#909090':'#777777', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>
+        形狀數量 <span style={{ color:dark?'#666666':'#A0A0A0' }}>（每種 0–3）</span>
+      </div>
+
+      {sliders.map(s => <SliderRow key={s.key} label={s.label} accent={s.accent} sliderCls={s.cls} value={draft[s.key]} defaultVal={s.def} onChange={v=>upd(s.key,v)} max={3} dark={dark} />)}
+
+      {/* mini preview */}
+      <div>
+        <div style={{ fontSize:10, fontFamily:'"DM Mono",monospace', color:dark?'#909090':'#777777', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>
+          即時預覽
+        </div>
+        <div style={{ position:'relative', width:'100%', height:80, background:dark?'#1E1E1E':'#FAFAFA', border:`2px solid ${dark?'#505050':'#C8C8C8'}`, overflow:'hidden' }}>
+          <div style={{ position:'absolute', inset:0, backgroundImage:`linear-gradient(to right,${dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)'} 1px,transparent 1px),linear-gradient(to bottom,${dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)'} 1px,transparent 1px)`, backgroundSize:'20px 20px' }} />
+          {previewShapes.stars.map((s,i)   => { const sz=Math.max(8,s.size*SC); return <div key={`s${i}`} style={{position:'absolute',...origNp(s.pos),color:s.color,opacity:0.45}}><svg width={sz} height={sz} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z"/></svg></div> })}
+          {previewShapes.crosses.map((c,i) => { const sz=Math.max(8,c.size*SC); return <div key={`x${i}`} style={{position:'absolute',...origNp(c.pos),color:c.color,opacity:0.45}}><svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div> })}
+          {previewShapes.circles.map((c,i) => { const sz=Math.max(8,c.size*SC); return <div key={`c${i}`} style={{position:'absolute',...origNp(c.pos),color:c.color,opacity:0.45}}><svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/></svg></div> })}
+          {previewShapes.tris.map((t,i)    => { const sz=Math.max(8,t.size*SC); return <div key={`t${i}`} style={{position:'absolute',...origNp(t.pos),color:t.color,opacity:0.45}}><svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter"><polygon points="12,2 22,20 2,20"/></svg></div> })}
+        </div>
+      </div>
+
+      <div style={{ display:'flex', gap:8 }}>
+        <button data-nodrag className="k-btn" onClick={handleApply}
+          style={{ flex:1, padding:'9px 0', background:justApplied?GREEN:YELLOW, color:'#000', border:`3px solid ${dark?'#888888':'#111111'}`, boxShadow:`4px 4px 0 0 ${dark?'#000000':'#000000'}`, fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:13, textTransform:'uppercase', letterSpacing:'0.08em', transition:'all 0.15s' }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='6px 6px 0 0 #000000'; e.currentTarget.style.background=dark?'#1a35c4':'#3B5BDB'; e.currentTarget.style.color=YELLOW }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='4px 4px 0 0 #000000'; e.currentTarget.style.background=justApplied?GREEN:YELLOW; e.currentTarget.style.color='#000' }}
+          onMouseDown={e=>{ e.currentTarget.style.transform='translate(2px,2px)'; e.currentTarget.style.boxShadow='2px 2px 0 0 #000000' }}
+          onMouseUp={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='6px 6px 0 0 #000000' }}>
+          {justApplied?'✓ 已套用！':'▶ 套用所有彈窗'}
+        </button>
+        <button data-nodrag className="k-btn" onClick={handleReset}
+          style={{ padding:'9px 14px', background:'transparent', color:dark?'#999999':'#888888', border:`2px solid ${dark?'#505050':'#C0C0C0'}`, boxShadow:`2px 2px 0 0 ${dark?'#000000':'#A0A0A0'}`, fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:12, textTransform:'uppercase', letterSpacing:'0.06em', transition:'all 0.15s' }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.borderColor='#FF0000'; e.currentTarget.style.color='#FF0000'; e.currentTarget.style.boxShadow='4px 4px 0 0 #880000' }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.borderColor=dark?'#505050':'#C0C0C0'; e.currentTarget.style.color=dark?'#999999':'#888888'; e.currentTarget.style.boxShadow=`2px 2px 0 0 ${dark?'#000000':'#A0A0A0'}` }}
+          onMouseDown={e=>{ e.currentTarget.style.transform='translate(2px,2px)'; e.currentTarget.style.boxShadow='1px 1px 0 0 #880000' }}
+          onMouseUp={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='4px 4px 0 0 #880000' }}>
+          ↺ 還原預設
+        </button>
+      </div>
+      {justApplied && <div style={{ textAlign:'center', fontSize:10, fontFamily:'"DM Mono",monospace', color:GREEN, letterSpacing:'0.08em', animation:'konami-cheat-in 0.3s ease' }}>已同步套用至所有彈窗，刷新後仍保持（關閉分頁後重設）</div>}
+    </div>
+  )
+}
+
 // ─── Experience Settings ──────────────────────────────────────────────────────
 const CURSOR_SVGS = {
   arrow:   `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="6,6 16,28 20,20 28,16" fill="%23000000" /><polygon points="2,2 12,24 16,16 24,12" fill="%23FFFF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 2 2, auto`,
@@ -512,11 +609,9 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
   const dimBg = dark ? '#1D1D1D' : '#f5f5f5'
 
   const TABS = [
-    { id:'exp',        label:'⚙ 樣式設定',    accent:PINK },
-    { id:'bg',         label:'🌐 主背景',  accent:'#d0bd27' },
-    { id:'generate',   label:'⚡ AI生成',  accent:'#00ccff' },
-    { id:'member',     label:'👥 負責人',    accent:'#ff3300' },
-    { id:'aiconfirm',  label:'🤖 再生成',  accent:'#d400ff' },
+    { id:'exp',    label:'⚙ 樣式設定',  accent:PINK },
+    { id:'bg',     label:'🌐 主背景',   accent:'#d0bd27' },
+    { id:'modals', label:'🪟 彈窗背景', accent:'#ff3300' },
   ]
 
   return createPortal(
@@ -561,11 +656,9 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
 
       {/* Content */}
       <div style={{ overflowY:'auto', flex:1 }}>
-        {tab === 'bg'        && <BgCustomizer dark={dark} onApply={onBgApply} />}
-        {tab === 'generate'  && <ModalCustomizer modalKey="generate"  label="AI生成"  dark={dark} onApply={onModalApply} />}
-        {tab === 'member'    && <ModalCustomizer modalKey="member"    label="負責人設定" dark={dark} onApply={onModalApply} />}
-        {tab === 'aiconfirm' && <ModalCustomizer modalKey="aiconfirm" label="再生成"  dark={dark} onApply={onModalApply} />}
-        {tab === 'exp'       && <ExperienceSettings dark={dark} onExpChange={handleExpApply} />}
+        {tab === 'bg'     && <BgCustomizer dark={dark} onApply={onBgApply} />}
+        {tab === 'modals' && <UnifiedModalCustomizer dark={dark} onApply={onModalApply} />}
+        {tab === 'exp'    && <ExperienceSettings dark={dark} onExpChange={handleExpApply} />}
       </div>
 
       {/* Footer */}

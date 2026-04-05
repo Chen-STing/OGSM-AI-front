@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { api } from '../services/api.js'
-import { genModalShapes, MODAL_DEFAULT_CONFIGS } from '../bgConfig.js'
+import { genModalShapes, MODAL_DEFAULT_CONFIGS, loadSavedModalConfig } from '../bgConfig.js'
 
 import BrutalistSelect from './BrutalistSelect.jsx'
 
@@ -72,7 +72,7 @@ export default function GenerateModal({ members = [], onClose, onGenerated, show
   const [progress,  setProgress]  = useState('')
   const [importError, setImportError] = useState(null)
 
-  const cfg    = shapeConfig ?? MODAL_DEFAULT_CONFIGS.generate
+  const cfg    = shapeConfig ?? loadSavedModalConfig('generate')
   const shapes = genModalShapes('generate', cfg, cfg.seed)
 
   const ACCEPTED_TYPES = [

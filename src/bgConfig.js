@@ -53,10 +53,10 @@ export const MODAL_DEFAULT_CONFIGS = {
 
 export const MODAL_ORIGINAL_SHAPES = {
   generate: {
-    stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#00FF00', size: 240, anim: 'gm-starFloat 20s infinite ease-in-out' }],
-    crosses: [{ pos: { top: '15%', right: '7%' },       color: '#FF00FF', size: 100, anim: 'gm-crossFloat 16s infinite ease-in-out' }],
-    circles: [{ pos: { bottom: '30%', right: '35%' },   color: '#0000FF', size: 70,  anim: 'gm-circleFloat 10s infinite ease-in-out' }],
-    tris:    [{ pos: { top: '15%', left: '1%' },        color: '#FFFF00', size: 110, anim: 'gm-triFloat 18s infinite ease-in-out' }],
+    stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#ff3300', size: 210, anim: 'gm-starFloat 20s infinite ease-in-out' }],
+    crosses: [{ pos: { top: '7%', right: '7%' },         color: '#00ff0d', size: 100, anim: 'gm-crossFloat 16s infinite ease-in-out' }],
+    circles: [{ pos: { bottom: '30%', right: '35%' },    color: '#0000FF', size: 90,  anim: 'gm-circleFloat 22s infinite ease-in-out' }],
+    tris:    [{ pos: { top: '13%', left: '5%' },         color: '#ff00aa', size: 110, anim: 'gm-triFloat 25s infinite ease-in-out' }],
   },
   member: {
     stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#ff3300', size: 210, anim: 'ms-starFloat 20s infinite ease-in-out' }],
@@ -65,10 +65,10 @@ export const MODAL_ORIGINAL_SHAPES = {
     tris:    [{ pos: { top: '13%', left: '5%' },         color: '#ff00aa', size: 110, anim: 'ms-triFloat 25s infinite ease-in-out' }],
   },
   aiconfirm: {
-    stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#00ccff', size: 200, anim: 'acd-starFloat 20s infinite ease-in-out' }],
-    crosses: [{ pos: { top: '15%', right: '7%' },        color: '#ff0000', size: 70,  anim: 'acd-crossFloat 16s infinite ease-in-out' }],
-    circles: [{ pos: { bottom: '32%', right: '37%' },    color: '#00ff2a', size: 80,  anim: 'acd-circleFloat 22s infinite ease-in-out' }],
-    tris:    [{ pos: { top: '15%', left: '1%' },         color: '#d400ff', size: 110, anim: 'acd-triFloat 25s infinite ease-in-out' }],
+    stars:   [{ pos: { bottom: '-60px', left: '-60px' }, color: '#ff3300', size: 210, anim: 'acd-starFloat 20s infinite ease-in-out' }],
+    crosses: [{ pos: { top: '7%', right: '7%' },         color: '#00ff0d', size: 100, anim: 'acd-crossFloat 16s infinite ease-in-out' }],
+    circles: [{ pos: { bottom: '30%', right: '35%' },    color: '#0000FF', size: 90,  anim: 'acd-circleFloat 22s infinite ease-in-out' }],
+    tris:    [{ pos: { top: '13%', left: '5%' },         color: '#ff00aa', size: 110, anim: 'acd-triFloat 25s infinite ease-in-out' }],
   },
 }
 
@@ -99,6 +99,9 @@ const MODAL_SEEDS = {
   aiconfirm: { star: 0xABCDEF01, cross: 0x23456789, circle: 0x3C4D5E6F, tri: 0x7890ABCD },
 }
 
+// Shared XOR seeds used when unified config is applied — all modals produce the same shapes
+export const UNIFIED_SHAPE_SEEDS = { star: 0xAA112233, cross: 0xBB224466, circle: 0xCC336699, tri: 0xDD44AACC }
+
 const MODAL_ANIM_PREFIXES = {
   generate:  { star: 'gm-starFloat',  cross: 'gm-crossFloat',  circle: 'gm-circleFloat',  tri: 'gm-triFloat'  },
   member:    { star: 'ms-starFloat',  cross: 'ms-crossFloat',  circle: 'ms-circleFloat',  tri: 'ms-triFloat'  },
@@ -116,7 +119,7 @@ function modalRandItems(count, seed, sizeMin, sizeMax, prefix) {
 }
 
 export function genModalShapes(modalKey, config, userSeed) {
-  const seeds = MODAL_SEEDS[modalKey]
+  const seeds = config?.unified ? UNIFIED_SHAPE_SEEDS : MODAL_SEEDS[modalKey]
   const orig  = MODAL_ORIGINAL_SHAPES[modalKey]
   const def   = MODAL_DEFAULT_CONFIGS[modalKey]
   const anims = MODAL_ANIM_PREFIXES[modalKey]
@@ -136,6 +139,9 @@ export function genModalShapes(modalKey, config, userSeed) {
     tris:    resolve('tris',    'triCount',    seeds.tri,    50, 120, anims.tri),
   }
 }
+
+// ─── Unified modal config (shared across all modals, member as default) ─────────
+export const MODAL_UNIFIED_SS_KEY = 'brutalist-modal-shared'
 
 // ─── sessionStorage ───────────────────────────────────────────────────────────
 const SS_KEY = 'brutalist-bg-config'
@@ -178,5 +184,6 @@ export function ssClear(key) {
 
 export function loadSavedBgConfig()    { return ssLoad(SS_KEY) ?? { ...DEFAULT_CONFIG } }
 export function loadSavedModalConfig(modalKey) {
-  return ssLoad(MODAL_SS_KEYS[modalKey]) ?? { ...MODAL_DEFAULT_CONFIGS[modalKey] }
+  // unified key takes precedence, then individual key, then defaults
+  return ssLoad(MODAL_UNIFIED_SS_KEY) ?? ssLoad(MODAL_SS_KEYS[modalKey]) ?? { ...MODAL_DEFAULT_CONFIGS[modalKey] }
 }
