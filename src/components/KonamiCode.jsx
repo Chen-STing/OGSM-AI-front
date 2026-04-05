@@ -15,10 +15,10 @@ export { loadSavedBgConfig }
 const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a']
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
-const BLUE   = '#0000FF'
-const PINK   = '#FF00FF'
-const YELLOW = '#FFFF00'
-const GREEN  = '#00FF00'
+const BLUE   = '#2e2ee4'
+const PINK   = '#d429d4'
+const YELLOW = '#d8d81d'
+const GREEN  = '#14d814'
 const CURSOR_HAND_URL = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%2300FF00" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer`
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
@@ -764,6 +764,7 @@ function ForbiddenTab({ dark, onClose }) {
               fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:13,
               textTransform:'uppercase', letterSpacing:'0.1em',
               transition:'all 0.15s',
+              cursor: 'pointer',
             }}
             onMouseEnter={e=>{ e.currentTarget.style.transform='translate(-2px,-2px)'; e.currentTarget.style.boxShadow='6px 6px 0 0 #880000'; e.currentTarget.style.background='#FF000033' }}
             onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='4px 4px 0 0 #880000'; e.currentTarget.style.background = warningStep === 0 ? 'transparent' : `${WARNINGS[Math.min(warningStep,2)].color}22` }}
@@ -851,7 +852,7 @@ function KonamiPanel({ onClose, dark, onBgApply, onModalApply, onExpApply, initE
   const TABS = [
     { id:'exp',      label:'⚙ 樣式設定',  accent:PINK },
     { id:'bg',       label:'🌐 主背景',   accent:'#d0bd27' },
-    { id:'modals',   label:'🪟 彈窗背景', accent:'#ff3300' },
+    { id:'modals',   label:'🪟 彈窗背景', accent:'#8723da' },
     { id:'forbidden',label:'☠ 禁忌',     accent:'#FF0000' },
   ]
 
