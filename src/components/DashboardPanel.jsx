@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { loadSavedBgConfig } from '../bgConfig.js';
+import { loadSavedBgConfig, genModalShapes, loadSavedModalConfig } from '../bgConfig.js';
 import BrutalistBackground from './BrutalistBackground.jsx';
 import BrutalistSelect from './BrutalistSelect.jsx';
 import { navigate } from '../utils/router.js';
@@ -21,6 +21,34 @@ const B_ORANGE = '#d4750a';
 
 const DARK  = { bg: '#1a1c1e', border: '#5a5a5a', text: '#e8e8e8', textSub: '#a8a8a8', textMuted: '#707070', cardBg: 'rgba(255,255,255,0.055)', headerBg: 'rgba(22,24,26,0.92)', grid: 'rgba(255,255,255,0.05)' };
 const LIGHT = { bg: '#edeef0', border: '#3a3a3a', text: '#1a1a1a', textSub: '#404040', textMuted: '#707070', cardBg: 'rgba(0,0,0,0.035)',          headerBg: 'rgba(237,238,240,0.93)', grid: 'rgba(0,0,0,0.05)' };
+
+// ─── MEMBER MODAL SHAPE RENDERER ─────────────────────────────────────────────
+function renderMemberShapes(shapes) {
+  return (
+    <>
+      {shapes.stars.map((s,i)=>(
+        <div key={`dm-s${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"><path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z"/></svg>
+        </div>
+      ))}
+      {shapes.crosses.map((s,i)=>(
+        <div key={`dm-x${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+      ))}
+      {shapes.circles.map((s,i)=>(
+        <div key={`dm-c${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+      ))}
+      {shapes.tris.map((s,i)=>(
+        <div key={`dm-t${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.2, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter"><polygon points="12,2 22,20 2,20"/></svg>
+        </div>
+      ))}
+    </>
+  );
+}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function progressColor(pct) {
@@ -156,6 +184,9 @@ function MemberDetailModal({ stat, dark, onClose }) {
   const healthPct = (completedTot + overdueTot) > 0
     ? Math.round(completedTot / (completedTot + overdueTot) * 100) : 0;
 
+  const _modalCfg = loadSavedModalConfig('member');
+  const _shapes   = genModalShapes('member', _modalCfg, _modalCfg.seed);
+
   // Mini bar helper
   const Bar = ({ pct, color, h = 8 }) => (
     <div style={{ height: h, background: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', border: `1px solid ${T.border}`, overflow: 'hidden' }}>
@@ -194,29 +225,45 @@ function MemberDetailModal({ stat, dark, onClose }) {
   return createPortal(
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: dark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)', backdropFilter: 'grayscale(100%) blur(4px)', WebkitBackdropFilter: 'grayscale(100%) blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <style>{`
+        @keyframes ms-starFloat   { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 25%{transform:translate(20px,-30px) rotate(90deg) scale(1.25)} 50%{transform:translate(-10px,20px) rotate(180deg) scale(0.85)} 75%{transform:translate(30px,10px) rotate(270deg) scale(1.15)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes ms-crossFloat  { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 33%{transform:translate(-25px,20px) rotate(120deg) scale(1.2)} 66%{transform:translate(15px,-15px) rotate(240deg) scale(0.8)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes ms-circleFloat { 0%{transform:translate(0,0) scale(0.88)} 33%{transform:translate(20px,-25px) scale(2)} 66%{transform:translate(-15px,15px) scale(1.5)} 100%{transform:translate(0,0) scale(0.88)} }
+        @keyframes ms-triFloat    { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 50%{transform:translate(-20px,-30px) rotate(180deg) scale(1.2)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+      `}</style>
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: '680px', maxHeight: '88vh', overflowY: 'auto',
-          background: dark ? '#1e2124' : '#f2f3f5',
+          width: '100%', maxWidth: '680px', maxHeight: '88vh', overflow: 'hidden',
+          position: 'relative',
+          background: T.bg,
+          backgroundImage: dark
+            ? 'linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px)'
+            : 'linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px)',
+          backgroundSize: '20px 20px',
           border: `3px solid ${T.border}`,
-          boxShadow: `8px 8px 0 ${dark ? '#5a5a5a' : '#000'}`,
+          boxShadow: `8px 8px 0px ${dark ? '#3B5BDB' : '#4A6CF7'}`,
           display: 'flex', flexDirection: 'column',
         }}>
+        {renderMemberShapes(_shapes)}
+
         {/* Header */}
-        <div style={{ padding: '20px 24px 16px', borderBottom: `2px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 16px', borderBottom: `2px solid ${T.border}`, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <div style={{ fontSize: '22px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.text, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>{stat.name}</div>
             <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '2px' }}>
               負責 {stat.projects?.length ?? 0} 個專案 · 共 {totalTasks} 項任務
             </div>
           </div>
-          <button onClick={onClose} style={{ width: '32px', height: '32px', background: 'transparent', border: `2px solid ${T.border}`, color: T.text, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900 }}>✕</button>
+          <button onClick={onClose}
+            style={{ background: 'none', border: 'none', color: T.text, cursor: 'pointer', fontSize: '20px', padding: '4px', fontWeight: 900, transition: 'color 0.15s', flexShrink: 0, lineHeight: 1 }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#c96e6e'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = T.text; }}>✕</button>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ position: 'relative', zIndex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
 
           {/* KPI row */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 24px' }}>
@@ -229,42 +276,66 @@ function MemberDetailModal({ stat, dark, onClose }) {
           </div>
 
           {/* MD section */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_BLUE }}>MD 定量指標</span>
-              <span style={{ fontSize: '13px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: mColor }}>{stat.measurePct}%</span>
+              <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_BLUE }}>MD 定量指標</span>
+              <span style={{ fontSize: '15px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: mColor }}>{stat.measurePct}%</span>
             </div>
-            <Bar pct={stat.measurePct} color={mColor} h={10} />
-            <StackBar segments={mdSegments} total={stat.totalMeasures} />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
-              {mdSegments.map(s => (
-                <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
-                  <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Bar 1: Progress */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[1] 總體完成進度</span>
+                <Bar pct={stat.measurePct} color={mColor} h={8} />
+              </div>
+
+              {/* Bar 2: Status */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[2] 任務狀態分佈</span>
+                <StackBar segments={mdSegments} total={stat.totalMeasures} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
+                  {mdSegments.map(s => (
+                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0, border: `1px solid ${dark ? '#000' : 'transparent'}` }} />
+                      <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
+                      <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
           <div style={{ borderTop: `1px dashed ${T.border}`, opacity: 0.4 }} />
 
           {/* MP section */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_PINK }}>MP 檢核步驟</span>
-              <span style={{ fontSize: '13px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: tColor }}>{stat.todoPct}%</span>
+              <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: B_PINK }}>MP 檢核步驟</span>
+              <span style={{ fontSize: '15px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: tColor }}>{stat.todoPct}%</span>
             </div>
-            <Bar pct={stat.todoPct} color={tColor} h={10} />
-            <StackBar segments={mpSegments} total={stat.totalTodos} />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
-              {mpSegments.map(s => (
-                <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
-                  <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Bar 1: Progress */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[1] 總體完成進度</span>
+                <Bar pct={stat.todoPct} color={tColor} h={8} />
+              </div>
+
+              {/* Bar 2: Status */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[2] 任務狀態分佈</span>
+                <StackBar segments={mpSegments} total={stat.totalTodos} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
+                  {mpSegments.map(s => (
+                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <div style={{ width: '8px', height: '8px', background: s.color, flexShrink: 0, border: `1px solid ${dark ? '#000' : 'transparent'}` }} />
+                      <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, color: T.textMuted }}>{s.label} </span>
+                      <span style={{ fontSize: '11px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub }}>{s.value}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
@@ -352,6 +423,7 @@ function MemberCard({ stat, dark, rank }) {
       onClick={() => setShowModal(true)}
       style={{
         background: T.cardBg,
+        backdropFilter: 'blur(1px)', WebkitBackdropFilter: 'blur(1px)',
         border: `3px solid ${rankColor || T.border}`,
         boxShadow: rankColor ? `6px 6px 0 ${rankColor}` : `4px 4px 0 ${sh}`,
         padding: '20px',
@@ -435,39 +507,43 @@ function FilterDropdown({ items, selectedKeys, onToggle, onClear, accentColor, d
   const T = dark ? DARK : LIGHT;
   const filtered = items.filter(it => it.label.toLowerCase().includes(q.toLowerCase()));
   const allSelected = selectedKeys.size === 0;
+  
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {/* Search with inline clear ✕ */}
-      <div style={{ position: 'relative', marginBottom: '10px' }}>
-        <input
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder="搜尋..."
-          style={{
-            width: '100%', padding: '6px 32px 6px 10px', fontSize: '11px', boxSizing: 'border-box',
-            fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-            background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            border: `2px solid ${T.border}`, color: T.text, outline: 'none',
-          }}
-        />
-        {q !== '' && (
-          <button
-            onClick={() => setQ('')}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Search with inline clear ✕ (固定於頂部) */}
+      <div style={{ padding: '16px 16px 10px', flexShrink: 0, borderBottom: `1px solid ${T.border}40` }}>
+        <div style={{ position: 'relative' }}>
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="搜尋..."
             style={{
-              position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
-              width: '20px', height: '20px', padding: 0, border: 'none',
-              background: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
-              color: dark ? '#fff' : '#000', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '12px', fontWeight: 900, lineHeight: 1, transition: 'background 0.15s',
+              width: '100%', padding: '6px 32px 6px 10px', fontSize: '11px', boxSizing: 'border-box',
+              fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+              background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              border: `2px solid ${T.border}`, color: T.text, outline: 'none',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = accentColor; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = dark ? '#fff' : '#000'; }}
-          >✕</button>
-        )}
+          />
+          {q !== '' && (
+            <button
+              onClick={() => setQ('')}
+              style={{
+                position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
+                width: '20px', height: '20px', padding: 0, border: 'none',
+                background: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                color: dark ? '#fff' : '#000', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: 900, lineHeight: 1, transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = accentColor; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = dark ? '#fff' : '#000'; }}
+            >✕</button>
+          )}
+        </div>
       </div>
-      {/* Item list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      
+      {/* Item list (可捲動區域) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px 16px 16px', overflowY: 'auto', flex: 1 }}>
         {/* 全部選項 */}
         <div
           onClick={onClear}
@@ -570,7 +646,7 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
       {items.map(({ label, value, color }) => (
         <div key={label} style={{
           flex: '1 1 120px', minWidth: '100px',
-          background: T.cardBg, backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', border: `2px solid ${T.border}`,
+          background: T.cardBg, backdropFilter: 'blur(1px)', WebkitBackdropFilter: 'blur(1px)', border: `2px solid ${T.border}`,
           boxShadow: `4px 4px 0 ${sh}`, padding: '16px 20px',
           display: 'flex', flexDirection: 'column', gap: '4px',
         }}>
@@ -583,7 +659,7 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function DashboardPanel({ projects = [], dark = false, onBack, onGoHome, onToggleDark }) {
+export default function DashboardPanel({ projects = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering }) {
   const [bgConfig] = useState(loadSavedBgConfig);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectedAssignees, setSelectedAssignees] = useState(new Set());
@@ -662,6 +738,79 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
     });
   }, [rawData, sortKey, sortDir, selectedAssignees]);
 
+  const logoRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const updateCache = () => {
+      if (!logoRef.current || exitingTo) return;
+      const el = logoRef.current;
+      const oldT = el.style.transform;
+      el.style.transform = 'none';
+      const rect = el.getBoundingClientRect();
+      window.__OGSM_DASH_LOGO_RECT__   = { top: rect.top,  left: rect.left };
+      window.__OGSM_DASH_LOGO_HEIGHT__ = rect.height;
+      try {
+        sessionStorage.setItem('__OGSM_DASH_LOGO_RECT__',   JSON.stringify({ top: rect.top, left: rect.left }));
+        sessionStorage.setItem('__OGSM_DASH_LOGO_HEIGHT__', String(rect.height));
+      } catch (_) {}
+      el.style.transform = oldT;
+    };
+    updateCache();
+    const timer = setTimeout(updateCache, 100);
+    window.addEventListener('resize', updateCache);
+    return () => { clearTimeout(timer); window.removeEventListener('resize', updateCache); };
+  }, [exitingTo]);
+
+  // 動畫：飛回 HomePage 或 SwitchHome
+  useLayoutEffect(() => {
+    if (exitingTo && logoRef.current) {
+      const el = logoRef.current;
+      el.style.transition = "none";
+      el.style.transform = "none";
+      
+      const rect = el.getBoundingClientRect();
+      let targetX = 0, targetY = 0, scale = 1;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      if (exitingTo === 'home') {
+        const cachedRect = window.__OGSM_HOME_RECT__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_RECT__'); return s ? JSON.parse(s) : null; } catch { return null; } })();
+        const cachedSize = window.__OGSM_HOME_SIZE__ ?? (() => { try { const s = sessionStorage.getItem('__OGSM_HOME_SIZE__'); return s ? parseFloat(s) : null; } catch { return null; } })();
+        const hpFS = Math.min(100, Math.max(80, vw * 0.1));
+        const exactLeft = cachedRect?.left ?? (Math.max(0, (vw - 1400) / 2) + 128);
+        const exactTop  = cachedRect?.top  ?? Math.max(0, (vh - 64 - hpFS * 2.55 - 200) / 2);
+        
+        targetX = exactLeft - rect.left;
+        targetY = exactTop - rect.top;
+        
+        // fontSize ratio estimation: Dashboard logo height ~ 31px vs home logo scale
+        // home logo is 3em of `cachedSize` font.
+        const homeSize = cachedSize ?? hpFS;
+        const currentLogoHeight = rect.height; 
+        const targetLogoHeight = homeSize * 3; 
+        scale = targetLogoHeight / currentLogoHeight;
+      } else if (exitingTo === 'projects') {
+        // SwitchHome (Projects) logo is 3em of clamped responsive font size.
+        // Left 48, Top 32. Font size: clamp(20px, 3vw, 40px)
+        const shFS = Math.min(40, Math.max(20, vw * 0.03));
+        const targetLogoHeight = shFS * 3;
+        targetX = 48 - rect.left;
+        targetY = 32 - rect.top;
+        scale = targetLogoHeight / rect.height;
+      }
+
+      el.style.transformOrigin = "top left";
+      
+      requestAnimationFrame(() => {
+        // 動畫長度要與 App.jsx 中的 transitionTimer 完全對齊
+        el.style.transition = "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease";
+        el.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) scale(${scale})`;
+        el.style.zIndex = 9999;
+        el.style.position = "relative";
+      });
+    }
+  }, [exitingTo]);
+
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showProjectPop, setShowProjectPop] = useState(false);
   const [showAssigneePop, setShowAssigneePop] = useState(false);
@@ -700,8 +849,10 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
     return () => document.removeEventListener('mousedown', handler);
   }, [showProjectPop, showAssigneePop]);
 
+  const wrapperClass = `${entering ? 'db-panel-entering' : ''} ${exitingTo === 'projects' ? 'db-panel-exiting' : exitingTo === 'home' ? 'db-panel-exiting-home' : ''}`;
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+    <div className={wrapperClass} style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       <style>{`
         @keyframes db-enter { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
         .db-card-enter { animation: db-enter 0.35s cubic-bezier(0.16,1,0.3,1) both; }
@@ -716,26 +867,27 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
       {/* Header */}
       <div style={{
         position: 'relative', zIndex: 2,
-        background: T.headerBg, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        borderBottom: `3px solid ${T.border}`,
+        background: exitingTo ? 'transparent' : T.headerBg,
+        backdropFilter: exitingTo ? 'none' : 'blur(5px)', WebkitBackdropFilter: exitingTo ? 'none' : 'blur(5px)',
+        borderBottom: `3px solid ${exitingTo ? 'transparent' : T.border}`,
         flexShrink: 0,
       }}>
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px 16px 32px' }}>
           {/* Back button */}
-          <button onClick={onBack}
-            style={{ background: 'none', border: 'none', color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.6, transition: 'opacity 0.15s', flexShrink: 0 }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+          <button className={!exitingTo ? "db-anim" : ""} onClick={onBack}
+            style={{ background: 'none', border: 'none', color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: exitingTo ? 0 : 0.6, transition: 'opacity 0.15s', flexShrink: 0 }}
+            onMouseEnter={e => { if (!exitingTo) e.currentTarget.style.opacity = '1' }}
+            onMouseLeave={e => { if (!exitingTo) e.currentTarget.style.opacity = '0.6' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             返回
           </button>
 
-          <div style={{ width: '1px', height: '20px', background: T.border, opacity: 0.3, flexShrink: 0 }} />
+          <div className={!exitingTo ? "db-anim" : ""} style={{ width: '1px', height: '20px', background: T.border, opacity: exitingTo ? 0 : 0.3, flexShrink: 0 }} />
 
           {/* Badge + title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+          <div className={!exitingTo ? "db-anim" : ""} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0, opacity: exitingTo ? 0 : 1 }}>
             <div style={{ background: B_YELLOW, color: '#000', padding: '4px 10px', fontSize: '9px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', flexShrink: 0 }}>
               DASHBOARD
             </div>
@@ -746,7 +898,7 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
 
           {/* Collapse / expand toggle */}
           <button
-            className="db-toggle-btn"
+            className={`db-toggle-btn ${!exitingTo ? "db-anim" : ""}`}
             onClick={() => setHeaderCollapsed(c => !c)}
             title={headerCollapsed ? '展開篩選' : '收起篩選'}
             style={{
@@ -756,6 +908,7 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px',
               padding: '5px 12px', fontFamily: '"Space Grotesk", sans-serif',
               fontWeight: 900, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em',
+              opacity: exitingTo ? 0 : 1, transition: 'opacity 0.1s'
             }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
@@ -765,17 +918,18 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
             {headerCollapsed ? '展開' : '收起'}
           </button>
 
-          <div style={{ width: '1px', height: '20px', background: T.border, opacity: 0.3, flexShrink: 0 }} />
+          <div className={!exitingTo ? "db-anim" : ""} style={{ width: '1px', height: '20px', background: T.border, opacity: exitingTo ? 0 : 0.3, flexShrink: 0 }} />
 
           {/* Logo → home */}
           <button
             onClick={onGoHome}
             title="回首頁"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', lineHeight: 0, flexShrink: 0, transition: 'opacity 0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '0.6'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            onMouseEnter={e => { if (!exitingTo) e.currentTarget.style.opacity = '0.6' }}
+            onMouseLeave={e => { if (!exitingTo) e.currentTarget.style.opacity = '1' }}
           >
             <img
+              ref={logoRef}
               src={dark ? '/logo_dark.svg' : '/logo_sun.svg'}
               alt="回首頁"
               style={{ height: '2.2em', width: 'auto', display: 'block', pointerEvents: 'none' }}
@@ -786,15 +940,16 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
 
         {/* Filter area — two 50/50 popup trigger buttons */}
         <div
-          className="db-filter-wrap"
+          className={`db-filter-wrap ${!exitingTo ? "db-anim" : ""}`}
           style={{
             maxHeight: headerCollapsed ? '0px' : '62px',
-            opacity: headerCollapsed ? 0 : 1,
+            opacity: exitingTo ? 0 : (headerCollapsed ? 0 : 0.75),
             pointerEvents: headerCollapsed ? 'none' : 'auto',
             display: 'flex', alignItems: 'stretch',
-            borderTop: `1px solid ${T.border}`,
+            borderTop: `1px solid ${exitingTo ? 'transparent' : T.border}`,
             overflow: 'hidden',
             flexShrink: 0,
+            transition: 'max-height 0.38s cubic-bezier(0.4,0,0.2,1)',
           }}
         >
           {/* Left: Project filter button */}
@@ -866,14 +1021,13 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
       </div>
 
       {/* Toolbar */}
-      <div className="db-filter-wrap" style={{
+      <div className={`db-filter-wrap ${!exitingTo ? "db-anim" : ""}`} style={{
         maxHeight: headerCollapsed ? '0px' : '44px',
-        opacity: headerCollapsed ? 0 : 1,
+        opacity: exitingTo ? 0 : (headerCollapsed ? 0 : 1),
         pointerEvents: headerCollapsed ? 'none' : 'auto',
         position: 'relative', zIndex: 2,
-        background: dark ? 'rgba(20,20,20,0.7)' : 'rgba(240,240,240,0.7)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        borderBottom: `2px solid ${T.border}`,
+        background: exitingTo ? 'transparent' : (dark ? 'rgba(20,20,20,0.7)' : 'rgba(240,240,240,0.7)'),
+        borderBottom: `2px solid ${exitingTo ? 'transparent' : T.border}`,
         display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
         padding: headerCollapsed ? '0 32px' : '6px 32px',
         flexShrink: 0,
@@ -948,7 +1102,8 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px 48px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Rest of the dashboard content - fading out and translating down playfully when exiting */}
+      <div className="db-anim" style={{ flex: 1, overflowY: 'auto', padding: '24px 32px 48px', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
         {/* Overview stats */}
         {stats.length > 0 && (
@@ -994,9 +1149,9 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
           background: dark ? '#1c1c1c' : '#ffffff',
           border: `2px solid ${T.border}`,
           boxShadow: `6px 6px 0 ${dark ? '#b7b6b6' : '#000'}`,
-          padding: '16px',
           maxHeight: '60vh',
-          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           <FilterDropdown
             items={availableProjects.map(p => ({ key: p.id, label: p.title || p.objective || '無標題' }))}
@@ -1022,9 +1177,9 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
           background: dark ? '#1c1c1c' : '#ffffff',
           border: `2px solid ${T.border}`,
           boxShadow: `6px 6px 0 ${dark ? '#b7b6b6' : '#000'}`,
-          padding: '16px',
           maxHeight: '60vh',
-          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           <FilterDropdown
             items={allAssignees.map(n => ({ key: n, label: n }))}

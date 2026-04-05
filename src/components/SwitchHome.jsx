@@ -376,6 +376,22 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
         targetY = exactTop - rect.top;
         const homeSize = cachedSize ?? hpFS;
         scale = homeSize / currentFontSize;
+      } else if (exitingTo === 'dashboard') {
+        // 飛向 Dashboard header 中的 logo 位置
+        const cachedDashRect   = window.__OGSM_DASH_LOGO_RECT__   ?? (() => { try { const s = sessionStorage.getItem('__OGSM_DASH_LOGO_RECT__');   return s ? JSON.parse(s) : null; } catch { return null; } })();
+        const cachedDashHeight = window.__OGSM_DASH_LOGO_HEIGHT__  ?? (() => { try { const s = sessionStorage.getItem('__OGSM_DASH_LOGO_HEIGHT__'); return s ? parseFloat(s) : null; } catch { return null; } })();
+        // Dashboard logo: height 2.2em in ~14px context ≈ 31px
+        const dashLogoHeight = cachedDashHeight ?? 31;
+        // scale: 讓 SwitchHome 3em logo 視覺上縮到 dashboard logo 的高度
+        scale = dashLogoHeight / (3 * currentFontSize);
+        if (cachedDashRect) {
+          targetX = cachedDashRect.left - rect.left;
+          targetY = cachedDashRect.top  - rect.top;
+        } else {
+          // 第一次進 Dashboard 前的備用估算：右上角 padding-right 24px, top ~20px
+          targetX = vw - 24 - (dashLogoHeight * 3) - rect.left;
+          targetY = 20 - rect.top;
+        }
       }
 
       el.style.transformOrigin = "top left";
@@ -507,7 +523,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const labelStyle = { fontSize: "10px", fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase", background: "#000", color: ACCENT_YELLOW, padding: "2px 6px", alignSelf: "flex-start" };
   const popBase = { position: "fixed", zIndex: 99999, padding: "16px", display: "flex", flexDirection: "column", gap: "14px", border: `3px solid ${dark ? "#fff" : "#000"}`, background: dark ? "#2e2e2e" : "#f0f0f0", backgroundImage: dark ? "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)" : "linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)", backgroundSize: "20px 20px", boxShadow: `5px 5px 0 0 ${dark ? "rgba(255,255,255,0.3)" : "#000"}` };
 
-  const wrapperClass = `${entering === 'home' ? "sh-entering" : ""} ${entering === 'editor' ? "sh-entering-from-editor" : ""} ${exitingTo ? "sh-exiting-to-" + exitingTo : ""}`;
+  const wrapperClass = `${entering === 'home' ? "sh-entering" : ""} ${entering === 'editor' ? "sh-entering-from-editor" : ""} ${entering === 'dashboard' ? "sh-entering-from-dashboard" : ""} ${exitingTo ? "sh-exiting-to-" + exitingTo : ""}`;
 
   return (
     <div className={wrapperClass} style={{ height: "100%", display: "flex", flexDirection: "column", position: "relative", zIndex: 10, overflow: "hidden" }}>

@@ -154,6 +154,15 @@ const BRUTALIST_CSS = `
   .sh-entering-from-editor .sh-controls-anim { animation: block-enter-right 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
   .sh-entering-from-editor .sh-grid-anim     { animation: block-enter-left  0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
 
+  .sh-exiting-to-dashboard .sh-controls-anim { animation: block-exit-right 0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
+  .sh-exiting-to-dashboard .sh-grid-anim     { animation: block-exit-left  0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
+  .sh-entering-from-dashboard .sh-controls-anim { animation: block-enter-right 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+  .sh-entering-from-dashboard .sh-grid-anim     { animation: block-enter-left  0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+
+  .db-panel-entering .db-anim     { animation: block-enter-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both; }
+  .db-panel-exiting .db-anim      { animation: block-exit-right  0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
+  .db-panel-exiting-home .db-anim { animation: block-exit-down   0.45s cubic-bezier(0.4, 0, 1, 1) forwards; }
+
   .editor-sidebar-entering { animation: block-enter-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .editor-main-entering    { animation: block-enter-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both; }
 
@@ -391,16 +400,38 @@ export default function App() {
         setTransition('entering-home');
         transitionTimer.current = setTimeout(() => setTransition('idle'), 700);
       }, 550);
+    } else if (displayedPage === 'dashboard') {
+      setTransition('exiting-dashboard-to-home');
+      clearTimeout(transitionTimer.current);
+      transitionTimer.current = setTimeout(() => {
+        navigate('/');
+        setDisplayedPage('home');
+        setTransition('entering-home');
+        transitionTimer.current = setTimeout(() => setTransition('idle'), 700);
+      }, 550);
     } else {
       navigate('/');
     }
   }, [displayedPage, transition]);
 
   const goDashboard = useCallback(() => {
-    navigate('/dashboard');
-    setDisplayedPage('dashboard');
-    setTransition('idle');
-  }, []);
+    if (transition !== 'idle') return;
+
+    if (displayedPage === 'projects') {
+      setTransition('exiting-projects-to-dashboard');
+      clearTimeout(transitionTimer.current);
+      transitionTimer.current = setTimeout(() => {
+        navigate('/dashboard');
+        setDisplayedPage('dashboard');
+        setTransition('entering-dashboard');
+        transitionTimer.current = setTimeout(() => setTransition('idle'), 600);
+      }, 550);
+    } else {
+      navigate('/dashboard');
+      setDisplayedPage('dashboard');
+      setTransition('idle');
+    }
+  }, [displayedPage, transition]);
 
   const goProjects = useCallback(() => {
     if (displayedPage === 'projects') return;
@@ -512,6 +543,12 @@ export default function App() {
   const isExitingEditorToProjects    = transition === 'exiting-editor-to-projects';
   const isExitingEditorToHome        = transition === 'exiting-editor-to-home';
   const isEnteringProjectsFromEditor = transition === 'entering-projects-from-editor';
+
+  const isExitingProjectsToDashboard    = transition === 'exiting-projects-to-dashboard';
+  const isEnteringDashboard             = transition === 'entering-dashboard';
+  const isExitingDashboardToProjects    = transition === 'exiting-dashboard-to-projects';
+  const isExitingDashboardToHome        = transition === 'exiting-dashboard-to-home';
+  const isEnteringProjectsFromDashboard = transition === 'entering-projects-from-dashboard';
 
   const isEditorExiting = isExitingEditorToProjects || isExitingEditorToHome;
 
@@ -633,7 +670,7 @@ export default function App() {
             <button className="b-action-hover" onClick={() => setDark(d => !d)} data-sidebar-toggle=""
               onMouseEnter={() => setDarkToggleHovered(true)}
               onMouseLeave={() => setDarkToggleHovered(false)}
-              style={{ width: "35px", height: "35px", background: darkToggleHovered ? (dark ? '#fff' : '#000') : (dark ? '#222' : "#fff"), color: darkToggleHovered ? (dark ? '#000' : '#fff') : (dark ? '#fff' : "#000"), border: `2px solid ${dark ? '#555555' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
+              style={{ width: "35px", height: "35px", background: darkToggleHovered ? (dark ? '#fff' : '#5e5e5e') : (dark ? '#222' : "#fff"), color: darkToggleHovered ? (dark ? '#000' : '#fff') : (dark ? '#fff' : "#000"), border: `2px solid ${dark ? '#555555' : '#000'}`, boxShadow: dark ? '4px 4px 0 0 rgba(255,255,255,0.2)' : '4px 4px 0 0 #000', display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: 'all 0.15s' }}>
               {dark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
@@ -668,8 +705,8 @@ export default function App() {
               onBack={goHome}
               dark={dark}
               onToggleDark={() => setDark(d => !d)}
-              entering={isEnteringProjects ? 'home' : isEnteringProjectsFromEditor ? 'editor' : null}
-              exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : null}
+              entering={isEnteringProjects ? 'home' : isEnteringProjectsFromEditor ? 'editor' : isEnteringProjectsFromDashboard ? 'dashboard' : null}
+              exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : isExitingProjectsToDashboard ? 'dashboard' : null}
               onUpdateProject={handleSave}
               onOpenMemberSettings={() => setShowMembers(true)}
               onOpenDashboard={goDashboard}
@@ -678,12 +715,24 @@ export default function App() {
         )}
 
         {/* ── DASHBOARD PAGE ── */}
-        {displayedPage === 'dashboard' && (
+        {(displayedPage === 'dashboard' || isExitingDashboardToProjects || isExitingDashboardToHome) && (
           <div style={{ flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
             <DashboardPanel
               projects={projects}
               dark={dark}
-              onBack={() => { navigate('/management'); setDisplayedPage('projects'); setTransition('idle'); }}
+              entering={isEnteringDashboard}
+              exitingTo={isExitingDashboardToProjects ? 'projects' : isExitingDashboardToHome ? 'home' : null}
+              onBack={() => {
+                if (transition !== 'idle') return;
+                setTransition('exiting-dashboard-to-projects');
+                clearTimeout(transitionTimer.current);
+                transitionTimer.current = setTimeout(() => {
+                  navigate('/management');
+                  setDisplayedPage('projects');
+                  setTransition('entering-projects-from-dashboard');
+                  transitionTimer.current = setTimeout(() => setTransition('idle'), 600);
+                }, 550);
+              }}
               onGoHome={goHome}
               onToggleDark={() => setDark(d => !d)}
             />
