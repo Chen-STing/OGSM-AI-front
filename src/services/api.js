@@ -63,4 +63,9 @@ export const api = {
   // 負責人成員
   getMembers:    ()      => request('/members'),
   saveMembers:   (names) => request('/members', { method: 'PUT', body: JSON.stringify(names) }),
+
+  // 專案密碼保護
+  lockProject:    (id, password) => request(`/ogsm/${id}/lock`,        { method: 'POST', body: JSON.stringify({ password }) }),
+  verifyPassword: (id, password) => request(`/ogsm/${id}/unlock`,      { method: 'POST', body: JSON.stringify({ password }) }),
+  removeLock:     (id)           => request(`/ogsm/${id}/remove-lock`, { method: 'POST' }),
 }

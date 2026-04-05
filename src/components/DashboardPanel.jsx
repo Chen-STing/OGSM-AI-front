@@ -284,13 +284,13 @@ function MemberDetailModal({ stat, dark, onClose }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {/* Bar 1: Progress */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
                 <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[1] 總體完成進度</span>
                 <Bar pct={stat.measurePct} color={mColor} h={8} />
               </div>
 
               {/* Bar 2: Status */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
                 <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[2] 任務狀態分佈</span>
                 <StackBar segments={mdSegments} total={stat.totalMeasures} />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
@@ -317,13 +317,13 @@ function MemberDetailModal({ stat, dark, onClose }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {/* Bar 1: Progress */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
                 <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[1] 總體完成進度</span>
                 <Bar pct={stat.todoPct} color={tColor} h={8} />
               </div>
 
               {/* Bar 2: Status */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px', border: `1px solid ${T.border}`, background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
                 <span style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: T.textSub, letterSpacing: '0.05em' }}>[2] 任務狀態分佈</span>
                 <StackBar segments={mpSegments} total={stat.totalTodos} />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginTop: '4px' }}>
@@ -344,7 +344,7 @@ function MemberDetailModal({ stat, dark, onClose }) {
           {/* Risk & Performance grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* Overdue breakdown */}
-            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px' }}>
+            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
               <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: B_PINK, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>逾期分析</div>
               {[
                 { label: 'MD 逾期', value: stat.overdueMeasures, total: stat.totalMeasures },
@@ -374,7 +374,7 @@ function MemberDetailModal({ stat, dark, onClose }) {
             </div>
 
             {/* Performance radar mini */}
-            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px' }}>
+            <div style={{ background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', border: `1px solid ${T.border}`, padding: '14px', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}>
               <div style={{ fontSize: '9px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, color: B_CYAN, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>執行指標</div>
               {[
                 { label: 'MD 完成率',  value: stat.measurePct,  color: B_BLUE },
@@ -684,8 +684,9 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
   });
 
   const availableProjects = useMemo(() => {
-    if (selectedAssignees.size === 0) return projects;
-    return projects.filter(p => {
+    const unlocked = projects.filter(p => !p.isLocked);
+    if (selectedAssignees.size === 0) return unlocked;
+    return unlocked.filter(p => {
       for (const g of (p.goals || [])) {
         for (const s of (g.strategies || [])) {
           for (const m of (s.measures || [])) {
@@ -703,7 +704,8 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
   }, [projects, selectedAssignees]);
 
   const allAssignees = useMemo(() => {
-    const targets = selectedIds.size === 0 ? projects : projects.filter(p => selectedIds.has(p.id));
+    const unlockedProjects = projects.filter(p => !p.isLocked);
+    const targets = selectedIds.size === 0 ? unlockedProjects : unlockedProjects.filter(p => selectedIds.has(p.id));
     const names = new Set();
     targets.forEach(p => {
       (p.goals || []).forEach(g => {
@@ -722,7 +724,7 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [projects, selectedIds]);
 
-  const rawData = useMemo(() => buildStats(projects, selectedIds), [projects, selectedIds]);
+  const rawData = useMemo(() => buildStats(projects.filter(p => !p.isLocked), selectedIds), [projects, selectedIds]);
 
   const stats = useMemo(() => {
     let list = rawData.list;

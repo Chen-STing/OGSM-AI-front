@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { Lock } from 'lucide-react';
 import { calcProgress } from './ProjectList.jsx';
 import MpCalendarPanel from './MpCalendarPanel.jsx';
+import { SetPasswordModal, RemoveLockModal, PasswordGateModal } from './LockModals.jsx';
 
 const ACCENT_BLUE   = "#0000FF";
 const ACCENT_PINK   = "#ff0000";
@@ -50,7 +52,7 @@ const LOCAL_CSS = `
   }
 `;
 
-function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
+function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260, onContextMenu }) {
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [clampCount, setClampCount] = useState(Infinity);
@@ -108,6 +110,7 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
   return (
     <div
       onClick={() => onSelect(project)}
+      onContextMenu={e => { e.preventDefault(); onContextMenu && onContextMenu(e, project); }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) { setHovered(false); setConfirmDelete(false); } }}
       style={{
@@ -147,8 +150,16 @@ function ProjectCard({ project, onSelect, onDelete, dark, index, size = 260 }) {
             <span style={{ opacity: 0.8 }}>建立</span>{project.createdAt ? project.createdAt.slice(0, 10) : ""}
           </div>
         </div>
-        {(isDone || isOverdue) && (
-          <div style={{ fontSize: "9px", fontWeight: 900, padding: "4px 8px", background: isDone ? ACCENT_GREEN : ACCENT_PINK, color: "#000", textTransform: "uppercase", letterSpacing: "0.08em", border: "2px solid #000", flexShrink: 0 }}>{isDone ? "已完成" : "已逾期"}</div>
+        {(isDone || isOverdue || project.isLocked) && (
+          <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {project.isLocked && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', background: hovered ? '#000' : (dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'), border: '2px solid', borderColor: hovered ? '#000' : (dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'), flexShrink: 0 }} title="此專案已加密保護">
+                <Lock size={11} color={hovered ? '#FFFF00' : (dark ? '#fff' : '#000')} strokeWidth={3} />
+              </div>
+            )}
+            {isDone && <div style={{ fontSize: "9px", fontWeight: 900, padding: "4px 8px", background: isDone ? ACCENT_GREEN : ACCENT_PINK, color: "#000", textTransform: "uppercase", letterSpacing: "0.08em", border: "2px solid #000", flexShrink: 0 }}>已完成</div>}
+            {isOverdue && <div style={{ fontSize: "9px", fontWeight: 900, padding: "4px 8px", background: ACCENT_PINK, color: "#000", textTransform: "uppercase", letterSpacing: "0.08em", border: "2px solid #000", flexShrink: 0 }}>已逾期</div>}
+          </div>
         )}
       </div>
 
@@ -229,7 +240,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings, onOpenDashboard }) {
+export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings, onOpenDashboard, onPatchProject, showToast }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -241,6 +252,22 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [deadlineTo, setDeadlineTo]     = useState("");
   const [statusFilters, setStatusFilters] = useState(new Set());
   const toggleStatus = (val) => setStatusFilters(prev => { const n = new Set(prev); n.has(val) ? n.delete(val) : n.add(val); return n; });
+  const [lockFilters, setLockFilters] = useState(new Set());
+  const toggleLockStatus = (val) => setLockFilters(prev => {
+    const n = new Set(prev);
+    if (n.has(val)) {
+      n.delete(val);
+      return n;
+    }
+    const other = val === 'locked' ? 'unlocked' : 'locked';
+    if (n.has(other)) {
+      // If both would be selected, clear both.
+      n.delete(other);
+      return n;
+    }
+    n.add(val);
+    return n;
+  });
   const [sortBy, setSortBy]     = useState("time");
   const [sortDir, setSortDir]   = useState("desc");
   const [animationKey, setAnimationKey] = useState(0);
@@ -259,6 +286,48 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   const [sortHovered, setSortHovered]     = useState(false);
   const [memberHovered, setMemberHovered] = useState(false);
   const [showTopDrawer, setShowTopDrawer] = useState(false);
+
+  // ── 密碼保護狀態 ──
+  const unlockedIdsRef = useRef(new Set()); // session 暫存，不存入 localStorage
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, project }
+  const ctxMenuRef = useRef(null);
+  const [lockModal, setLockModal] = useState(null);       // project
+  const [removeLockModal, setRemoveLockModal] = useState(null); // project
+  const [gateModal, setGateModal] = useState(null);       // { project, pendingAction }
+  const [localToast, setLocalToast] = useState(null);
+
+  const showLocalToast = useCallback((msg) => {
+    setLocalToast(msg);
+    setTimeout(() => setLocalToast(null), 3000);
+  }, []);
+
+  const handleCardClick = useCallback((project) => {
+    if (project.isLocked && !unlockedIdsRef.current.has(project.id)) {
+      setGateModal({ project, pendingAction: () => onSelect(project) });
+    } else {
+      onSelect(project);
+    }
+  }, [onSelect]);
+
+  const handleContextMenu = useCallback((e, project) => {
+    setCtxMenu({ x: e.clientX, y: e.clientY, project });
+  }, []);
+
+  // 點擊 ctxMenu 外部則關閉
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = (e) => { if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target)) setCtxMenu(null); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [ctxMenu]);
+
+  // Escape 關閉 ctxMenu
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = (e) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [ctxMenu]);
 
   // New states for Assignees filter
   const allMembers = React.useMemo(() => {
@@ -428,7 +497,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
     return () => document.removeEventListener("mousedown", h);
   }, [showSort]);
 
-  const isFiltering = progMin > 0 || progMax < 100 || dateFrom !== "" || dateTo !== "" || deadlineFrom !== "" || deadlineTo !== "" || statusFilters.size > 0;
+  const isFiltering = progMin > 0 || progMax < 100 || dateFrom !== "" || dateTo !== "" || deadlineFrom !== "" || deadlineTo !== "" || statusFilters.size > 0 || lockFilters.size > 0;
   const isSorted    = sortBy !== "time" || sortDir !== "desc";
 
   const filtered = projects.filter(p => {
@@ -456,8 +525,15 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       const overdue = p.deadline && p.deadline < today && pct < 100;
       const done = pct >= 100;
       const inProgress = !done && !overdue;
-      const match = (statusFilters.has("inProgress") && inProgress) || (statusFilters.has("overdue") && overdue) || (statusFilters.has("done") && done);
+      const match =
+        (statusFilters.has("inProgress") && inProgress) ||
+        (statusFilters.has("overdue") && overdue) ||
+        (statusFilters.has("done") && done);
       if (!match) return false;
+    }
+    if (lockFilters.size === 1) {
+      if (lockFilters.has('locked') && !p.isLocked) return false;
+      if (lockFilters.has('unlocked') && p.isLocked) return false;
     }
     if (memberFilters.size > 0) {
       const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];
@@ -821,7 +897,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       ) : (
         <div ref={gridRef} className="custom-scrollbar sh-grid-anim" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 24px 48px" }}>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${cardSize}px)`, justifyContent: "center", columnGap: "32px", rowGap: "40px" }}>
-            {sorted.map((p, i) => <ProjectCard key={`${animationKey}-${p.id}`} project={p} onSelect={onSelect} onDelete={onDeleteProject} dark={dark} index={i} size={cardSize} />)}
+            {sorted.map((p, i) => <ProjectCard key={`${animationKey}-${p.id}`} project={p} onSelect={handleCardClick} onDelete={onDeleteProject} dark={dark} index={i} size={cardSize} onContextMenu={handleContextMenu} />)}
             {!query && !isFiltering && <NewProjectCard onNewProject={onNewProject} dark={dark} index={sorted.length} size={cardSize} />}
           </div>
         </div>
@@ -841,7 +917,65 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
         </button>
       </div>
       
-      {showFilter && createPortal(<div ref={filterPopRef} style={{ ...popBase, top: filterPos.top, left: filterPos.left, width: "fit-content" }}><div style={{ display: "flex", flexDirection: "column", gap: "8px" }}><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>專案狀態</div><div style={{ display: "flex", gap: "12px" }}>{[["inProgress", "進行中"], ["overdue", "已逾期"], ["done", "已完成"]].map(([val, label]) => { const checked = statusFilters.has(val); return (<label key={val} onClick={() => toggleStatus(val)} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000", userSelect: "none", whiteSpace: "nowrap" }}><div style={{ width: "14px", height: "14px", border: `2px solid ${checked ? "#0000FF" : (dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)")}`, background: checked ? "#0000FF" : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>{checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}</div>{label}</label>); })}</div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={labelStyle}>完成進度</div><div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+      {/* ── 右鍵選單 ── */}
+      {ctxMenu && createPortal(
+        <div
+          ref={ctxMenuRef}
+          style={{
+            position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, zIndex: 999999,
+            minWidth: '160px', padding: '6px 0',
+            border: `2px solid ${dark ? '#fff' : '#000'}`,
+            background: dark ? '#2e2e2e' : '#f8f9fa',
+            backgroundImage: dark
+              ? 'linear-gradient(rgba(255,255,255,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.06) 1px,transparent 1px)'
+              : 'linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px)',
+            backgroundSize: '16px 16px',
+            boxShadow: `5px 5px 0 0 ${dark ? 'rgba(255,255,255,0.15)' : '#000'}`,
+          }}
+        >
+          {[{
+            label: ctxMenu.project.isLocked ? '🔄 更換密碼' : '🔒 設定密碼',
+            action: () => { setCtxMenu(null); setLockModal(ctxMenu.project); }
+          }, ctxMenu.project.isLocked ? {
+            label: '🔓 移除密碼',
+            danger: true,
+            action: () => { setCtxMenu(null); setRemoveLockModal(ctxMenu.project); }
+          } : null].filter(Boolean).map((item, idx) => (
+            <button key={idx} onClick={item.action} style={{
+              display: 'block', width: '100%', padding: '9px 16px',
+              background: 'transparent', border: 'none',
+              color: item.danger ? '#ff4444' : (dark ? '#fff' : '#000'),
+              fontSize: '13px', fontWeight: 700,
+              fontFamily: '"Space Grotesk",sans-serif',
+              textAlign: 'left', cursor: 'pointer',
+              transition: 'background 0.1s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = item.danger ? 'rgba(255,0,0,0.12)' : (dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'); }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              {item.label}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+
+      {/* ── 密碼 Modals ── */}
+      <SetPasswordModal visible={!!lockModal} project={lockModal} onClose={() => setLockModal(null)} darkMode={dark}
+        onSuccess={(updated) => { setLockModal(null); onPatchProject && onPatchProject(updated.id, { isLocked: updated.isLocked }); (showToast || showLocalToast)(updated.isLocked ? '密碼已設定，專案已上鎖' : '密碼已更換'); }} />
+      <RemoveLockModal visible={!!removeLockModal} project={removeLockModal} onClose={() => setRemoveLockModal(null)} darkMode={dark}
+        onSuccess={(updated) => { setRemoveLockModal(null); onPatchProject && onPatchProject(updated.id, { isLocked: false }); unlockedIdsRef.current.delete(updated.id); (showToast || showLocalToast)('密碼已移除'); }} />
+      <PasswordGateModal visible={!!gateModal} project={gateModal?.project} onClose={() => setGateModal(null)} darkMode={dark}
+        onSuccess={() => { const { project, pendingAction } = gateModal; unlockedIdsRef.current.add(project.id); setGateModal(null); pendingAction && pendingAction(); }} />
+
+      {/* ── 區域 Toast ── */}
+      {localToast && createPortal(
+        <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 999999, background: '#0000FF', color: '#fff', padding: '10px 24px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, fontSize: '13px', letterSpacing: '0.06em', border: '2px solid #fff', boxShadow: '4px 4px 0 0 rgba(0,0,0,0.5)', animation: 'slide-up 0.3s ease both', pointerEvents: 'none' }}>
+          {localToast}
+        </div>,
+        document.body
+      )}
+
+      {showFilter && createPortal(<div ref={filterPopRef} style={{ ...popBase, top: filterPos.top, left: filterPos.left, width: "fit-content" }}><div style={{ display: "flex", flexDirection: "column", gap: "8px" }}><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>專案狀態</div><div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>{[["inProgress", "進行中"], ["overdue", "已逾期"], ["done", "已完成"]].map(([val, label]) => { const checked = statusFilters.has(val); return (<label key={val} onClick={() => toggleStatus(val)} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000", userSelect: "none", whiteSpace: "nowrap" }}><div style={{ width: "14px", height: "14px", border: `2px solid ${checked ? "#0000FF" : (dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)")}`, background: checked ? "#0000FF" : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>{checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}</div>{label}</label>); })}</div></div><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>上鎖狀態</div><div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>{[["locked", "已上鎖"], ["unlocked", "未上鎖"]].map(([val, label]) => { const checked = lockFilters.has(val); return (<label key={val} onClick={() => toggleLockStatus(val)} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: dark ? "#fff" : "#000", userSelect: "none", whiteSpace: "nowrap" }}><div style={{ width: "14px", height: "14px", border: `2px solid ${checked ? "#0000FF" : (dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)")}`, background: checked ? "#0000FF" : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>{checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}</div>{label}</label>); })}</div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={labelStyle}>完成進度</div><div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                     <input
                       type="text" inputMode="numeric" value={progMinInput}
                       onChange={e => { const v = e.target.value; if (v === "" || (/^\d+$/.test(v) && Number(v) <= 100)) setProgMinInput(v); }}
@@ -862,7 +996,7 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
                         style={{ position: "absolute", width: "100%", height: "20px", cursor: "pointer", top: 0 }}>
                         <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", left: `${progMin}%`, width: "14px", height: "14px", background: ACCENT_BLUE, border: "2px solid #fff", boxShadow: "2px 2px 0 #000", marginLeft: "-7px", boxSizing: "border-box", zIndex: 5, cursor: "ew-resize" }} />
                         <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", left: `${progMax}%`, width: "14px", height: "14px", background: ACCENT_BLUE, border: "2px solid #fff", boxShadow: "2px 2px 0 #000", marginLeft: "-7px", boxSizing: "border-box", zIndex: 5, cursor: "ew-resize" }} />
-                      </div></div></div><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>建立日期</div><input type="date" className="sh-date" value={dateFrom} max={dateTo || undefined} onChange={e => { const v = e.target.value; if (dateTo && v > dateTo) return; setDateFrom(v); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /><input type="date" className="sh-date" value={dateTo} onChange={e => { const v = e.target.value; setDateTo(!v ? "" : (dateFrom && v < dateFrom ? dateFrom : v)); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /></div><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>期限日期</div><input type="date" className="sh-date" value={deadlineFrom} max={deadlineTo || undefined} onChange={e => { const v = e.target.value; if (deadlineTo && v > deadlineTo) return; setDeadlineFrom(v); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /><input type="date" className="sh-date" value={deadlineTo} onChange={e => { const v = e.target.value; setDeadlineTo(!v ? "" : (deadlineFrom && v < deadlineFrom ? deadlineFrom : v)); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /></div>{isFiltering && (<button onClick={() => { setProgMin(0); setProgMax(100); setDateFrom(""); setDateTo(""); setDeadlineFrom(""); setDeadlineTo(""); setStatusFilters(new Set()); setProgMinInput("0"); setProgMaxInput("100"); }} style={{ alignSelf: "flex-start", fontSize: "11px", fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 12px", border: "2px solid rgba(255,0,255,0.4)", background: "transparent", color: ACCENT_PINK, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.background = ACCENT_PINK; e.currentTarget.style.color = "#000"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = ACCENT_PINK; }}>清除篩選</button>)}</div>, document.body)}
+                      </div></div></div><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>建立日期</div><input type="date" className="sh-date" value={dateFrom} max={dateTo || undefined} onChange={e => { const v = e.target.value; if (dateTo && v > dateTo) return; setDateFrom(v); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /><input type="date" className="sh-date" value={dateTo} onChange={e => { const v = e.target.value; setDateTo(!v ? "" : (dateFrom && v < dateFrom ? dateFrom : v)); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /></div><div style={{ display: "flex", flexDirection: "column", gap: "6px" }}><div style={labelStyle}>期限日期</div><input type="date" className="sh-date" value={deadlineFrom} max={deadlineTo || undefined} onChange={e => { const v = e.target.value; if (deadlineTo && v > deadlineTo) return; setDeadlineFrom(v); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /><input type="date" className="sh-date" value={deadlineTo} onChange={e => { const v = e.target.value; setDeadlineTo(!v ? "" : (deadlineFrom && v < deadlineFrom ? deadlineFrom : v)); }} style={{ width: "100%", fontSize: "12px", padding: "8px", border: `2px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`, outline: "none", fontFamily: "monospace", background: dark ? "#2b2b2b" : "#f9fafb", color: dark ? "#fff" : "#000", colorScheme: dark ? "dark" : "light" }} /></div>{isFiltering && (<button onClick={() => { setProgMin(0); setProgMax(100); setDateFrom(""); setDateTo(""); setDeadlineFrom(""); setDeadlineTo(""); setStatusFilters(new Set()); setLockFilters(new Set()); setProgMinInput("0"); setProgMaxInput("100"); }} style={{ alignSelf: "flex-start", fontSize: "11px", fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 12px", border: "2px solid rgba(255,0,255,0.4)", background: "transparent", color: ACCENT_PINK, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.background = ACCENT_PINK; e.currentTarget.style.color = "#000"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = ACCENT_PINK; }}>清除篩選</button>)}</div>, document.body)}
       {showSort && createPortal(<div ref={sortPopRef} style={{ ...popBase, top: sortPos.top, left: sortPos.left, width: "152px", gap: "10px" }}><div style={labelStyle}>排序依據</div><div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "4px" }}>{[["time", "建立時間"], ["deadline", "期限日期"], ["progress", "完成進度"]].map(([val, label]) => (<button key={val} onClick={() => setSortBy(val)} style={{ textAlign: "left", fontSize: "12px", fontWeight: 700, padding: "6px 10px", border: "2px solid", borderColor: sortBy === val ? "#000" : "transparent", background: sortBy === val ? ACCENT_YELLOW : "transparent", color: sortBy === val ? "#000" : (dark ? "#fff" : "#000"), cursor: "pointer" }}>{label}</button>))}</div><div style={labelStyle}>方向</div><div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>{[["desc", sortBy === "progress" ? "高→低" : sortBy === "deadline" ? "最遠優先" : "最新優先"], ["asc", sortBy === "progress" ? "低→高" : sortBy === "deadline" ? "最近優先" : "最舊優先"]].map(([val, label]) => (<button key={val} onClick={() => setSortDir(val)} style={{ textAlign: "left", fontSize: "12px", fontWeight: 700, padding: "6px 10px", border: "2px solid", borderColor: sortDir === val ? "#000" : "transparent", background: sortDir === val ? ACCENT_YELLOW : "transparent", color: sortDir === val ? "#000" : (dark ? "#fff" : "#000"), cursor: "pointer" }}>{label}</button>))}</div></div>, document.body)}
     </div>
   );

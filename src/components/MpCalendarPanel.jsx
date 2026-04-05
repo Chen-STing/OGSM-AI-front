@@ -503,14 +503,20 @@ export default function MpCalendarPanel({ projects, dark, onUpdateProject }) {
     else setCalMonth(m => m + 1);
   };
 
-  const allAssignees = getAllTodoAssignees(projects);
+  // 排除已上鎖的專案
+  const unlockedProjects = projects.filter(p => !p.isLocked);
+
+  const allAssignees = getAllTodoAssignees(unlockedProjects);
   const isUnassignedChecked = memberFilter.has(UNASSIGNED_KEY);
 
   // 日曆上的藍點：只標示前後三個月內「當日有到期且未完成的 MP」 (不再隨選取的 date 變動)
-  const todoDates = getAllTodoDates(projects, memberFilter, ty, tm);
+  const todoDates = getAllTodoDates(unlockedProjects, memberFilter, ty, tm);
   
   // 右側全局清單：以 selectedDate 為狀態變化基準，依據 Tab 規則過濾資料
-  let filteredTodos = getGlobalFilteredTodos(projects, doneFilter, memberFilter, date, ty, tm);
+  const isSelectedDateInBounds = isDateInBounds(date, ty, tm);
+  let filteredTodos = isSelectedDateInBounds
+    ? getGlobalFilteredTodos(unlockedProjects, doneFilter, memberFilter, date, ty, tm)
+    : [];
 
   // 依據日期先後順序排列
   filteredTodos.sort((a, b) => {

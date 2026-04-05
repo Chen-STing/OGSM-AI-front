@@ -538,6 +538,11 @@ export default function App() {
     }
   }, [showToast, navigate]);
 
+  const handleLocalProjectPatch = useCallback((id, patch) => {
+    setProjects(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p));
+    setActiveProject(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
+  }, []);
+
   const handleMembersChange = useCallback(async (newMembers) => {
     setMembers(newMembers);
     try {
@@ -688,7 +693,7 @@ export default function App() {
           </div>
 
           <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <ProjectList projects={projects} loading={loadingList} activeId={route.id ?? null} onSelect={selectProject} onDelete={handleDeleteProject} onManage={goProjects} darkMode={dark} />
+            <ProjectList projects={projects} loading={loadingList} activeId={route.id ?? null} onSelect={selectProject} onDelete={handleDeleteProject} onManage={goProjects} darkMode={dark} onPatchProject={handleLocalProjectPatch} showToast={showToast} />
           </div>
 
           <div style={{ padding: "15px 24px", borderTop: `1px solid ${dark ? '#575757' : '#D0D0D0'}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "transparent" }}>
@@ -739,6 +744,8 @@ export default function App() {
               entering={isEnteringProjects ? 'home' : isEnteringProjectsFromEditor ? 'editor' : isEnteringProjectsFromDashboard ? 'dashboard' : null}
               exitingTo={isExitingProjects ? 'editor' : isExitingProjectsToHome ? 'home' : isExitingProjectsToDashboard ? 'dashboard' : null}
               onUpdateProject={handleSave}
+              onPatchProject={handleLocalProjectPatch}
+              showToast={showToast}
               onOpenMemberSettings={() => setShowMembers(true)}
               onOpenDashboard={goDashboard}
             />

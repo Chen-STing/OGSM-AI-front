@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Filter, 
@@ -6,8 +6,10 @@ import {
   ChevronRight, 
   Trash2, 
   Layout,
-  Search
+  Search,
+  Lock
 } from 'lucide-react';
+import { SetPasswordModal, RemoveLockModal, PasswordGateModal } from './LockModals.jsx';
 
 export function calcProgress(project) {
   const measures = (project.goals || []).flatMap(g =>
@@ -49,12 +51,28 @@ const LOCAL_CSS = `
   .p-page-btn.active { pointer-events: none; }
 `;
 
-export default function ProjectList({ projects, loading, activeId, onSelect, onDelete, onManage, darkMode = true }) {
+export default function ProjectList({ projects, loading, activeId, onSelect, onDelete, onManage, darkMode = true, onPatchProject, showToast }) {
   const [query, setQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
   const [statusFilters, setStatusFilters] = useState(new Set());
   const toggleStatus = (val) => setStatusFilters(prev => { const n = new Set(prev); n.has(val) ? n.delete(val) : n.add(val); return n; });
+  const [lockFilters, setLockFilters] = useState(new Set());
+  const toggleLockStatus = (val) => setLockFilters(prev => {
+    const n = new Set(prev);
+    if (n.has(val)) {
+      n.delete(val);
+      return n;
+    }
+    const other = val === 'locked' ? 'unlocked' : 'locked';
+    if (n.has(other)) {
+      // If both would be selected, clear both.
+      n.delete(other);
+      return n;
+    }
+    n.add(val);
+    return n;
+  });
   const [progMin, setProgMin] = useState(0);
   const [progMax, setProgMax] = useState(100);
   const [progMinInput, setProgMinInput] = useState('0');
@@ -71,6 +89,48 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
   const [confirmId, setConfirmId] = useState(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [filterHovered, setFilterHovered] = useState(false);
+
+  // ── 密碼保護狀態 ──
+  const unlockedIdsRef = useRef(new Set());
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, project }
+  const ctxMenuRef = useRef(null);
+  const [lockModal, setLockModal] = useState(null);
+  const [removeLockModal, setRemoveLockModal] = useState(null);
+  const [gateModal, setGateModal] = useState(null); // { project, pendingAction }
+  const [localToast, setLocalToast] = useState(null);
+
+  const showLocalToast = useCallback((msg) => {
+    setLocalToast(msg);
+    setTimeout(() => setLocalToast(null), 3000);
+  }, []);
+
+  const handleItemClick = useCallback((project) => {
+    if (project.isLocked && !unlockedIdsRef.current.has(project.id)) {
+      setGateModal({ project, pendingAction: () => onSelect(project.id) });
+    } else {
+      onSelect(project.id);
+    }
+  }, [onSelect]);
+
+  const handleContextMenu = useCallback((e, project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, project });
+  }, []);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = (e) => { if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target)) setCtxMenu(null); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [ctxMenu]);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = (e) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [ctxMenu]);
   
   const sliderContainerRef = useRef(null);
   const sliderDragging = useRef(null);
@@ -135,8 +195,15 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
       const overdue = p.deadline && p.deadline < today && pct < 100;
       const done = pct >= 100;
       const inProgress = !done && !overdue;
-      const match = (statusFilters.has('inProgress') && inProgress) || (statusFilters.has('overdue') && overdue) || (statusFilters.has('done') && done);
+      const match =
+        (statusFilters.has('inProgress') && inProgress) ||
+        (statusFilters.has('overdue') && overdue) ||
+        (statusFilters.has('done') && done);
       if (!match) return false;
+    }
+    if (lockFilters.size === 1) {
+      if (lockFilters.has('locked') && !p.isLocked) return false;
+      if (lockFilters.has('unlocked') && p.isLocked) return false;
     }
     if (progMin > 0 || progMax < 100) {
       const pct = calcProgress(p);
@@ -155,10 +222,10 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
     return true;
   });
   
-  const isFiltering = statusFilters.size > 0 || progMin > 0 || progMax < 100 || dateFrom !== '' || dateTo !== '' || deadlineFrom !== '' || deadlineTo !== '';
+  const isFiltering = statusFilters.size > 0 || lockFilters.size > 0 || progMin > 0 || progMax < 100 || dateFrom !== '' || dateTo !== '' || deadlineFrom !== '' || deadlineTo !== '';
 
   // 搜尋/篩選/排序變動時重置頁碼
-  React.useEffect(() => { setPage(1); }, [query, statusFilters, progMin, progMax, dateFrom, dateTo, deadlineFrom, deadlineTo, sortBy, sortDir]);
+  React.useEffect(() => { setPage(1); }, [query, statusFilters, lockFilters, progMin, progMax, dateFrom, dateTo, deadlineFrom, deadlineTo, sortBy, sortDir]);
   const sorted = [...filtered].sort((a, b) => {
     let diff = sortBy === 'time' ? new Date(a.createdAt) - new Date(b.createdAt)
       : sortBy === 'deadline' ? ((a.deadline || '9999') < (b.deadline || '9999') ? -1 : (a.deadline || '9999') > (b.deadline || '9999') ? 1 : 0)
@@ -393,11 +460,28 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             <div ref={popupRef} style={{ position: 'fixed', top: popupPos.top, left: popupPos.left, zIndex: 9999, width: 'fit-content', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', border: `3px solid ${darkMode ? '#fff' : '#000'}`, background: darkMode ? '#2e2e2e' : '#f0f0f0', backgroundImage: darkMode ? 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)' : 'linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)', backgroundSize: '20px 20px', boxShadow: `5px 5px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}` }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>專案狀態</div>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   {[['inProgress', '進行中'], ['overdue', '已逾期'], ['done', '已完成']].map(([val, label]) => {
                     const checked = statusFilters.has(val);
                     return (
                       <label key={val} onClick={() => toggleStatus(val)} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: darkMode ? '#fff' : '#000', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <div style={{ width: '14px', height: '14px', border: `2px solid ${checked ? '#0000FF' : (darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)')}`, background: checked ? '#0000FF' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#000', color: '#FFFF00', padding: '2px 6px', alignSelf: 'flex-start' }}>上鎖狀態</div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {[['locked', '已上鎖'], ['unlocked', '未上鎖']].map(([val, label]) => {
+                    const checked = lockFilters.has(val);
+                    return (
+                      <label key={val} onClick={() => toggleLockStatus(val)} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: darkMode ? '#fff' : '#000', userSelect: 'none', whiteSpace: 'nowrap' }}>
                         <div style={{ width: '14px', height: '14px', border: `2px solid ${checked ? '#0000FF' : (darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)')}`, background: checked ? '#0000FF' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}
                         </div>
@@ -454,7 +538,7 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               </div>
 
               {isFiltering && (
-                <button onClick={() => { setStatusFilters(new Set()); setProgMin(0); setProgMax(100); setProgMinInput('0'); setProgMaxInput('100'); setDateFrom(''); setDateTo(''); setDeadlineFrom(''); setDeadlineTo(''); }} style={{ alignSelf: 'flex-start', fontSize: '11px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '6px 12px', border: '2px solid rgba(255,0,255,0.4)', background: 'transparent', color: '#FF00FF', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#FF00FF'; e.currentTarget.style.color = '#000'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#FF00FF'; }}>
+                <button onClick={() => { setStatusFilters(new Set()); setLockFilters(new Set()); setProgMin(0); setProgMax(100); setProgMinInput('0'); setProgMaxInput('100'); setDateFrom(''); setDateTo(''); setDeadlineFrom(''); setDeadlineTo(''); }} style={{ alignSelf: 'flex-start', fontSize: '11px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '6px 12px', border: '2px solid rgba(255,0,255,0.4)', background: 'transparent', color: '#FF00FF', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#FF00FF'; e.currentTarget.style.color = '#000'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#FF00FF'; }}>
                   清除篩選
                 </button>
               )}
@@ -526,7 +610,8 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
             <div
               key={p.id}
               className="p-item"
-              onClick={() => onSelect(p.id)}
+              onClick={() => handleItemClick(p)}
+              onContextMenu={(e) => handleContextMenu(e, p)}
               style={{
                 cursor: 'pointer', position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', 
                 padding: '12px 20px', /* 縮小 Padding 以降低高度 */
@@ -549,7 +634,8 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
                     )}
                   </div>
                 )}
-                <h4 style={{ fontSize: '14px', fontWeight: 900, marginBottom: '4px', color: isOverdue ? '#ff0000' : pct === 100 ? '#00CC44' : (darkMode ? '#fff' : '#000'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 900, marginBottom: '4px', color: isOverdue ? '#ff0000' : pct === 100 ? '#00CC44' : (darkMode ? '#fff' : '#000'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {p.isLocked && <Lock size={12} strokeWidth={3} style={{ flexShrink: 0, opacity: 0.7 }} />}
                   {p.title}
                 </h4>
                 <p style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: darkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -669,6 +755,64 @@ export default function ProjectList({ projects, loading, activeId, onSelect, onD
               >確認刪除</button>
             </div>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── 右鍵選單 ── */}
+      {ctxMenu && createPortal(
+        <div
+          ref={ctxMenuRef}
+          style={{
+            position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, zIndex: 999999,
+            minWidth: '156px', padding: '6px 0',
+            border: `2px solid ${darkMode ? '#fff' : '#000'}`,
+            background: darkMode ? '#2e2e2e' : '#f8f9fa',
+            backgroundImage: darkMode
+              ? 'linear-gradient(rgba(255,255,255,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.06) 1px,transparent 1px)'
+              : 'linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px)',
+            backgroundSize: '16px 16px',
+            boxShadow: `4px 4px 0 0 ${darkMode ? 'rgba(255,255,255,0.15)' : '#000'}`,
+          }}
+        >
+          {[{
+            label: ctxMenu.project.isLocked ? '🔄 更換密碼' : '🔒 設定密碼',
+            action: () => { setCtxMenu(null); setLockModal(ctxMenu.project); }
+          }, ctxMenu.project.isLocked ? {
+            label: '🔓 移除密碼',
+            danger: true,
+            action: () => { setCtxMenu(null); setRemoveLockModal(ctxMenu.project); }
+          } : null].filter(Boolean).map((item, idx) => (
+            <button key={idx} onClick={item.action} style={{
+              display: 'block', width: '100%', padding: '8px 16px',
+              background: 'transparent', border: 'none',
+              color: item.danger ? '#ff4444' : (darkMode ? '#fff' : '#000'),
+              fontSize: '13px', fontWeight: 700,
+              fontFamily: '"Space Grotesk",sans-serif',
+              textAlign: 'left', cursor: 'pointer',
+              transition: 'background 0.1s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = item.danger ? 'rgba(255,0,0,0.12)' : (darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'); }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              {item.label}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+
+      {/* ── 密碼 Modals ── */}
+      <SetPasswordModal visible={!!lockModal} project={lockModal} onClose={() => setLockModal(null)} darkMode={darkMode}
+        onSuccess={(updated) => { setLockModal(null); onPatchProject && onPatchProject(updated.id, { isLocked: updated.isLocked }); (showToast || showLocalToast)(updated.isLocked ? '密碼已設定，專案已上鎖' : '密碼已更換'); }} />
+      <RemoveLockModal visible={!!removeLockModal} project={removeLockModal} onClose={() => setRemoveLockModal(null)} darkMode={darkMode}
+        onSuccess={(updated) => { setRemoveLockModal(null); onPatchProject && onPatchProject(updated.id, { isLocked: false }); unlockedIdsRef.current.delete(updated.id); (showToast || showLocalToast)('密碼已移除'); }} />
+      <PasswordGateModal visible={!!gateModal} project={gateModal?.project} onClose={() => setGateModal(null)} darkMode={darkMode}
+        onSuccess={() => { const { project, pendingAction } = gateModal; unlockedIdsRef.current.add(project.id); setGateModal(null); pendingAction && pendingAction(); }} />
+
+      {/* ── 區域 Toast ── */}
+      {localToast && createPortal(
+        <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 999999, background: '#0000FF', color: '#fff', padding: '10px 24px', fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, fontSize: '13px', letterSpacing: '0.06em', border: '2px solid #fff', boxShadow: '4px 4px 0 0 rgba(0,0,0,0.5)', pointerEvents: 'none' }}>
+          {localToast}
         </div>,
         document.body
       )}
