@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import BrutalistSelect from './BrutalistSelect'
 import { loadSavedBgConfig } from '../bgConfig.js'
 import BrutalistBackground from './BrutalistBackground.jsx'
+import GanttPanel from './GanttPanel.jsx'
 
 // ─── BRUTALIST TOKENS ────────────────────────────────────────────────────────
 const B_YELLOW = '#FFFF00'
@@ -63,6 +64,7 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
   const [sortDate, setSortDate] = useState('none')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [confirmingId, setConfirmingId] = useState(null)
+  const [showGantt, setShowGantt] = useState(false)
 
   const [bgConfig, setBgConfig] = useState(() => loadSavedBgConfig())
   useEffect(() => {
@@ -301,6 +303,37 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
                   </button>
                 )
               })()}
+              <button
+                style={{
+                  padding: '3px 8px',
+                  border: `2px solid ${B_BLUE}`,
+                  background: showGantt ? B_BLUE : 'transparent',
+                  color: showGantt ? '#fff' : (dark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)'),
+                  fontSize: '9px',
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  transition: 'all 0.12s',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  boxShadow: showGantt ? '2px 2px 0 #000' : 'none',
+                }}
+                onClick={() => setShowGantt(true)}
+                onMouseEnter={e => {
+                  if (!showGantt) {
+                    e.currentTarget.style.background = B_BLUE
+                    e.currentTarget.style.color = '#fff'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!showGantt) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)'
+                  }
+                }}
+              >
+                甘特圖
+              </button>
             </div>
           </div>
         </div>
@@ -346,6 +379,15 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
         </div>
         </div>  {/* 佈局層 */}
       </div>  {/* 動畫層 */}
+
+      {showGantt && (
+        <GanttPanel
+          project={{ name: project?.title || '行動項目' }}
+          todos={allTodos.map(t => ({ ...t, goalLabel: t.goalText }))}
+          dark={darkMode}
+          onClose={() => setShowGantt(false)}
+        />
+      )}
     </>
   )
 }

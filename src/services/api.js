@@ -13,6 +13,28 @@ async function request(path, options = {}) {
   return res.json()
 }
 
+async function requestWith404Fallback(primaryPath, fallbackPath, options = {}) {
+  const doFetch = async (path) => {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+      ...options,
+    })
+    return res
+  }
+
+  let res = await doFetch(primaryPath)
+  if (res.status === 404 && fallbackPath) {
+    res = await doFetch(fallbackPath)
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(err.message || `HTTP ${res.status}`)
+  }
+  if (res.status === 204) return null
+  return res.json()
+}
+
 export const api = {
   // OGSM CRUD
   getAll:   ()         => request('/ogsm'),
@@ -68,4 +90,28 @@ export const api = {
   lockProject:    (id, password) => request(`/ogsm/${id}/lock`,        { method: 'POST', body: JSON.stringify({ password }) }),
   verifyPassword: (id, password) => request(`/ogsm/${id}/unlock`,      { method: 'POST', body: JSON.stringify({ password }) }),
   removeLock:     (id)           => request(`/ogsm/${id}/remove-lock`, { method: 'POST' }),
+
+  // 版本歷史
+  getVersionHistory: (projectId) =>
+    requestWith404Fallback(
+      `/ogsm/${encodeURIComponent(projectId)}/versions`,
+      `/projects/${encodeURIComponent(projectId)}/versions`
+    ),
+  saveVersion: (projectId, snapshot, message) =>
+    requestWith404Fallback(
+      `/ogsm/${encodeURIComponent(projectId)}/versions`,
+      `/projects/${encodeURIComponent(projectId)}/versions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ snapshot, message }),
+      }
+    ),
+  restoreVersion: (projectId, versionId) =>
+    requestWith404Fallback(
+      `/ogsm/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/restore`,
+      `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/restore`,
+      {
+        method: 'POST',
+      }
+    ),
 }

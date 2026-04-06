@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TodoManagerPanel from './TodoManagerPanel.jsx'
+import AIStrategistPanel from './AIStrategistPanel.jsx'
+import VersionHistoryPanel from './VersionHistoryPanel.jsx'
 import AiConfirmDialog from './AiConfirmDialog.jsx'
 import BrutalistSelect from './BrutalistSelect.jsx'
 import QuickEditModal from './QuickEditModal.jsx'
@@ -173,6 +175,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [showProjectAssigneesTip, setShowProjectAssigneesTip] = useState(false)
   
   const [showTodoPanel, setShowTodoPanel] = useState(false)
+  const [showStrategistPanel, setShowStrategistPanel] = useState(false)
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [todoPanelOrigin, setTodoPanelOrigin] = useState(null)
   const [auditOrigin, setAuditOrigin] = useState(null)
 
@@ -370,6 +374,65 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     setQeModal(null)
   }, [qeModal, update])
 
+  const strategistProject = useMemo(() => {
+    if (!draft) return null
+    const goals = (draft.goals || []).map(g => ({
+      text: g.text || '',
+      strategies: (g.strategies || []).map(s => ({
+        text: s.text || '',
+        measures: (s.measures || []).map(m => ({
+          kpi: m.kpi || '',
+          target: m.target || '',
+          actual: m.actual || '',
+          progress: m.progress || 0,
+          status: m.status || 'NotStarted',
+          deadline: m.deadline || '',
+          assignees: Array.isArray(m.assignees) ? m.assignees : [],
+        })),
+      })),
+    }))
+    const strategies = goals.flatMap(g => g.strategies || [])
+    const measures = strategies.flatMap(s => s.measures || [])
+    return {
+      name: draft.title || '未命名',
+      objective: draft.objective || '',
+      goals,
+      strategies,
+      measures,
+    }
+  }, [draft])
+
+  const versionSnapshot = useMemo(() => {
+    if (!draft) return null
+    return {
+      objective: draft.objective || '',
+      goals: (draft.goals || []).map(g => ({ text: g.text || '' })),
+      strategies: (draft.goals || []).flatMap(g => (g.strategies || []).map(s => ({ text: s.text || '' }))),
+      measures: (draft.goals || []).flatMap(g =>
+        (g.strategies || []).flatMap(s =>
+          (s.measures || []).map(m => ({
+            kpi: m.kpi || '',
+            target: m.target || '',
+            actual: m.actual || '',
+            deadline: m.deadline || '',
+            progress: m.progress || 0,
+            status: m.status || 'NotStarted',
+            assignees: Array.isArray(m.assignees) ? m.assignees : [],
+          }))
+        )
+      ),
+    }
+  }, [draft])
+
+  const handleRestoreVersion = useCallback((restoredData) => {
+    const next = restoredData?.snapshot || restoredData?.project || restoredData
+    if (!next || !Array.isArray(next.goals)) return
+    const normalized = JSON.parse(JSON.stringify(next))
+    applyOverdueStatus(normalized)
+    setDraft(normalized)
+    setDirty(true)
+  }, [])
+
   const handleSave = async () => { setSaving(true); try { await onSave(draft) } finally { setSaving(false) }; setDirty(false) }
 
   if (!draft) return null
@@ -434,6 +497,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const isCompleted = allMeasures.length > 0 && overallProgress >= 100
   const isProjectOverdue = draft.deadline && draft.deadline < (() => { const _n = new Date(); return `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}` })() && !isCompleted
   const previewAssignees = (Array.isArray(draft.assignees) && draft.assignees.length > 0) ? draft.assignees : members.filter(Boolean)
+  const versionProjectId = draft?.id || project?.id || null
   const dark = darkMode
 
   return (
@@ -603,6 +667,14 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
           <button className="b-header-btn b-action-btn" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTodoPanelOrigin(r); setShowTodoPanel(true); }} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
             <Icons.CheckCircle /> MP 總覽
             {pendingTodos > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: B_PINK, color: '#fff', fontSize: '9px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: `1px solid ${dark ? '#2a2a2a' : '#fff'}` }}>{pendingTodos > 99 ? '99' : pendingTodos}</span>}
+          </button>
+
+          <button className="b-header-btn b-action-btn" onClick={() => setShowStrategistPanel(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+            <Icons.Zap /> AI 策略
+          </button>
+
+          <button className="b-header-btn b-action-btn" onClick={() => versionProjectId && setShowVersionHistory(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', opacity: versionProjectId ? 1 : 0.45, cursor: versionProjectId ? 'pointer' : 'not-allowed' }} onMouseEnter={e => { if (!versionProjectId) return; e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
+            <Icons.Calendar /> 版本歷史
           </button>
 
           <button className="b-header-btn b-action-btn" onClick={() => setEditMode(!editMode)} style={{ padding: '6px 12px', background: editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'), color: editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }} onMouseEnter={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'); e.currentTarget.style.color = editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }}>
@@ -937,6 +1009,28 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
       {showTodoPanel && draft && (
         <TodoManagerPanel project={draft} onClose={() => setShowTodoPanel(false)} onToggleTodo={toggleTodoById} onUpdateTodo={updateTodoById} members={members} darkMode={darkMode} originRect={todoPanelOrigin} />
+      )}
+
+      {showStrategistPanel && strategistProject && (
+        <AIStrategistPanel
+          project={strategistProject}
+          dark={darkMode}
+          onClose={() => setShowStrategistPanel(false)}
+          apiEndpoint="/api/ai/strategist"
+        />
+      )}
+
+      {showVersionHistory && draft && versionSnapshot && versionProjectId && (
+        <VersionHistoryPanel
+          project={{ id: versionProjectId, name: draft.title || '未命名專案' }}
+          currentData={versionSnapshot}
+          dark={darkMode}
+          onRestore={handleRestoreVersion}
+          onClose={() => setShowVersionHistory(false)}
+          apiGetVersions={(id) => api.getVersionHistory(id)}
+          apiSaveVersion={(id, snapshot, message) => api.saveVersion(id, snapshot, message)}
+          apiRestoreVersion={(id, versionId) => api.restoreVersion(id, versionId)}
+        />
       )}
 
       {/* AI Loading & Dialog */}

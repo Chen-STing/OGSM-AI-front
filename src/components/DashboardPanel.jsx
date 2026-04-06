@@ -10,6 +10,7 @@ import {
   WorkloadBalanceChart, AssigneeBarChart, RadarSection, ChartsSection,
   SORT_OPTIONS, CHART_VIEW_OPTIONS,
 } from './DashboardCharts.jsx';
+import CrossProjectDashboard from './CrossProjectDashboard .jsx';
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const B_YELLOW = '#c8b800';
@@ -661,7 +662,7 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function DashboardPanel({ projects = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering }) {
+export default function DashboardPanel({ projects = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering, onSelectProject }) {
   const [bgConfig] = useState(loadSavedBgConfig);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectedAssignees, setSelectedAssignees] = useState(new Set());
@@ -669,6 +670,7 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
   const [sortDir, setSortDir] = useState('desc');
   const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'charts'
   const [chartView, setChartView] = useState('rate_count');
+  const [showCrossDashboard, setShowCrossDashboard] = useState(false);
 
   const T = dark ? DARK : LIGHT;
   const sh = dark ? 'rgba(255,255,255,0.2)' : '#000';
@@ -741,6 +743,31 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
       return 0;
     });
   }, [rawData, sortKey, sortDir, selectedAssignees]);
+
+  const crossProjects = useMemo(() => {
+    return (projects || []).map(p => {
+      const goals = Array.isArray(p.goals) ? p.goals : [];
+      const strategies = Array.isArray(p.strategies)
+        ? p.strategies
+        : goals.flatMap(g => (Array.isArray(g?.strategies) ? g.strategies : []));
+      const measures = Array.isArray(p.measures)
+        ? p.measures
+        : strategies.flatMap(s => (Array.isArray(s?.measures) ? s.measures : []));
+      const todos = Array.isArray(p.todos)
+        ? p.todos
+        : measures.flatMap(m => (Array.isArray(m?.todos) ? m.todos : []));
+
+      return {
+        ...p,
+        name: p.name || p.title || '未命名專案',
+        goals,
+        strategies,
+        measures,
+        todos,
+        members: Array.isArray(p.members) ? p.members : (Array.isArray(p.assignees) ? p.assignees : []),
+      };
+    });
+  }, [projects]);
 
   const logoRef = useRef(null);
 
@@ -922,6 +949,40 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
               <path d="M18 15l-6-6-6 6"/>
             </svg>
             {headerCollapsed ? '展開' : '收起'}
+          </button>
+
+          <button
+            className={`db-toggle-btn ${!exitingTo ? "db-anim" : ""}`}
+            onClick={() => setShowCrossDashboard(true)}
+            title="跨專案總覽"
+            style={{
+              flexShrink: 0,
+              background: 'transparent',
+              border: `2px solid ${B_PINK}`,
+              color: B_PINK,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '5px 12px',
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: 900,
+              fontSize: '10px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              opacity: exitingTo ? 0 : 1,
+              transition: 'opacity 0.1s'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = B_PINK;
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = B_PINK;
+            }}
+          >
+            跨專案
           </button>
 
           <div className={!exitingTo ? "db-anim" : ""} style={{ width: '1px', height: '20px', background: T.border, opacity: exitingTo ? 0 : 0.3, flexShrink: 0 }} />
@@ -1239,6 +1300,18 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
             </div>
           </button>
         </div>
+      )}
+
+      {showCrossDashboard && (
+        <CrossProjectDashboard
+          projects={crossProjects}
+          dark={dark}
+          onClose={() => setShowCrossDashboard(false)}
+          onSelectProject={(project) => {
+            setShowCrossDashboard(false);
+            onSelectProject?.(project);
+          }}
+        />
       )}
     </div>
   );

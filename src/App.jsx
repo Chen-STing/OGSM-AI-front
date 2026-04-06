@@ -760,6 +760,7 @@ export default function App() {
               dark={dark}
               entering={isEnteringDashboard}
               exitingTo={isExitingDashboardToProjects ? 'projects' : isExitingDashboardToHome ? 'home' : null}
+              onSelectProject={(p) => selectProject(p.id)}
               onBack={() => {
                 if (transition !== 'idle') return;
                 setTransition('exiting-dashboard-to-projects');
@@ -834,6 +835,8 @@ export default function App() {
           />
         )}
       </div>
+
+      
 
       <KonamiCode
         dark={dark}
