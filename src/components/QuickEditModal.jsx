@@ -214,7 +214,7 @@ function MpList({ todos, mpLabel, members, dark, onChange, maxDate = '' }) {
 
   const update  = (ti,f,v) => onChange(todos.map((t,i)=>i===ti?{...t,[f]:v}:t))
   const remove  = ti        => onChange(todos.filter((_,i)=>i!==ti))
-  const addTodo = ()        => onChange([...todos,{id:uid(),text:'',done:false,assignees:[],deadline:'',createdAt:new Date().toISOString()}])
+  const addTodo = ()        => onChange([...todos,{id:uid(),text:'',done:false,assignees:[],startDate:'',deadline:'',createdAt:new Date().toISOString()}])
 
   const onDragStart = (e,ti) => { if(dragReadyRef.current!==ti){e.preventDefault();return} setDragIdx(ti); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',String(ti)) }
   const onDragOver  = (e,ti) => { e.preventDefault(); e.stopPropagation(); if(ti!==overIdx) setOverIdx(ti) }
@@ -275,11 +275,25 @@ function MpList({ todos, mpLabel, members, dark, onChange, maxDate = '' }) {
                 options={members.map(mb=>({value:mb,label:mb}))}
                 placeholder="負責人" darkMode={dark}
                 overdue={overdue}
-                style={{ width:'120px', fontSize:'11px', fontWeight:700, minHeight:'22px' }} />
-              <input type="date"
-                className={overdue ? 'qe-date-overdue' : ''}
-                style={{ ...inputSm, width:'110px', fontFamily:'monospace', fontSize:'11px', color:overdue?overdueRed:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), colorScheme:dark?'dark':'light', ...(overdue?{border:`1px solid ${overdueRed}`}:{}) }}
-                value={t.deadline||''} max={maxDate||undefined} onChange={e=>update(ti,'deadline',e.target.value)} />
+                showSelectedCount
+                selectedCountUnit="位"
+                style={{ width:'100px', fontSize:'11px', fontWeight:700, minHeight:'22px' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:'2px', width:'170px', height:'22px', border:`1px solid ${overdue?overdueRed:T.border}`, background:T.inputBg, padding:'0 4px', boxSizing:'border-box' }}>
+                <input type="date"
+                  className={overdue ? 'qe-date-overdue' : 'qe-date'}
+                  style={{ background:'none', border:'none', width:'76px', fontFamily:'monospace', fontSize:'10px', color:overdue?overdueRed:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), outline:'none', colorScheme:dark?'dark':'light' }}
+                  value={t.startDate||''} max={t.deadline||maxDate||undefined}
+                  onChange={e=>{
+                    const nextStartDate = e.target.value
+                    if (t.deadline && nextStartDate && nextStartDate > t.deadline) return
+                    update(ti,'startDate',nextStartDate)
+                  }} />
+                <span style={{ fontSize:'9px', color:T.textMuted, userSelect:'none' }}>→</span>
+                <input type="date"
+                  className={overdue ? 'qe-date-overdue' : ''}
+                  style={{ background:'none', border:'none', width:'76px', fontFamily:'monospace', fontSize:'10px', color:overdue?overdueRed:(dark?'rgba(255,255,255,0.6)':'rgba(0,0,0,0.6)'), outline:'none', colorScheme:dark?'dark':'light' }}
+                  value={t.deadline||''} min={t.startDate||undefined} max={maxDate||undefined} onChange={e=>update(ti,'deadline',e.target.value)} />
+              </div>
               <button onClick={()=>remove(ti)}
                 style={{ background:'transparent', border:`2px solid ${B_RED}`, color:B_RED, cursor:'pointer', padding:0, width:'22px', height:'22px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:'14px', lineHeight:1, fontWeight:900, transition:'all 0.15s' }}
                 onMouseEnter={e=>{e.currentTarget.style.background=B_RED;e.currentTarget.style.color='#000';e.currentTarget.style.transform='translate(-1px,-1px)';e.currentTarget.style.boxShadow='2px 2px 0 #000'}}
@@ -358,7 +372,7 @@ function MeasureCard({ m, mdLabel, members, dark, onField, onTodosChange, indent
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', ...rg }}>
         <div>
           <span style={lbl}>負責人</span>
-          <BrutalistSelect multiple value={parseAssignees(m.assignees, m.assignee)} onChange={v=>onField('assignees',v)} options={members.map(mb=>({value:mb,label:mb}))} placeholder="負責人" darkMode={dark} style={{ fontSize:'12px', fontWeight:700, minHeight:'34px' }} />
+          <BrutalistSelect multiple value={parseAssignees(m.assignees, m.assignee)} onChange={v=>onField('assignees',v)} options={members.map(mb=>({value:mb,label:mb}))} placeholder="負責人" darkMode={dark} showSelectedCount selectedCountUnit="位" style={{ width:'220px', fontSize:'12px', fontWeight:700, minHeight:'34px' }} />
         </div>
         <div>
           <span style={lbl}>期限</span>
@@ -459,7 +473,7 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
   const reorderGoalMeasures = (si,f,t) => setLocal(l=>({...l,strategies:l.strategies.map((s,i)=>i!==si?s:{...s,measures:reorder(s.measures,f,t)})}))
 
   // ── AI ────────────────────────────────────────────────────────────────────
-  const makeTodos   = arr => (arr||[]).map(t=>({id:crypto.randomUUID(),text:typeof t==='string'?t:(t.text||''),done:false,assignees:[],deadline:typeof t==='object'?(t.deadline||''):'',createdAt:new Date().toISOString()}))
+  const makeTodos   = arr => (arr||[]).map(t=>({id:crypto.randomUUID(),text:typeof t==='string'?t:(t.text||''),done:false,assignees:[],startDate:typeof t==='object'?(t.startDate||''):'',deadline:typeof t==='object'?(t.deadline||''):'',createdAt:new Date().toISOString()}))
   const makeMeasure = (m,idx) => ({id:null,kpi:m.kpi||'',target:m.target||'',deadline:clampDateToMax(m.deadline||'', planDeadline),assignees:[],actual:'',progress:0,status:'NotStarted',sortOrder:idx,todos:makeTodos(m.todos)})
 
   const handleAiConfirm = async (text) => {

@@ -130,6 +130,11 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
   const dark = darkMode
   const CY = dark ? B_YELLOW : B_YELLOW_LIGHT   // 動態黃
   const CG = dark ? B_GREEN  : B_GREEN_LIGHT    // 動態綠
+  const ganttBtnBaseBg = dark ? 'rgba(78,100,200,0.24)' : 'rgba(47,72,255,0.1)'
+  const ganttBtnBaseText = dark ? '#c8d4ff' : '#1f32c2'
+  const ganttBtnBaseBorder = dark ? '#6f83d6' : '#3d54d6'
+  const ganttBtnHoverBg = dark ? '#4b63de' : '#3954f7'
+  const ganttBtnHoverBorder = dark ? '#c0cbff' : '#243cd8'
 
   const PANEL_W = 800
   const vw = window.innerWidth
@@ -186,7 +191,50 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
             <div style={{ fontSize: '12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, color: CY, letterSpacing: '0.12em', marginBottom: '3px', textTransform: 'uppercase' }}>☑ MP 檢核步驟管理</div>
             <div style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, fontSize: '17px', color: dark ? '#fff' : '#000', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>{project.title}</div>
           </div>
-          <button style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', fontSize: '18px', padding: '4px', lineHeight: 1, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = B_PINK} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} onClick={onClose}>✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              style={{
+                padding: '5px 10px',
+                border: `2px solid ${showGantt ? '#000' : ganttBtnBaseBorder}`,
+                background: showGantt
+                  ? (dark ? 'linear-gradient(135deg,#3f57ff,#1f32c2)' : 'linear-gradient(135deg,#4f66ff,#2a47f0)')
+                  : ganttBtnBaseBg,
+                color: showGantt ? '#fff' : ganttBtnBaseText,
+                fontSize: '10px',
+                fontFamily: '"Space Grotesk", sans-serif',
+                fontWeight: 900,
+                cursor: 'pointer',
+                transition: 'all 0.12s',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                boxShadow: showGantt
+                  ? '2px 2px 0 #000'
+                  : (dark ? '1px 1px 0 rgba(120,145,255,0.35)' : '1px 1px 0 rgba(31,50,194,0.35)'),
+              }}
+              onClick={() => setShowGantt(true)}
+              onMouseEnter={e => {
+                if (!showGantt) {
+                  e.currentTarget.style.background = ganttBtnHoverBg
+                  e.currentTarget.style.color = '#fff'
+                  e.currentTarget.style.borderColor = ganttBtnHoverBorder
+                  e.currentTarget.style.transform = 'translate(-1px,-1px)'
+                  e.currentTarget.style.boxShadow = '3px 3px 0 #000'
+                }
+              }}
+              onMouseLeave={e => {
+                if (!showGantt) {
+                  e.currentTarget.style.background = ganttBtnBaseBg
+                  e.currentTarget.style.color = ganttBtnBaseText
+                  e.currentTarget.style.borderColor = ganttBtnBaseBorder
+                  e.currentTarget.style.transform = 'translate(0,0)'
+                  e.currentTarget.style.boxShadow = dark ? '1px 1px 0 rgba(120,145,255,0.35)' : '1px 1px 0 rgba(31,50,194,0.35)'
+                }
+              }}
+            >
+              甘特圖
+            </button>
+            <button style={{ background: 'none', border: 'none', color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', cursor: 'pointer', fontSize: '18px', padding: '4px', lineHeight: 1, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = B_PINK} onMouseLeave={e => e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} onClick={onClose}>✕</button>
+          </div>
         </div>
 
         {/* ── Stats ── */}
@@ -303,37 +351,6 @@ export default function TodoManagerPanel({ project, onClose, onToggleTodo, onUpd
                   </button>
                 )
               })()}
-              <button
-                style={{
-                  padding: '3px 8px',
-                  border: `2px solid ${B_BLUE}`,
-                  background: showGantt ? B_BLUE : 'transparent',
-                  color: showGantt ? '#fff' : (dark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)'),
-                  fontSize: '9px',
-                  fontFamily: '"Space Grotesk", sans-serif',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  transition: 'all 0.12s',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  boxShadow: showGantt ? '2px 2px 0 #000' : 'none',
-                }}
-                onClick={() => setShowGantt(true)}
-                onMouseEnter={e => {
-                  if (!showGantt) {
-                    e.currentTarget.style.background = B_BLUE
-                    e.currentTarget.style.color = '#fff'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!showGantt) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = dark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)'
-                  }
-                }}
-              >
-                甘特圖
-              </button>
             </div>
           </div>
         </div>
@@ -449,20 +466,38 @@ function TodoItem({ todo, confirming, onRequestConfirm, onConfirm, onCancel, onU
                 options={(members || []).map(mb => ({ value: mb, label: mb }))}
                 darkMode={darkMode}
                 overdue={todo.todoOverdue}
-                style={{ width: '180px', fontSize: '9px', fontWeight: 700, minHeight: '26px', boxSizing: 'border-box' }}
+                showSelectedCount
+                selectedCountUnit="位"
+                style={{ width: '126px', fontSize: '9px', fontWeight: 700, minHeight: '26px', boxSizing: 'border-box' }}
               />
-              <input
-                type="date"
-                className={`tmp-date${todo.todoOverdue ? ' tmp-date-overdue' : ''}`}
-                style={{ width: '108px', height: '26px', boxSizing: 'border-box', background: dark ? '#2b2b2b' : '#f0f0f0', border: `2px solid ${todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)')}`, color: todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.7)' : '#000'), fontSize: '9px', fontFamily: 'monospace', padding: '0 4px', outline: 'none', colorScheme: dark ? 'dark' : 'light', fontWeight: 700 }}
-                value={todo.deadline || ''}
-                max={todo.measureDeadline || undefined}
-                onChange={e => {
-                  const nextDeadline = e.target.value
-                  if (todo.measureDeadline && nextDeadline && nextDeadline > todo.measureDeadline) return
-                  onUpdate && onUpdate('deadline', nextDeadline)
-                }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '176px', height: '26px', boxSizing: 'border-box', background: dark ? '#2b2b2b' : '#f0f0f0', border: `2px solid ${todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)')}`, padding: '0 4px' }}>
+                <input
+                  type="date"
+                  className={`tmp-date${todo.todoOverdue ? ' tmp-date-overdue' : ''}`}
+                  style={{ width: '80px', background: 'none', border: 'none', color: todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.7)' : '#000'), fontSize: '9px', fontFamily: 'monospace', padding: 0, outline: 'none', colorScheme: dark ? 'dark' : 'light', fontWeight: 700 }}
+                  value={todo.startDate || ''}
+                  max={todo.deadline || todo.measureDeadline || undefined}
+                  onChange={e => {
+                    const nextStartDate = e.target.value
+                    if (todo.deadline && nextStartDate && nextStartDate > todo.deadline) return
+                    onUpdate && onUpdate('startDate', nextStartDate)
+                  }}
+                />
+                <span style={{ fontSize: '9px', color: dark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', userSelect: 'none' }}>→</span>
+                <input
+                  type="date"
+                  className={`tmp-date${todo.todoOverdue ? ' tmp-date-overdue' : ''}`}
+                  style={{ width: '80px', background: 'none', border: 'none', color: todo.todoOverdue ? '#cc0000' : (dark ? 'rgba(255,255,255,0.7)' : '#000'), fontSize: '9px', fontFamily: 'monospace', padding: 0, outline: 'none', colorScheme: dark ? 'dark' : 'light', fontWeight: 700 }}
+                  value={todo.deadline || ''}
+                  min={todo.startDate || undefined}
+                  max={todo.measureDeadline || undefined}
+                  onChange={e => {
+                    const nextDeadline = e.target.value
+                    if (todo.measureDeadline && nextDeadline && nextDeadline > todo.measureDeadline) return
+                    onUpdate && onUpdate('deadline', nextDeadline)
+                  }}
+                />
+              </div>
             </div>
           </div>
           {/* Breadcrumb */}

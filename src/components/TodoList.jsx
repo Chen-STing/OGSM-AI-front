@@ -5,6 +5,10 @@ const TODOLIST_CSS = `
   .tl-date::-webkit-calendar-picker-indicator {
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
   }
+  .tl-date-overdue::-webkit-calendar-picker-indicator {
+    filter: brightness(0) saturate(100%) invert(12%) sepia(90%) saturate(6000%) hue-rotate(0deg) brightness(85%) !important;
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M14 6 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23000000" /><path d="M10 2 v10 h8 v12 h-16 v-16 h4 v-6 z" fill="%23FF00FF" stroke="%23FFFFFF" stroke-width="2.5" stroke-linejoin="miter" /></svg>') 10 2, pointer !important;
+  }
 `
 
 export default function TodoList({ todos = [], onChange, editMode, members = [], darkMode = true, noHeader = false }) {
@@ -19,6 +23,7 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
       text,
       done: false,
       assignees: [],
+      startDate: '',
       deadline: '',
       createdAt: new Date().toISOString()
     }])
@@ -89,17 +94,30 @@ export default function TodoList({ todos = [], onChange, editMode, members = [],
                 />
 
                 {editMode ? (
-                  <input
-                    type="date"
-                    className="tl-date"
-                    style={{ ...s.todoDeadlineInput, ...(isOverdue ? s.todoDeadlineOverdue : {}) }}
-                    value={t.deadline || ''}
-                    onChange={e => updateTodoField(t.id, 'deadline', e.target.value)}
-                    title="截止日期"
-                  />
-                ) : t.deadline ? (
+                  <div style={{ ...s.todoDateRange, ...(isOverdue ? s.todoDateRangeOverdue : {}) }}>
+                    <input
+                      type="date"
+                      className={isOverdue ? 'tl-date-overdue' : 'tl-date'}
+                      style={{ ...s.todoRangeInput, ...(isOverdue ? s.todoRangeInputOverdue : {}) }}
+                      value={t.startDate || ''}
+                      max={t.deadline || undefined}
+                      onChange={e => updateTodoField(t.id, 'startDate', e.target.value)}
+                      title="開始日期"
+                    />
+                    <span style={s.todoRangeArrow}>→</span>
+                    <input
+                      type="date"
+                      className={isOverdue ? 'tl-date-overdue' : 'tl-date'}
+                      style={{ ...s.todoRangeInput, ...(isOverdue ? s.todoRangeInputOverdue : {}) }}
+                      value={t.deadline || ''}
+                      min={t.startDate || undefined}
+                      onChange={e => updateTodoField(t.id, 'deadline', e.target.value)}
+                      title="截止日期"
+                    />
+                  </div>
+                ) : (t.startDate || t.deadline) ? (
                   <span style={{ ...s.deadlineBadge, ...(isOverdue ? s.deadlineBadgeOverdue : {}) }}>
-                    📅 {t.deadline}
+                    {t.startDate || '—'} → {t.deadline || '—'}
                   </span>
                 ) : null}
 
@@ -270,6 +288,41 @@ function buildStyles(dark) {
       outline: 'none',
       colorScheme: dark ? 'dark' : 'light',
       width: '106px',
+    },
+    todoDateRange: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '2px',
+      background: T.metaInputBg,
+      border: `1px solid ${T.metaInputBorder}`,
+      borderRadius: '3px',
+      padding: '0 3px',
+      height: '22px',
+      boxSizing: 'border-box',
+    },
+    todoDateRangeOverdue: {
+      borderColor: 'rgba(239,68,68,0.4)',
+    },
+    todoRangeInput: {
+      width: '74px',
+      background: 'none',
+      border: 'none',
+      color: T.metaInputColor,
+      fontSize: '10px',
+      fontFamily: '"DM Mono", monospace',
+      outline: 'none',
+      colorScheme: dark ? 'dark' : 'light',
+      padding: 0,
+      height: '18px',
+    },
+    todoRangeInputOverdue: {
+      color: '#ef4444',
+    },
+    todoRangeArrow: {
+      fontSize: '9px',
+      color: dark ? '#8ea0b8' : '#7a8aa2',
+      userSelect: 'none',
+      lineHeight: 1,
     },
     todoDeadlineOverdue: {
       color: '#ef4444',
