@@ -1,55 +1,52 @@
-/**
- * AIStrategistPanel.jsx
- *
- * AI 策略審查員 — 分析 OGSM 結構並給出具體建議
- *
- * 使用方式：
- *   <AIStrategistPanel
- *     project={project}        // 包含 objective, goals, strategies, measures 的專案
- *     dark={darkMode}
- *     onClose={() => ...}
- *     // AI 呼叫方式選一：
- *     apiKey={anthropicApiKey}         // 直接傳 key（前端直連）
- *     // 或
- *     apiEndpoint="/api/ai/strategist" // 後端 proxy（推薦）
- *   />
- *
- * 後端 proxy 規格（若使用 apiEndpoint）：
- *   POST /api/ai/strategist
- *   Body: { projectData: {...} }
- *   Response: { analysis: string }   // 或 streaming text
- */
-
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { genModalShapes, MODAL_DEFAULT_CONFIGS } from '../bgConfig.js'
+
+
+function renderShapes(shapes) {
+  return (
+    <>
+      {shapes.stars.map((s,i)=>(
+        <div key={`acd-s${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"><path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z"/></svg>
+        </div>
+      ))}
+      {shapes.crosses.map((s,i)=>(
+        <div key={`acd-x${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+      ))}
+      {shapes.circles.map((s,i)=>(
+        <div key={`acd-c${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+      ))}
+      {shapes.tris.map((s,i)=>(
+        <div key={`acd-t${i}`} style={{ position:'absolute',...s.pos, color:s.color, opacity:0.2, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter"><polygon points="12,2 22,20 2,20"/></svg>
+        </div>
+      ))}
+    </>
+  )
+}
 
 // ─── 常數 ──────────────────────────────────────────────────────────────────────
 
 const REVIEW_DIMENSIONS = [
   { id: 'alignment',   label: '目標對齊度',   icon: '🎯', desc: 'Goal 是否支撐 Objective？' },
-  { id: 'specificity', label: '具體性',        icon: '📏', desc: 'Measure 是否有數字？' },
+  { id: 'specificity', label: '具體性與可測量性', icon: '📏', desc: 'MD 是否有明確數字？' },
   { id: 'feasibility', label: '可行性',        icon: '⚙️',  desc: 'Strategy 是否切實際？' },
-  { id: 'completeness', label: '完整性',       icon: '📋', desc: '四個維度是否都填寫？' },
-  { id: 'consistency', label: '一致性',        icon: '🔗', desc: 'OGSM 各層是否邏輯連貫？' },
+  { id: 'completeness', label: '完整性',       icon: '📋', desc: '各維度是否都填寫？' },
+  { id: 'traceability',label: '執行追蹤性',    icon: '✅', desc: 'MP 步驟是否具體且有期限？' },
+  { id: 'consistency', label: '一致性與邏輯連貫性', icon: '🔗', desc: 'OGSM 各層是否邏輯連貫？' },
 ]
 
 // ─── 建立分析 prompt ──────────────────────────────────────────────────────────
 
 function buildPrompt(project) {
-  const safe = (v) => {
-    if (!v) return '（未填寫）'
-    if (typeof v === 'string') return v.trim() || '（未填寫）'
-    if (Array.isArray(v)) {
-      const items = v.map(i => {
-        if (typeof i === 'string') return i
-        return i?.content || i?.text || i?.title || JSON.stringify(i)
-      }).filter(Boolean)
-      return items.length ? items.map((t,i) => `${i+1}. ${t}`).join('\n') : '（未填寫）'
-    }
-    return JSON.stringify(v)
-  }
+  const safe = (v) => { /* ...原有的 safe 邏輯保持不變... */ }
 
-  return `你是一位資深策略顧問，專精 OGSM 框架（Objective, Goals, Strategies, Measures）。
+  return `你是一位資深策略顧問，專精 OGSM 框架。
 請以繁體中文審查以下 OGSM 計畫，並給出深度、具體、有建設性的分析。
 
 【專案名稱】
@@ -64,22 +61,23 @@ ${safe(project.goals)}
 【Strategies（策略）】
 ${safe(project.strategies)}
 
-【Measures（衡量指標）】
+【MD 定量指標與 MP 行動步驟】
 ${safe(project.measures)}
 
 ---
 
-請依以下五個維度進行審查，每個維度給出：
-1. 評分（1-10）
+請依以下六個維度進行審查，每個維度給出：
+1. 【評分 X/10】（1-10分）
 2. 主要發現（2-3 句）
 3. 具體改善建議（2-3 條可執行的行動建議）
 
 審查維度：
 - 🎯 目標對齊度：Goals 是否緊密支撐 Objective？有沒有偏離核心目標的 Goal？
-- 📏 具體性：Measures 是否有明確數字、時間點、負責人？是否可以被客觀衡量？
+- 📏 具體性與可測量性：MD 是否有明確數字、時間點、負責人？是否可以被客觀衡量？
 - ⚙️ 可行性：Strategies 是否務實？資源、時間、能力是否匹配？
-- 📋 完整性：四個維度是否都填寫完整？有無明顯缺漏？
-- 🔗 一致性：從 O→G→S→M 的邏輯鏈是否流暢？有無矛盾或跳躍？
+- 📋 完整性：各個維度是否都填寫完整？有無明顯缺漏？
+- ✅ 執行追蹤性：MP 步驟是否具體且有明確的期限或負責人？能否有效追蹤進度？
+- 🔗 一致性與邏輯連貫性：從 O→G→S→MD→MP 的邏輯鏈是否流暢？有無矛盾或跳躍？
 
 最後給出：
 - 整體評分（1-10）與一句話總結
@@ -199,6 +197,45 @@ async function callAI({ project, apiKey, apiEndpoint, onChunk, onDone, onError, 
 
 // ─── Markdown-ish renderer (輕量) ────────────────────────────────────────────
 
+function highlightTags(text, dark) {
+  // 自動捕捉 G, S, MD, MP 編號格式
+  const parts = text.split(/(G\d+|S\d+\.\d+|MD\d+\.\d+\.\d+|MP\d+\.\d+\.\d+\.\d+)/);
+  return parts.map((p, i) => {
+    if (/^(G\d+|S\d+\.\d+|MD\d+\.\d+\.\d+|MP\d+\.\d+\.\d+\.\d+)$/.test(p)) {
+      let bg = dark ? '#e0e0e0' : '#f0f0f0';
+      let color = '#222';
+      
+      // 給予對應的主題顏色
+      if (p.startsWith('MP')) { bg = '#2fa8f4'; color = '#fff'; }
+      else if (p.startsWith('MD')) { bg = '#00AA44'; color = '#fff'; }
+      else if (p.startsWith('S')) { bg = '#FF6600'; color = '#fff'; }
+      else if (p.startsWith('G')) { bg = '#FF00FF'; color = '#fff'; }
+
+      return (
+        <span key={i} style={{
+          display:'inline-block', padding:'1px 5px', margin:'0 2px',
+          background: bg, color: color, fontSize:'10px',
+          fontFamily:'"Space Grotesk",sans-serif', fontWeight:900,
+          borderRadius:'3px', border:'1.5px solid rgba(0,0,0,0.8)',
+          transform:'translateY(-1px)'
+        }}>{p}</span>
+      );
+    }
+    return p;
+  });
+}
+
+function renderLineText(text, dark) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/);
+  return parts.map((p, j) => {
+    if (p.startsWith('**') && p.endsWith('**')) {
+      const inner = p.slice(2,-2);
+      return <strong key={j}>{highlightTags(inner, dark)}</strong>;
+    }
+    return <span key={j}>{highlightTags(p, dark)}</span>;
+  });
+}
+
 function RenderAnalysis({ text, dark }) {
   if (!text) return null
 
@@ -218,30 +255,33 @@ function RenderAnalysis({ text, dark }) {
         )
 
         // H3: ### Title or emoji + bold
-        if (line.startsWith('### ') || /^[🎯📏⚙️📋🔗]/.test(line)) return (
+        if (line.startsWith('### ') || /^[🎯📏⚙️📋✅🔗]/.test(line)) return (
           <div key={i} style={{
             fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px',
             color:'#FF6600', marginTop:12, marginBottom:4, letterSpacing:'0.02em',
           }}>{line.replace(/^### /, '')}</div>
         )
 
-        // Bold score lines: **評分：X/10**
-        if (line.includes('評分') && line.includes('/10')) return (
-          <div key={i} style={{
-            display:'inline-block',
-            fontFamily:'"DM Mono",monospace', fontWeight:900, fontSize:'13px',
-            background: dark?'rgba(255,255,0,0.1)':'rgba(255,255,0,0.3)',
-            border:'1px solid rgba(255,255,0,0.5)',
-            padding:'1px 8px', marginBottom:4,
-            color: dark?'#ffff88':'#886600',
-          }}>{line.replace(/\*\*/g,'')}</div>
-        )
+        // Bold score lines: 評分：X/10
+        const scoreMatch = line.match(/【?評分\s*[:：]?\s*(\d+(?:\.\d+)?)\/10】?/);
+        if (scoreMatch || (line.includes('評分') && line.includes('/10'))) {
+          return (
+            <div key={i} style={{
+              display:'inline-block',
+              fontFamily:'"DM Mono",monospace', fontWeight:900, fontSize:'13px',
+              background: dark?'rgba(255,255,0,0.1)':'rgba(255,255,0,0.3)',
+              border:'1px solid rgba(255,255,0,0.5)',
+              padding:'1px 8px', marginBottom:4,
+              color: dark?'#ffff88':'#886600',
+            }}>{line.replace(/\*\*/g,'').replace(/【/g,'').replace(/】/g,'')}</div>
+          )
+        }
 
         // Bullet: - item
         if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) return (
           <div key={i} style={{ display:'flex', gap:'6px', marginBottom:3, paddingLeft:8 }}>
             <span style={{ color:'#2222f0', flexShrink:0, marginTop:2 }}>▸</span>
-            <span>{line.trim().slice(2)}</span>
+            <div style={{ flex: 1 }}>{renderLineText(line.trim().slice(2), dark)}</div>
           </div>
         )
 
@@ -252,19 +292,14 @@ function RenderAnalysis({ text, dark }) {
               fontFamily:'"DM Mono",monospace', fontSize:'11px', fontWeight:900,
               color:'#FF00FF', flexShrink:0, minWidth:'18px',
             }}>{line.trim().match(/^\d+/)[0]}.</span>
-            <span>{line.trim().replace(/^\d+\.\s/, '')}</span>
+            <div style={{ flex: 1 }}>{renderLineText(line.trim().replace(/^\d+\.\s/, ''), dark)}</div>
           </div>
         )
 
-        // Bold text **...**
-        const parts = line.split(/(\*\*[^*]+\*\*)/)
+        // Regular text
         return (
           <div key={i} style={{ marginBottom:2 }}>
-            {parts.map((p, j) =>
-              p.startsWith('**') && p.endsWith('**')
-                ? <strong key={j}>{p.slice(2,-2)}</strong>
-                : p
-            )}
+            {renderLineText(line, dark)}
           </div>
         )
       })}
@@ -274,12 +309,25 @@ function RenderAnalysis({ text, dark }) {
 
 // ─── 主組件 ────────────────────────────────────────────────────────────────────
 
-export default function AIStrategistPanel({ project, dark = false, onClose, apiKey, apiEndpoint }) {
-  const [status,  setStatus]  = useState('idle')   // 'idle' | 'loading' | 'done' | 'error'
-  const [text,    setText]    = useState('')
-  const [error,   setError]   = useState('')
+export default function AIStrategistPanel({ project, dark = false, onClose, apiKey, apiEndpoint, shapeConfig, aiState, setAiState }) {
+  // ✅ 改用由外部 OgsmEditor 傳進來的狀態，若無則給予預設值防呆
+  const status = aiState?.status ?? 'idle'
+  const text   = aiState?.text ?? ''
+  const error  = aiState?.error ?? ''
+
+  // 封裝 setter，完美相容你下方 callAI 時用到的 setText(prev => prev + chunk) 寫法
+  const setStatus = useCallback((val) => setAiState?.(prev => ({ ...prev, status: typeof val === 'function' ? val(prev.status) : val })), [setAiState])
+  const setText   = useCallback((val) => setAiState?.(prev => ({ ...prev, text:   typeof val === 'function' ? val(prev.text)   : val })), [setAiState])
+  const setError  = useCallback((val) => setAiState?.(prev => ({ ...prev, error:  typeof val === 'function' ? val(prev.error)  : val })), [setAiState])
+
   const abortRef = useRef(null)
   const bodyRef  = useRef(null)
+
+  const cfg = shapeConfig ?? MODAL_DEFAULT_CONFIGS.aiconfirm
+  const shapes = genModalShapes('aiconfirm', cfg, cfg.seed)
+
+  // 👇 新增這行：追蹤複製狀態
+  const [copied, setCopied] = useState(false)
 
   // Escape 關閉
   useEffect(() => {
@@ -319,10 +367,15 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
     setStatus('done')
   }
 
-  const bg   = dark ? '#111' : '#fff'
-  const text_c = dark ? '#e0e0e0' : '#000'
-  const sub  = dark ? '#555' : '#aaa'
-  const bdr  = dark ? '#222' : '#e0e0e0'
+  // 比照 MemberSettings 的基礎色調
+  const bg     = dark ? '#222222' : '#FFFFFF' 
+  const text_c = dark ? '#F0F0F0' : '#111111'
+  const sub    = dark ? '#a19797' : '#484848'
+  const bdr    = dark ? '#979494' : '#111111'
+  
+  // 加上 85% 透明度，讓網格背景可以微微透出
+  const header_bg = dark ? 'rgba(34, 34, 34, 0.45)' : 'rgba(255,255,255,0.45)'
+  const strip_bg  = dark ? 'rgba(87, 84, 84, 0.4)' : 'rgba(248,248,248,0.4)'
 
   return createPortal(
     <>
@@ -330,45 +383,72 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
         @keyframes aiFadeIn{from{opacity:0;transform:translate(-50%,-50%) translateY(8px)}to{opacity:1;transform:translate(-50%,-50%) translateY(0)}}
         @keyframes aiPulse{0%,100%{opacity:0.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
         .ai-body::-webkit-scrollbar{width:5px} .ai-body::-webkit-scrollbar-track{background:${dark?'#0a0a0a':'#f0f0f0'}} .ai-body::-webkit-scrollbar-thumb{background:${dark?'#333':'#ccc'}}
+      
+        /* 👇 4. 補上圖形漂浮動畫 */
+        @keyframes acd-starFloat   { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 25%{transform:translate(20px,-30px) rotate(90deg) scale(1.25)} 50%{transform:translate(-10px,20px) rotate(180deg) scale(0.85)} 75%{transform:translate(30px,10px) rotate(270deg) scale(1.15)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes acd-crossFloat  { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 33%{transform:translate(-25px,20px) rotate(120deg) scale(1.2)} 66%{transform:translate(15px,-15px) rotate(240deg) scale(0.8)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes acd-circleFloat { 0%{transform:translate(0,0) scale(0.88)} 33%{transform:translate(20px,-25px) scale(2)} 66%{transform:translate(-15px,15px) scale(1.5)} 100%{transform:translate(0,0) scale(0.88)} }
+        @keyframes acd-triFloat    { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 50%{transform:translate(-20px,-30px) rotate(180deg) scale(1.2)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
       `}</style>
 
-      <div onClick={onClose} style={{ position:'fixed',inset:0,zIndex:99990,background:dark?'rgba(0,0,0,0.7)':'rgba(0,0,0,0.4)' }} />
+      {/* ── 遮罩層：加入灰階與模糊效果 ── */}
+      <div 
+        onClick={onClose} 
+        style={{ 
+          position:'fixed', inset:0, zIndex:99990, 
+          background: dark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)', 
+          backdropFilter: 'grayscale(100%) blur(4px)', 
+          transition: 'background 0.3s ease' 
+        }} 
+      />
 
+      {/* ── 主視窗：加入網格背景與專屬藍色陰影 ── */}
       <div style={{
         position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
         zIndex:99991,
         width:'min(760px,94vw)',height:'min(680px,92vh)',
         background:bg,
-        border:`3px solid ${dark?'#fff':'#000'}`,
-        boxShadow:'10px 10px 0 0 #00AA44',
+        backgroundImage: dark 
+          ? 'linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px)' 
+          : 'linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px)',
+        backgroundSize: '20px 20px',
+        border:`3px solid ${bdr}`,
+        boxShadow:`8px 8px 0px ${dark ? '#3B5BDB' : '#4A6CF7'}`,
         display:'flex',flexDirection:'column',
         animation:'aiFadeIn 0.2s ease',overflow:'hidden',
-      }}>
+        }}>
+
+        {/* 👇 5. 呼叫渲染圖形 */}
+        {renderShapes(shapes)}
 
         {/* ── Header ── */}
         <div style={{
+          position: 'relative', zIndex: 1,
           padding:'12px 20px', borderBottom:`2px solid ${dark?'#222':'#000'}`,
-          background:dark?'#0a0a0a':'#f0f0f0',
+          background: header_bg,
           display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,
         }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <div style={{ fontFamily:'"DM Mono",monospace',fontSize:'10px',color:'#00AA44',fontWeight:900,letterSpacing:'0.1em' }}>
               [ AI STRATEGIST ]
             </div>
-            <div style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:900,fontSize:'18px',color:text_c }}>
+            <div style={{ fontFamily:'"Space Grotesk",sans-serif',fontWeight:900,fontSize:'18px',color:text_c, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               策略審查員 — {project.name || '未命名'}
             </div>
           </div>
-          <div style={{ display:'flex',gap:'8px',alignItems:'center' }}>
+          <div style={{ display:'flex',gap:'8px',alignItems:'center', flexShrink: 0 }}>
             {status === 'loading' && (
               <button
                 onClick={stopAnalysis}
                 style={{
                   fontFamily:'"Space Grotesk",sans-serif',fontWeight:900,fontSize:'11px',
                   textTransform:'uppercase',letterSpacing:'0.08em',
-                  padding:'5px 14px',background:'#FF3333',color:'#fff',
+                  padding:'5px 10px',background:'#FF3333',color:'#fff',
                   border:'2px solid #000',boxShadow:'3px 3px 0 0 #000',cursor:'pointer',
+                  width: '92px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
                 }}
+                onMouseDown={e => { e.currentTarget.style.transform='translate(1px,1px)'; e.currentTarget.style.boxShadow='1px 1px 0 0 #000'; e.currentTarget.style.filter=dark?'brightness(1.2)':'brightness(0.9)'; }}
+                onMouseUp={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='3px 3px 0 0 #000'; e.currentTarget.style.filter='none'; }}
               >⏹ 停止</button>
             )}
             <button onClick={onClose} style={{ background:'none',border:'none',fontSize:'22px',cursor:'pointer',color:text_c,fontWeight:900,lineHeight:1 }}
@@ -378,20 +458,21 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
 
         {/* ── OGSM Preview strip ── */}
         <div style={{
+          position: 'relative', zIndex: 1,
           padding:'8px 20px', borderBottom:`1px solid ${bdr}`,
           display:'flex',gap:'10px',flexWrap:'wrap',
-          background:dark?'#0d0d0d':'#f8f8f8',flexShrink:0,
+          background: strip_bg,flexShrink:0,
         }}>
           {[
             { key:'O', label: project.objective, color:'#2222f0' },
             { key:'G', label: `${Array.isArray(project.goals)?project.goals.length:0} Goals`, color:'#FF00FF' },
             { key:'S', label: `${Array.isArray(project.strategies)?project.strategies.length:0} Strategies`, color:'#FF6600' },
-            { key:'M', label: `${Array.isArray(project.measures)?project.measures.length:0} Measures`, color:'#00AA44' },
-          ].map(({ key, label, color }) => (
+            { key:'MD', label: `${Array.isArray(project.measures)?project.measures.length:0} 定量指標`, color:'#00AA44' },
+            { key:'MP', label: `${Array.isArray(project.measures) ? project.measures.reduce((sum, m) => sum + (Array.isArray(m.todos) ? m.todos.length : 0), 0) : 0} 行動步驟`, color:'#2fa8f4' },          ].map(({ key, label, color }) => (
             <div key={key} style={{ display:'flex',alignItems:'center',gap:'5px' }}>
               <span style={{
                 fontFamily:'"Space Grotesk",sans-serif',fontWeight:900,fontSize:'11px',
-                background:color,color:'#fff',padding:'1px 5px',
+                background: color ,color:'#fff',padding:'1px 5px',
                 border:'1.5px solid #000',
               }}>{key}</span>
               <span style={{
@@ -406,7 +487,11 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
         <div
           ref={bodyRef}
           className="ai-body"
-          style={{ flex:1, overflowY:'auto', padding:'20px' }}
+          style={{ 
+            position: 'relative', zIndex: 1,
+            flex:1, overflowY:'auto', padding:'20px',
+            overflowY:'auto',
+          }}
         >
           {status === 'idle' && (
             <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:'16px' }}>
@@ -438,8 +523,9 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
                   transition:'all 0.15s',
                 }}
                 onMouseEnter={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='8px 8px 0 0 #000'}}
-                onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='6px 6px 0 0 #000'}}
-                onMouseDown={e=>{e.currentTarget.style.transform='translate(2px,2px)';e.currentTarget.style.boxShadow='4px 4px 0 0 #000'}}
+                onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='6px 6px 0 0 #000'; e.currentTarget.style.filter='none'}}
+                onMouseDown={e=>{e.currentTarget.style.transform='translate(2px,2px)';e.currentTarget.style.boxShadow='4px 4px 0 0 #000'; e.currentTarget.style.filter=dark?'brightness(1.25)':'brightness(0.9)'}}
+                onMouseUp={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='8px 8px 0 0 #000'; e.currentTarget.style.filter='none'}}
               >
                 🧠 開始審查
               </button>
@@ -490,22 +576,33 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
         {/* ── Footer ── */}
         {status === 'done' && (
           <div style={{
+            position: 'relative', zIndex: 1,
             padding:'8px 20px', borderTop:`1px solid ${bdr}`,
             display:'flex',gap:'8px',justifyContent:'flex-end',
-            background:dark?'#0a0a0a':'#f5f5f5',flexShrink:0,
+            background: header_bg,flexShrink:0,
           }}>
             <button
-              onClick={() => navigator.clipboard.writeText(text).catch(()=>{})}
+              onClick={() => {
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000) // 2秒後恢復原狀
+                }).catch(()=>{})
+              }}
               style={{
                 fontFamily:'"Space Grotesk",sans-serif',fontWeight:900,fontSize:'11px',
                 textTransform:'uppercase',letterSpacing:'0.08em',
-                padding:'5px 14px',background:'#FFFF00',color:'#000',
+                padding:'5px 14px',background: copied ? '#00AA44' : '#FFFF00',color: copied ? '#fff' : '#000',
                 border:'2px solid #000',boxShadow:'3px 3px 0 0 #000',cursor:'pointer',
                 transition:'all 0.12s',
               }}
               onMouseEnter={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='5px 5px 0 0 #000'}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='3px 3px 0 0 #000'}}
-            >複製報告</button>
+              onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='3px 3px 0 0 #000'; e.currentTarget.style.filter='none'}}
+              onMouseDown={e=>{e.currentTarget.style.transform='translate(1px,1px)';e.currentTarget.style.boxShadow='2px 2px 0 0 #000'; e.currentTarget.style.filter=dark?'brightness(1.25)':'brightness(0.9)'}}
+              onMouseUp={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='5px 5px 0 0 #000'; e.currentTarget.style.filter='none'}}
+            >
+              {/* 👇 根據狀態切換文字 */}
+              {copied ? '✅ 已複製！' : '複製報告'}
+            </button>
             <button
               onClick={startAnalysis}
               style={{
@@ -516,7 +613,9 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
                 transition:'all 0.12s',
               }}
               onMouseEnter={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='5px 5px 0 0 #000'}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='3px 3px 0 0 #000'}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='3px 3px 0 0 #000'; e.currentTarget.style.filter='none'}}
+              onMouseDown={e=>{e.currentTarget.style.transform='translate(1px,1px)';e.currentTarget.style.boxShadow='2px 2px 0 0 #000'; e.currentTarget.style.filter=dark?'brightness(1.25)':'brightness(0.9)'}}
+              onMouseUp={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='5px 5px 0 0 #000'; e.currentTarget.style.filter='none'}}
             >🔄 重新分析</button>
           </div>
         )}

@@ -20,8 +20,8 @@ const B_PINK   = '#d63fa0';
 const B_CYAN   = '#0fb8b8';
 const B_ORANGE = '#d4750a';
 
-const DARK  = { bg: '#1a1c1e', border: '#5a5a5a', text: '#e8e8e8', textSub: '#a8a8a8', textMuted: '#707070', cardBg: 'rgba(255,255,255,0.055)', headerBg: 'rgba(22,24,26,0.92)', grid: 'rgba(255,255,255,0.05)' };
-const LIGHT = { bg: '#edeef0', border: '#3a3a3a', text: '#1a1a1a', textSub: '#404040', textMuted: '#707070', cardBg: 'rgba(0,0,0,0.035)',          headerBg: 'rgba(237,238,240,0.93)', grid: 'rgba(0,0,0,0.05)' };
+const DARK  = { bg: '#1a1c1e', border: '#5a5a5a', text: '#e8e8e8', textSub: '#a8a8a8', textMuted: '#707070', cardBg: 'rgba(255,255,255,0.055)', headerBg: 'rgba(22,24,26,0.3)', grid: 'rgba(255,255,255,0.05)' };
+const LIGHT = { bg: '#edeef0', border: '#3a3a3a', text: '#1a1a1a', textSub: '#404040', textMuted: '#707070', cardBg: 'rgba(0,0,0,0.035)',          headerBg: 'rgba(237,238,240,0.1)', grid: 'rgba(0,0,0,0.05)' };
 
 // ─── MEMBER MODAL SHAPE RENDERER ─────────────────────────────────────────────
 function renderMemberShapes(shapes) {
@@ -550,11 +550,13 @@ function FilterDropdown({ items, selectedKeys, onToggle, onClear, accentColor, d
         {/* 全部選項 */}
         <div
           onClick={onClear}
+          onMouseEnter={e => { if (!allSelected) e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.08)' : `${accentColor}12`; }}
+          onMouseLeave={e => { if (!allSelected) e.currentTarget.style.background = 'transparent'; }}
           style={{
             display: 'flex', alignItems: 'center', gap: '10px',
             padding: '7px 10px', cursor: 'pointer',
-            background: allSelected ? (dark ? `${accentColor}28` : `${accentColor}16`) : 'transparent',
-            outline: allSelected ? `1px solid ${accentColor}44` : '1px solid transparent',
+            background: allSelected ? (dark ? `${accentColor}55` : `${accentColor}26`) : 'transparent',
+            outline: allSelected ? `1px solid ${accentColor}${dark ? '88' : '66'}` : '1px solid transparent',
             transition: 'background 0.12s', userSelect: 'none',
           }}
         >
@@ -578,11 +580,13 @@ function FilterDropdown({ items, selectedKeys, onToggle, onClear, accentColor, d
             <div
               key={it.key}
               onClick={() => onToggle(it.key)}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.08)' : `${accentColor}12`; }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
               style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '7px 10px', cursor: 'pointer',
-                background: active ? (dark ? `${accentColor}28` : `${accentColor}16`) : 'transparent',
-                outline: active ? `1px solid ${accentColor}44` : '1px solid transparent',
+                background: active ? (dark ? `${accentColor}55` : `${accentColor}26`) : 'transparent',
+                outline: active ? `1px solid ${accentColor}${dark ? '88' : '66'}` : '1px solid transparent',
                 transition: 'background 0.12s', userSelect: 'none',
               }}
             >
@@ -1118,13 +1122,17 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
               icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
           ].map(({ mode, title, icon }) => {
             const active = viewMode === mode;
+            const lightActiveBg = mode === 'cards' ? B_BLUE : B_CYAN;
+            const lightHoverBg = mode === 'cards' ? 'rgba(58,91,217,0.10)' : 'rgba(15,184,184,0.12)';
             return (
               <button key={mode} onClick={() => setViewMode(mode)} title={title}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.14)' : lightHoverBg; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
                 style={{
                   padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px',
                   fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
                   textTransform: 'uppercase', letterSpacing: '0.06em',
-                  background: active ? T.border : 'transparent',
+                  background: active ? (dark ? '#e0e0e0' : lightActiveBg) : 'transparent',
                   color: active ? (dark ? '#000' : '#fff') : T.text,
                   border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                 }}>
@@ -1144,12 +1152,14 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
                     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
                     else { setSortKey(key); setSortDir('desc'); }
                   }}
+                  onMouseEnter={e => { if (sortKey !== key) e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.12)' : 'rgba(58,91,217,0.10)'; }}
+                  onMouseLeave={e => { if (sortKey !== key) e.currentTarget.style.background = 'transparent'; }}
                   style={{
                     padding: '4px 12px', fontSize: '10px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
                     textTransform: 'uppercase', letterSpacing: '0.08em',
-                    background: sortKey === key ? T.border : 'transparent',
+                    background: sortKey === key ? (dark ? '#e0e0e0' : B_BLUE) : 'transparent',
                     color: sortKey === key ? (dark ? '#000' : '#fff') : T.text,
-                    border: `2px solid ${T.border}`,
+                    border: `2px solid ${sortKey === key && !dark ? B_BLUE : T.border}`,
                     cursor: 'pointer', transition: 'all 0.15s',
                     display: 'flex', alignItems: 'center', gap: '4px',
                   }}

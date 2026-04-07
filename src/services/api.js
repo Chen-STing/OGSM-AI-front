@@ -114,4 +114,24 @@ export const api = {
         method: 'POST',
       }
     ),
+  // 更新版本備註
+  updateVersion: (projectId, versionId, message) =>
+    requestWith404Fallback(
+      `/ogsm/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`,
+      `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ message }),
+      }
+    ),
+
+  // 刪除版本
+  deleteVersion: (projectId, versionId) =>
+    requestWith404Fallback(
+      `/ogsm/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`,
+      `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`,
+      {
+        method: 'DELETE',
+      }
+    ),
 }

@@ -216,12 +216,12 @@ function getGlobalFilteredTodos(projects, doneFilter, memberSet, selectedDate, t
   });
 }
 
-/** Mini calendar grid — Monday first */
+/** Mini calendar grid — Sunday first */
 function MiniCalendar({ year, month, selectedDate, todoDates, today, dark, onSelectDate, onSelectMonth, onPrevMonth, onNextMonth }) {
   const pad = n => String(n).padStart(2, '0');
 
   const firstDow    = new Date(year, month, 1).getDay();       // 0=Sun
-  const startOffset = firstDow === 0 ? 6 : firstDow - 1;      // Mon-first
+  const startOffset = firstDow;                                // Sun-first
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const totalCells  = Math.ceil((startOffset + daysInMonth) / 7) * 7;
 
@@ -313,10 +313,10 @@ function MiniCalendar({ year, month, selectedDate, todoDates, today, dark, onSel
 
       {/* Day-of-week headers + day cells */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
-        {['一','二','三','四','五','六','日'].map((d, i) => (
+        {['日','一','二','三','四','五','六'].map((d, i) => (
           <div key={d} style={{
             textAlign: 'center', fontSize: '10px', fontWeight: 900,
-            color: i === 6
+            color: i === 0 || i === 6
               ? (dark ? 'rgba(255,80,80,0.8)' : 'rgba(200,0,0,0.7)')
               : (dark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)'),
             paddingBottom: '4px',
@@ -332,7 +332,7 @@ function MiniCalendar({ year, month, selectedDate, todoDates, today, dark, onSel
           const isToday    = dateStr === today;
           const isPast     = dateStr < today;
           const hasTodo    = todoDates.has(dateStr);
-          const isSun      = (i % 7) === 6;
+          const isWeekend  = (i % 7) === 0 || (i % 7) === 6;
 
           return (
             <div
@@ -358,7 +358,7 @@ function MiniCalendar({ year, month, selectedDate, todoDates, today, dark, onSel
                   ? '#fff'
                   : isPast
                     ? (dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)') // 過去日期反灰
-                    : isSun
+                    : isWeekend
                       ? (dark ? 'rgba(255,100,100,0.9)' : 'rgba(180,0,0,0.8)')
                       : (dark ? '#fff' : '#000'),
               }}>

@@ -1,37 +1,8 @@
-/**
- * CrossProjectDashboard.jsx
- *
- * 跨專案儀表板 — 一眼掌握所有 OGSM 專案健康度
- *
- * 使用方式：
- *   <CrossProjectDashboard
- *     projects={projects}          // Project[] — 你現有的專案陣列
- *     dark={darkMode}
- *     onSelectProject={(p) => ...}  // 點擊專案卡片跳入該專案
- *     onClose={() => ...}
- *   />
- *
- * Project 型別（與你現有資料結構一致即可，只需以下欄位）：
- *   {
- *     id: string
- *     name: string
- *     objective?: string
- *     goals?: any[]
- *     strategies?: any[]
- *     measures?: any[]
- *     todos?: TodoItem[]          // { done: boolean, deadline: string }[]
- *     updatedAt?: string          // ISO
- *     createdAt?: string
- *     isLocked?: boolean
- *     members?: string[]
- *   }
- */
-
 import React, { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import BrutalistBackground from './BrutalistBackground.jsx'
 import BrutalistSelect from './BrutalistSelect.jsx'
-import { loadSavedBgConfig } from '../bgConfig.js'
+import { loadSavedBgConfig, genModalShapes, loadSavedModalConfig } from '../bgConfig.js'
 
 // ─── 常數 ──────────────────────────────────────────────────────────────────────
 
@@ -47,6 +18,40 @@ const ACCENT_COLORS = [
   '#2222f0','#FF00FF','#FF6600','#00AA44',
   '#FF3333','#9933FF','#0099CC','#CC6600',
 ]
+
+// 亮色模式下較不刺眼的等級顏色
+const LIGHT_GRADE_TONES = {
+  S: '#00AA33',
+  A: '#00A6A6',
+  B: '#C7A500',
+}
+
+function renderMemberStyleShapes(shapes) {
+  return (
+    <>
+      {shapes.stars.map((s, i) => (
+        <div key={`cp-ms-s${i}`} style={{ position:'absolute', ...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"><path d="M12 2.5L14.7 8.8L21.5 9.5L16.3 14L17.8 20.7L12 17.2L6.2 20.7L7.7 14L2.5 9.5L9.3 8.8L12 2.5Z"/></svg>
+        </div>
+      ))}
+      {shapes.crosses.map((s, i) => (
+        <div key={`cp-ms-x${i}`} style={{ position:'absolute', ...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="square"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+      ))}
+      {shapes.circles.map((s, i) => (
+        <div key={`cp-ms-c${i}`} style={{ position:'absolute', ...s.pos, color:s.color, opacity:0.18, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+      ))}
+      {shapes.tris.map((s, i) => (
+        <div key={`cp-ms-t${i}`} style={{ position:'absolute', ...s.pos, color:s.color, opacity:0.2, pointerEvents:'none', zIndex:0, animation:s.anim }}>
+          <svg width={s.size} height={s.size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="miter"><polygon points="12,2 22,20 2,20"/></svg>
+        </div>
+      ))}
+    </>
+  )
+}
 
 function pickProjectData(project) {
   const goals = Array.isArray(project.goals) ? project.goals : []
@@ -69,56 +74,95 @@ function pickProjectData(project) {
   return { goals, strategies, measures, todos }
 }
 
+// 取得 MD 分數：有文字且有實際值 = 2.5，只有文字 = 2，空白 = 0
+function getMeasureScore(m) {
+  const hasText = !!(m?.content?.trim() || m?.text?.trim() || m?.kpi?.trim())
+  if (!hasText) return 0
+  
+  const hasActual = (m?.actual !== undefined && String(m.actual).trim() !== '') ||
+                    (m?.current !== undefined && String(m.current).trim() !== '') ||
+                    (m?.value !== undefined && String(m.value).trim() !== '')
+                    
+  return hasActual ? 2.5 : 2
+}
+
+// 通用逾期判斷：只要標示已完成，即便超過 deadline 也「不算逾期」
+function checkIsOverdue(item, today) {
+  if (!item || !item.deadline) return false
+  if (item.deadline >= today) return false
+  
+  if (item.done) return false
+  if (String(item.done) === 'true') return false
+  if (item.status === 'done' || item.status === 'completed') return false
+  if (item.progress === 100 || item.progress === '100') return false
+  
+  return true
+}
+
 // ─── 工具函式 ──────────────────────────────────────────────────────────────────
 
 function calcHealthScore(project) {
   let score = 0
   const detail = {}
   const { goals, strategies, measures, todos } = pickProjectData(project)
+  const today = new Date().toISOString().slice(0, 10)
 
-  // 1. 完整度（40 分）
-  const hasObjective  = !!(project.objective?.trim())
-  const goalsCount    = goals.filter(g => g?.content?.trim() || g?.text?.trim()).length
-  const stratCount    = strategies.filter(s => s?.content?.trim() || s?.text?.trim()).length
-  const measureCount  = measures.filter(m => m?.content?.trim() || m?.text?.trim() || m?.kpi?.trim()).length
+  // 1. 完整度（滿分 40 分）
+  
+  // O (5 分)：有寫就給 5 分
+  const hasObjective = !!(project.objective?.trim())
+  const objScore = hasObjective ? 5 : 0
 
-  const completeness = (
-    (hasObjective ? 10 : 0) +
-    Math.min(10, goalsCount * 2.5) +
-    Math.min(10, stratCount * 2.5) +
-    Math.min(10, measureCount * 2.5)
-  )
+  // G (5 分)：至少 2 個。0個=0分，1個=2.5分(扣一半)，2個以上=5分
+  const goalsCount = goals.filter(g => g?.content?.trim() || g?.text?.trim()).length
+  const goalScore = Math.min(5, goalsCount * 2.5)
+
+  // S (10 分)：至少 4 個。少一個扣2分，0個0分
+  const stratCount = strategies.filter(s => s?.content?.trim() || s?.text?.trim()).length
+  let stratScore = 0
+  if (stratCount >= 4) stratScore = 10
+  else if (stratCount === 3) stratScore = 8
+  else if (stratCount === 2) stratScore = 6
+  else if (stratCount === 1) stratScore = 4
+
+  // MD (20 分)：無實際值 2 分，有實際值 2.5 分
+  const mdScoreRaw = measures.reduce((acc, m) => acc + getMeasureScore(m), 0)
+  const measureScore = Math.min(20, mdScoreRaw)
+  const validMeasuresCount = measures.filter(m => getMeasureScore(m) > 0).length
+
+  const completeness = objScore + goalScore + stratScore + measureScore
   score += completeness
   detail.completeness = Math.round(completeness)
   detail.goalCount = goalsCount
   detail.strategyCount = stratCount
-  detail.measureCount = measureCount
+  detail.measureCount = validMeasuresCount
 
-  // 2. Todo 執行率（30 分）
+  // 2. Todo 執行率（45 分）- 
   const todoDone = todos.filter(t => t.done).length
   const todoRate = todos.length > 0 ? todoDone / todos.length : 0
-  const todoScore = todos.length > 0 ? todoRate * 30 : 15 // 沒有 todo 給一半
+  const todoScore = todos.length > 0 ? todoRate * 45 : 22.5 // 沒有 todo 給一半
   score += todoScore
   detail.todoRate = todos.length > 0 ? Math.round(todoRate * 100) : null
   detail.todoScore = Math.round(todoScore)
   detail.todoDone = todoDone
   detail.todoTotal = todos.length
 
-  // 3. 逾期懲罰（-15）
-  const today    = new Date().toISOString().slice(0, 10)
-  const overdue  = todos.filter(t => !t.done && t.deadline && t.deadline < today).length
-  const overdueP = Math.min(15, overdue * 3)
+  // 3. 逾期懲罰（最高 -30）- 每項扣 3 分
+  const overdue  = todos.filter(t => checkIsOverdue(t, today)).length
+  const overdueP = Math.min(30, overdue * 3)
   score -= overdueP
   detail.overdue = overdue
   detail.overduePenalty = overdueP
 
-  // 4. 活躍度（30 分：最近 7 天有更新 +30，30天內 +15，以上都沒 +5）
+  // 4. 活躍度（滿分 15 分）
   const updatedAt = project.updatedAt || project.createdAt
-  let actScore = 5
+  let actScore = 0
   if (updatedAt) {
     const daysSince = (Date.now() - new Date(updatedAt).getTime()) / 86400000
-    if (daysSince <= 7)  actScore = 30
-    else if (daysSince <= 30) actScore = 15
+    if (daysSince <= 7)  actScore = 15
+    else if (daysSince <= 14) actScore = 8
+    else if (daysSince <= 30) actScore = 4
+    else actScore = 0
   }
   score += actScore
   detail.actScore = actScore
@@ -135,6 +179,7 @@ function formatRelative(isoString) {
   if (d < 1) return '今天'
   if (d < 2) return '昨天'
   if (d < 7) return `${Math.floor(d)} 天前`
+  if (d < 14) return `${Math.floor(d)} 天前`
   if (d < 30) return `${Math.floor(d / 7)} 週前`
   return `${Math.floor(d / 30)} 個月前`
 }
@@ -167,8 +212,8 @@ function MiniBar({ label, value, max, color, dark }) {
   return (
     <div style={{ marginBottom:4 }}>
       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
-        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#666' : '#aaa', letterSpacing:'0.05em' }}>{label}</span>
-        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#888' : '#888' }}>{value}/{max}</span>
+        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#cfcfcf' : '#666', letterSpacing:'0.05em' }}>{label}</span>
+        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#cfcfcf' : '#666' }}>{value}/{max}</span>
       </div>
       <div style={{ height:3, background: dark ? '#222' : '#e8e8e8', borderRadius:99, overflow:'hidden' }}>
         <div style={{ width:`${pct}%`, height:'100%', background:color, borderRadius:99, transition:'width 0.4s ease' }} />
@@ -184,9 +229,13 @@ function ProjectCard({ project, index, dark, onSelect }) {
   const [hovered, setHovered] = useState(false)
   const accentColor = ACCENT_COLORS[index % ACCENT_COLORS.length]
 
+  const displayColor = dark ? health.color : (LIGHT_GRADE_TONES[health.grade] ?? health.color)
+
   const { goals, strategies: strats, measures, todos } = pickProjectData(project)
   const today    = new Date().toISOString().slice(0, 10)
-  const overdue  = todos.filter(t => !t.done && t.deadline && t.deadline < today)
+  
+  const overdueMD = measures.filter(m => checkIsOverdue(m, today))
+  const overdueMP = todos.filter(t => checkIsOverdue(t, today))
 
   return (
     <div
@@ -194,9 +243,9 @@ function ProjectCard({ project, index, dark, onSelect }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: dark ? 'rgba(22,22,22,0.62)' : 'rgba(255,255,255,0.62)',
-        backdropFilter:'blur(6px)',
-        WebkitBackdropFilter:'blur(6px)',
+        background: dark ? 'rgba(94, 92, 92, 0.3)' : 'rgba(179, 175, 175, 0.15)',
+        backdropFilter: 'blur(1px)',
+        WebkitBackdropFilter: 'blur(1px)',
         border: `2px solid ${hovered ? accentColor : (dark ? '#2a2a2a' : '#e0e0e0')}`,
         boxShadow: hovered ? `6px 6px 0 0 ${accentColor}` : `3px 3px 0 0 ${dark ? '#2a2a2a' : '#ccc'}`,
         padding:'16px 16px 14px',
@@ -218,7 +267,7 @@ function ProjectCard({ project, index, dark, onSelect }) {
           </div>
           <div style={{
             fontFamily:'"DM Mono",monospace', fontSize:'10px',
-            color: dark ? '#555' : '#bbb', marginTop:2,
+            color: dark ? '#cfcfcf' : '#666', marginTop:2,
           }}>
             更新於 {formatRelative(project.updatedAt || project.createdAt)}
             {project.members?.length > 0 ? ` · ${project.members.length} 人` : ''}
@@ -229,17 +278,17 @@ function ProjectCard({ project, index, dark, onSelect }) {
         <div style={{
           display:'flex', flexDirection:'column', alignItems:'center', gap:2, flexShrink:0,
         }}>
-          <div style={{ position:'relative', width:48, height:48 }}>
-            <RingProgress value={health.score} color={health.color} size={48} stroke={4} />
+            <div style={{ position:'relative', width:48, height:48 }}>
+            <RingProgress value={health.score} color={displayColor} size={48} stroke={4} />
             <div style={{
               position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
               fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'15px',
-              color: health.color,
+                color: displayColor,
             }}>
               {health.grade}
             </div>
           </div>
-          <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#555' : '#aaa' }}>
+          <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#cfcfcf' : '#666' }}>
             {health.score}/100
           </span>
         </div>
@@ -249,7 +298,7 @@ function ProjectCard({ project, index, dark, onSelect }) {
       {project.objective && (
         <div style={{
           fontFamily:'"Noto Sans TC",sans-serif', fontSize:'11px',
-          color: dark ? '#888' : '#666', lineHeight:1.5,
+          color: dark ? '#cfcfcf' : '#666', lineHeight:1.5,
           borderLeft:`2px solid ${accentColor}`, paddingLeft:'8px',
           overflow:'hidden', display:'-webkit-box',
           WebkitLineClamp:2, WebkitBoxOrient:'vertical',
@@ -262,21 +311,34 @@ function ProjectCard({ project, index, dark, onSelect }) {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 12px' }}>
         <MiniBar label="GOALS"     value={goals.filter(g=>g?.content?.trim()||g?.text?.trim()).length}    max={Math.max(1,goals.length)}    color={accentColor} dark={dark} />
         <MiniBar label="STRATEGIES" value={strats.filter(s=>s?.content?.trim()||s?.text?.trim()).length}  max={Math.max(1,strats.length)}   color={accentColor} dark={dark} />
-        <MiniBar label="MD"        value={measures.filter(m=>m?.content?.trim()||m?.text?.trim()||m?.kpi?.trim()).length} max={Math.max(1,measures.length)} color={accentColor} dark={dark} />
-        <MiniBar label="MP"        value={todos.filter(t=>t.done).length}                                  max={Math.max(1,todos.length)}    color="#00AA44"     dark={dark} />
+        {/* MD 進度條連動有效值檢測 */}
+        <MiniBar label="MD" value={measures.filter(m=>getMeasureScore(m)>0).length} max={Math.max(1,measures.length)} color={accentColor} dark={dark} />
+        <MiniBar label="MP" value={todos.filter(t=>t.done).length} max={Math.max(1,todos.length)}    color={accentColor}     dark={dark} />
       </div>
 
-      {/* Overdue warning */}
-      {overdue.length > 0 && (
-        <div style={{
-          display:'flex', alignItems:'center', gap:'5px',
-          background:'rgba(255,51,51,0.1)', border:'1px solid rgba(255,51,51,0.3)',
-          padding:'3px 8px',
-          fontFamily:'"DM Mono",monospace', fontSize:'10px', color:'#FF3333',
-        }}>
-          ⚠ {overdue.length} 項任務逾期
-        </div>
-      )}
+      {/* Overdue warnings 分別顯示 MD / MP */}
+      <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+        {overdueMD.length > 0 && (
+          <div style={{
+            display:'flex', alignItems:'center', gap:'5px',
+            background:'rgba(255,51,51,0.1)', border:'1px solid rgba(255,51,51,0.3)',
+            padding:'3px 8px',
+            fontFamily:'"DM Mono",monospace', fontSize:'10px', color:'#FF3333',
+          }}>
+            ⚠ {overdueMD.length} 項 MD 逾期
+          </div>
+        )}
+        {overdueMP.length > 0 && (
+          <div style={{
+            display:'flex', alignItems:'center', gap:'5px',
+            background:'rgba(255,51,51,0.1)', border:'1px solid rgba(255,51,51,0.3)',
+            padding:'3px 8px',
+            fontFamily:'"DM Mono",monospace', fontSize:'10px', color:'#FF3333',
+          }}>
+            ⚠ {overdueMP.length} 項 MP 逾期
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -326,18 +388,26 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
     const totalTodos  = enriched.reduce((s,p) => s + (p.todos?.length ?? 0), 0)
     const doneTodos   = enriched.reduce((s,p) => s + (p.todos?.filter(t=>t.done).length ?? 0), 0)
     const today = new Date().toISOString().slice(0,10)
-    const overdueAll  = enriched.reduce((s,p) => s + (p.todos?.filter(t=>!t.done&&t.deadline&&t.deadline<today).length ?? 0), 0)
+    
+    // 計算全局逾期數 (包含 MD 與 MP)
+    const overdueAll  = enriched.reduce((s,p) => {
+      const { measures, todos } = pickProjectData(p)
+      const mdO = measures.filter(m => checkIsOverdue(m, today)).length
+      const mpO = todos.filter(t => checkIsOverdue(t, today)).length
+      return s + mdO + mpO
+    }, 0)
+    
     return { avg, totalTodos, doneTodos, overdueAll }
   }, [enriched])
 
   const bg   = 'transparent'
   const text = dark ? '#e0e0e0' : '#000'
-  const sub  = dark ? '#555' : '#aaa'
+  const sub  = dark ? '#cfcfcf' : '#666'
+
+  const modalBorder = dark ? '#222' : '#000'
+  const modalShadow = dark ? '#555' : '#999'
   const bdr  = dark ? '#222' : '#e0e0e0'
-  const accent = '#FF00FF'
-  const accentShadow = dark ? '#3d1472' : '#7c3aed'
   const panelBg = dark ? 'rgba(17,17,17,0.6)' : 'rgba(248,248,248,0.8)'
-  const sectionBg = dark ? 'rgba(25,25,25,0.48)' : 'rgba(255,255,255,0.48)'
 
   return createPortal(
     <>
@@ -366,8 +436,8 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
         width:'min(1100px,96vw)',height:'min(720px,92vh)',
         background:bg,
         backgroundImage:'none',
-        border:`3px solid ${accent}`,
-        boxShadow:`10px 10px 0 0 ${accentShadow}`,
+        border:`3px solid ${modalBorder}`,
+        boxShadow:`10px 10px 0 0 ${modalShadow}`,
         display:'flex',flexDirection:'column',
         animation:'cpFadeIn 0.2s ease', overflow:'hidden',
       }}>
@@ -376,8 +446,7 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
         {/* ── Header ── */}
         <div style={{
           padding:'12px 20px', borderBottom:`2px solid ${dark?'#222':'#000'}`,
-          background:panelBg,
-          backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
+          background:'transparent',
           display:'flex',alignItems:'center',justifyContent:'space-between', flexShrink:0,
           position:'relative', zIndex:5,
         }}>
@@ -391,8 +460,17 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', position:'relative' }}>
             <div
-              onMouseEnter={() => setShowHeaderHelp(true)}
-              onMouseLeave={() => setShowHeaderHelp(false)}
+              onMouseEnter={e => {
+                setShowHeaderHelp(true)
+                e.currentTarget.style.color = '#FF00FF'
+                e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+                e.currentTarget.style.borderRadius = '4px'
+              }}
+              onMouseLeave={e => {
+                setShowHeaderHelp(false)
+                e.currentTarget.style.color = text
+                e.currentTarget.style.background = 'none'
+              }}
               style={{
                 width:'16px', height:'16px',
                 display:'flex', alignItems:'center', justifyContent:'center',
@@ -404,24 +482,65 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
               ?
               {showHeaderHelp && (
                 <div style={{
-                  position:'absolute', right:'32px', top:'28px', width:'360px',
-                  background: dark ? '#111' : '#fff',
-                  border:`1px solid ${dark ? '#444' : '#ccc'}`,
-                  boxShadow:'3px 3px 0 0 #000', padding:'10px 12px', zIndex:30,
+                  position:'absolute', right:'28px', top:'34px', width:'340px', maxWidth:'48vw',
+                  background: dark ? '#2e2e2e' : '#f0f0f0',
+                  backgroundImage: dark
+                    ? 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)'
+                    : 'linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)',
+                  backgroundSize: '20px 20px',
+                  border: `1px solid ${dark ? 'rgba(120,140,255,0.5)' : 'rgba(0,0,0,0.2)'}`,
+                  boxShadow: dark ? '3px 3px 0 rgba(120,140,255,0.25)' : '3px 3px 0 rgba(0,0,0,0.12)',
+                  padding:'14px 16px', zIndex:30,
                   fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px',
-                  color:text, lineHeight:1.75, textAlign:'left',
+                  color:text, lineHeight:1.5, textAlign:'left', borderRadius:8,
                 }}>
-                  <div style={{ fontWeight:700, marginBottom:'4px' }}>健康分是什麼？</div>
-                  <div>健康分（0-100）用來衡量專案完整度、執行力、時效與活躍度。</div>
-                  <div style={{ marginTop:'6px', fontWeight:700 }}>評分機制</div>
-                  <div>完整度：最多 40 分（Objective + Goals/Strategies/Measures）。</div>
-                  <div>執行率：最多 30 分（MP 完成比例）。</div>
-                  <div>逾期扣分：最多扣 15 分（每項逾期扣 3）。</div>
-                  <div>活躍度：最多 30 分（近 7 天 +30、30 天內 +15、其餘 +5）。</div>
-                  <div style={{ marginTop:'6px', fontWeight:700 }}>評級級距</div>
-                  {GRADE_MAP.map(({ min, grade }) => (
-                    <div key={grade}>{grade}：{min} 分以上</div>
-                  ))}
+                  {/* Title */}
+                  <div style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px', marginBottom:'4px', letterSpacing:'0.01em' }}>健康分是什麼？</div>
+                  <div style={{ fontSize:'11px', color: dark ? '#bfbfbf' : '#555', marginBottom:'10px' }}>0–100 分，衡量完整度、執行力、時效與活躍度。</div>
+
+                  {/* 評分機制 */}
+                  <div style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'9px', letterSpacing:'0.12em', textTransform:'uppercase', color: dark ? '#aaa' : '#888', marginBottom:'5px', paddingBottom:'3px', borderBottom:`1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}` }}>評分機制</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
+                    {[
+                      { label:'完整度', score:'+40', desc:'根據O/G/S/MD的完成情況計算，MD若沒有填寫實際值會扣些許分' },
+                      { label:'執行率', score:'+45', desc:'MP Todo 完成比例' },
+                      { label:'逾期扣分', score:'−30', desc:'每項逾期扣 3 分，最多扣 30 分' },
+                      { label:'活躍度', score:'+15', desc:'近7天+15 / 近14天+8 / 近30天+4 / 其餘+0' },
+                    ].map(r => (
+                      <div key={r.label} style={{ display:'flex', alignItems:'flex-start', gap:'6px' }}>
+                        <span style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'10px', minWidth:'52px', flexShrink:0, color: dark ? '#e0e0e0' : '#222' }}>{r.label}</span>
+                        <span style={{ fontFamily:'"DM Mono",monospace', fontWeight:900, fontSize:'10px', minWidth:'28px', flexShrink:0, color:'#FF00FF', textAlign:'right' }}>{r.score}</span>
+                        <span style={{ fontSize:'10px', color: dark ? '#bfbfbf' : '#555', lineHeight:1.3 }}>{r.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 評級級距 */}
+                  <div style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'9px', letterSpacing:'0.12em', textTransform:'uppercase', color: dark ? '#aaa' : '#888', marginBottom:'6px', paddingBottom:'3px', borderBottom:`1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}` }}>評級級距</div>
+                  <div style={{ display:'flex', gap:'8px', flexWrap:'nowrap', overflowX:'auto', alignItems:'center', paddingBottom:'4px' }}>
+                    {GRADE_MAP.map(({ min, grade, color }) => {
+                      const gc = dark ? color : (LIGHT_GRADE_TONES[grade] ?? color)
+                        return (
+                        <div key={grade} style={{
+                          width: '64px',
+                          height: '56px',
+                          display:'flex',
+                          flexDirection:'column',
+                          alignItems:'center',
+                          justifyContent:'center',
+                          gap:'4px',
+                          padding:'6px',
+                          boxSizing:'border-box',
+                          background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                          border:`1px solid ${gc}55`,
+                          borderRadius:6,
+                        }}>
+                          <span style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'14px', color:gc, lineHeight:1 }}>{grade}</span>
+                          <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', color: dark ? '#aaa' : '#666' }}>{min}+</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -442,8 +561,8 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
         <div style={{
           padding:'12px 20px', borderBottom:`1px solid ${bdr}`,
           display:'flex',gap:'24px',flexWrap:'wrap',
-          background:panelBg, flexShrink:0,
-          backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)',
+          background:'transparent', flexShrink:0,
+          backdropFilter:'blur(5px)', WebkitBackdropFilter:'blur(5px)',
           position:'relative', zIndex:1,
         }}>
           {[
@@ -462,24 +581,33 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
           ))}
 
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', justifyContent:'flex-end' }}>
-            <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', color:sub }}>
-              僅顯示未上鎖專案
-            </span>
             {['S', 'A', 'B', 'C', 'D'].map(g => {
               const active = gradeFilter === g
+              const baseColor = GRADE_MAP.find(m => m.grade === g).color
+              const gradeColor = dark ? baseColor : (LIGHT_GRADE_TONES[g] ?? baseColor)
               return (
                 <button
                   className="cp-btn"
                   key={g}
                   onClick={() => setGradeFilter(prev => prev === g ? null : g)}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.border = `3px solid ${gradeColor}`
+                    e.currentTarget.style.background = active ? `${gradeColor}66` : `${gradeColor}44`
+                    e.currentTarget.style.color = active ? '#ffffff' : gradeColor
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.border = `2px solid ${active ? gradeColor : (dark ? '#444' : '#bbb')}`
+                    e.currentTarget.style.background = active ? `${gradeColor}33` : (dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)')
+                    e.currentTarget.style.color = active ? gradeColor : (dark ? '#ddd' : '#444')
+                  }}
                   style={{
                     fontFamily:'"DM Mono",monospace',
                     fontSize:'10px',
                     fontWeight:900,
                     padding:'3px 7px',
-                    border:`2px solid ${active ? '#FF00FF' : (dark ? '#444' : '#bbb')}`,
-                    background: active ? (dark ? 'rgba(255,0,255,0.2)' : 'rgba(255,0,255,0.12)') : (dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
-                    color: active ? '#FF00FF' : (dark ? '#ddd' : '#444'),
+                    border:`2px solid ${active ? gradeColor : (dark ? '#444' : '#bbb')}`,
+                    background: active ? `${gradeColor}33` : (dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                    color: active ? gradeColor : (dark ? '#ddd' : '#444'),
                     cursor:'pointer',
                     lineHeight:1.2,
                   }}
@@ -554,14 +682,12 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
 
         {/* ── Grid ── */}
         <div style={{ flex:1, minHeight:0, display:'grid', gridTemplateColumns:'1fr', gap:'10px', padding:'10px 14px 14px', position:'relative', zIndex:1 }}>
-          <div className="cp-grid" style={{ minHeight:0, overflowY:'auto', overflowX:'hidden', padding:'6px', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'12px', alignContent:'start', background:sectionBg, backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', border:`1px solid ${dark ? '#2e2e2e' : '#dddddd'}` }}>
+          <div className="cp-grid" style={{ minHeight:0, overflowY:'auto', overflowX:'hidden', padding:'6px', display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:'12px', alignContent:'start', background:'transparent', border:`1px solid ${dark ? '#2e2e2e' : '#dddddd'}` }}>
             {filtered.length === 0 ? (
               <div style={{
-                gridColumn:'1/-1', textAlign:'center', padding:'40px',
-                fontFamily:'"DM Mono",monospace',fontSize:'12px',color:sub,
-                background: dark ? 'rgba(20,20,20,0.45)' : 'rgba(255,255,255,0.45)',
-                backdropFilter:'blur(4px)',
-                WebkitBackdropFilter:'blur(4px)',
+                gridColumn:'1/-1', textAlign:'center', padding:'100px',
+                fontFamily:'"DM Mono",monospace',fontSize:'20px',color:sub,
+                background: 'transparent',
               }}>
                 {search ? `找不到「${search}」` : '沒有符合條件的專案'}
               </div>
@@ -600,88 +726,176 @@ function ProjectDetailModal({ project, dark, onClose, onOpenProject }) {
   const health = useMemo(() => calcHealthScore(project), [project])
   const data = useMemo(() => pickProjectData(project), [project])
   const [showHelp, setShowHelp] = useState(false)
+  const [modalCfg, setModalCfg] = useState(() => loadSavedModalConfig('member'))
+  
   const overdueItems = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
-    return (data.todos || []).filter(t => !t.done && t.deadline && t.deadline < today)
-  }, [data.todos])
+    const items = []
+
+    const goals = Array.isArray(project.goals) ? project.goals : []
+    if (goals.length > 0) {
+      goals.forEach((g, gIdx) => {
+        const strats = Array.isArray(g.strategies) ? g.strategies : []
+        strats.forEach((s, sIdx) => {
+          const measures = Array.isArray(s.measures) ? s.measures : []
+          measures.forEach((m, mIdx) => {
+            if (checkIsOverdue(m, today)) {
+              items.push({ type: 'MD', idStr: `D${gIdx + 1}.${sIdx + 1}.${mIdx + 1}`, ...m })
+            }
+            const todos = Array.isArray(m.todos) ? m.todos : []
+            todos.forEach((t, tIdx) => {
+              if (checkIsOverdue(t, today)) {
+                items.push({ type: 'MP', idStr: `P${gIdx + 1}.${sIdx + 1}.${mIdx + 1}.${tIdx + 1}`, ...t })
+              }
+            })
+          })
+        })
+      })
+    } else {
+      const measures = Array.isArray(project.measures) ? project.measures : []
+      measures.forEach((m, mIdx) => {
+        if (checkIsOverdue(m, today)) {
+          items.push({ type: 'MD', idStr: `D${mIdx + 1}`, ...m })
+        }
+      })
+      const todos = Array.isArray(project.todos) ? project.todos : []
+      todos.forEach((t, tIdx) => {
+        if (checkIsOverdue(t, today)) {
+          items.push({ type: 'MP', idStr: `P${tIdx + 1}`, ...t })
+        }
+      })
+    }
+    return items
+  }, [project])
+
+  const overdueMDs = useMemo(() => overdueItems.filter(i => i.type === 'MD'), [overdueItems])
+  const overdueMPs = useMemo(() => overdueItems.filter(i => i.type === 'MP'), [overdueItems])
+
+  const modalShapes = useMemo(() => genModalShapes('member', modalCfg, modalCfg.seed), [modalCfg])
+
+  useEffect(() => {
+    const handleModalCfgChange = () => setModalCfg(loadSavedModalConfig('member'))
+    window.addEventListener('brutalistBgChanged', handleModalCfgChange)
+    return () => window.removeEventListener('brutalistBgChanged', handleModalCfgChange)
+  }, [])
 
   const text = dark ? '#e0e0e0' : '#000'
-  const sub  = dark ? '#8a8a8a' : '#666'
+  const sub  = dark ? '#cfcfcf' : '#666'
+  const detailDisplayColor = dark ? health.color : (LIGHT_GRADE_TONES[health.grade] ?? health.color)
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
       style={{
-        position:'fixed', inset:0, zIndex:99995,
-        background: dark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)',
-        backdropFilter:'grayscale(100%) blur(4px)',
-        WebkitBackdropFilter:'grayscale(100%) blur(4px)',
+        position:'fixed', inset:0, width:'100vw', height:'100vh', zIndex:99995,
+        background: dark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+        backdropFilter:'grayscale(100%) blur(2px)',
+        WebkitBackdropFilter:'grayscale(100%) blur(2px)',
         display:'flex', alignItems:'center', justifyContent:'center', padding:'20px',
       }}
     >
+      <style>{`
+        @keyframes ms-starFloat   { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 25%{transform:translate(20px,-30px) rotate(90deg) scale(1.25)} 50%{transform:translate(-10px,20px) rotate(180deg) scale(0.85)} 75%{transform:translate(30px,10px) rotate(270deg) scale(1.15)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes ms-crossFloat  { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 33%{transform:translate(-25px,20px) rotate(120deg) scale(1.2)} 66%{transform:translate(15px,-15px) rotate(240deg) scale(0.8)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+        @keyframes ms-circleFloat { 0%{transform:translate(0,0) scale(0.88)} 33%{transform:translate(20px,-25px) scale(2)} 66%{transform:translate(-15px,15px) scale(1.5)} 100%{transform:translate(0,0) scale(0.88)} }
+        @keyframes ms-triFloat    { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 50%{transform:translate(-20px,-30px) rotate(180deg) scale(1.2)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
+      `}</style>
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width:'min(900px, 96vw)', maxHeight:'86vh', overflowY:'auto', overflowX:'hidden',
+          width:'min(680px, 86vw)', maxHeight:'86vh', overflowY:'auto', overflowX:'hidden',
+          position:'relative',
           backgroundColor: dark ? '#222222' : '#FFFFFF',
           backgroundImage: dark
             ? 'linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px)'
             : 'linear-gradient(rgba(0,0,0,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.05) 1px,transparent 1px)',
           backgroundSize:'20px 20px',
           backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
-          border:`3px solid ${dark ? '#fff' : '#000'}`,
-          boxShadow:`8px 8px 0 0 ${dark ? '#3d1472' : '#7c3aed'}`,
+          border:`3px solid ${dark ? '#DDDDDD' : '#111111'}`,
+          boxShadow:`8px 8px 0px ${dark ? '#3B5BDB' : '#4A6CF7'}`,
           padding:'16px 18px',
         }}
       >
+        {renderMemberStyleShapes(modalShapes)}
+
+        <div style={{ position:'relative', zIndex:1 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px', gap:'8px' }}>
           <div style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'20px', color:text, flex:1, minWidth:0, wordBreak:'break-word', overflowWrap:'anywhere' }}>{project.name}</div>
-          <button className="cp-btn" onClick={onClose} style={{ background:'none', border:'none', color:text, fontSize:'22px', cursor:'pointer', lineHeight:1 }}>×</button>
+          <button
+            className="cp-btn"
+            onClick={onClose}
+            onMouseEnter={e => { e.currentTarget.style.color = '#FF3333' }}
+            onMouseLeave={e => { e.currentTarget.style.color = text; e.currentTarget.style.transform = 'none' }}
+            onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.92)' }}
+            onMouseUp={e => { e.currentTarget.style.transform = 'none' }}
+            style={{ background:'none', border:'none', color:text, fontSize:'22px', cursor:'pointer', lineHeight:1, transition:'color .15s ease, transform .1s ease' }}
+          >
+            ×
+          </button>
         </div>
 
-        <div style={{ border:`1px solid ${dark ? '#3a3a3a' : '#ddd'}`, background: dark ? 'rgba(25,25,25,0.46)' : 'rgba(255,255,255,0.46)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', padding:'10px', marginBottom:'12px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
+        <div style={{ position:'relative', zIndex:2, border:`1px solid ${dark ? '#3a3a3a' : '#ddd'}`, background: dark ? 'rgba(25,25,25,0.46)' : 'rgba(255,255,255,0.46)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', padding:'12px 12px 10px 12px', marginBottom:'12px' }}>
+
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', marginBottom:'6px' }}>
+            <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', color:sub }}>HEALTH SCORE</span>
             <div
-              onMouseEnter={() => setShowHelp(true)}
-              onMouseLeave={() => setShowHelp(false)}
-              style={{ width:'18px', height:'18px', borderRadius:'50%', border:`1px solid ${dark ? '#777' : '#555'}`, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'"DM Mono",monospace', fontSize:'11px', color:sub, cursor:'help', position:'relative', flexShrink:0 }}
+              onMouseEnter={e => {
+                setShowHelp(true)
+                e.currentTarget.style.background = dark ? 'rgba(120,140,255,0.06)' : 'rgba(0,0,0,0.04)'
+                e.currentTarget.style.borderColor = dark ? 'rgba(120,140,255,0.8)' : 'rgba(0,0,0,0.3)'
+                e.currentTarget.style.color = dark ? '#fff' : '#000'
+              }}
+              onMouseLeave={e => {
+                setShowHelp(false)
+                e.currentTarget.style.background = ''
+                e.currentTarget.style.borderColor = dark ? '#777' : '#555'
+                e.currentTarget.style.color = sub
+              }}
+              style={{ width:20, height:20, borderRadius:'50%', border:`1px solid ${dark ? '#777' : '#555'}`, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'"DM Mono",monospace', fontSize:'11px', color:sub, cursor:'help', position:'relative', zIndex:30, flexShrink:0 }}
             >
               ?
               {showHelp && (
-                <div style={{ position:'absolute', left:'-2px', top:'24px', width:'320px', background: dark ? '#111' : '#fff', border:`1px solid ${dark ? '#444' : '#ccc'}`, boxShadow:'3px 3px 0 0 #000', padding:'8px 10px', zIndex:2, fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px', color:text, lineHeight:1.7, textAlign:'left' }}>
-                  <div>完整度：{health.detail.completeness}/40（Objective + G/S/M 完整程度）</div>
-                  <div>執行率：{health.detail.todoScore}/30（Todo 完成比例）</div>
-                  <div>逾期扣分：-{health.detail.overduePenalty}（逾期每項扣 3，最多 15）</div>
-                  <div>活躍度：{health.detail.actScore}/30（近 7 天 +30，30 天內 +15）</div>
+                <div
+                  onMouseEnter={e => {
+                    e.currentTarget.style.border = `1px solid ${dark ? 'rgba(120,140,255,0.8)' : 'rgba(0,0,0,0.28)'}`
+                    e.currentTarget.style.boxShadow = dark ? '4px 4px 0 rgba(120,140,255,0.32)' : '4px 4px 0 rgba(0,0,0,0.16)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.border = `1px solid ${dark ? 'rgba(120,140,255,0.5)' : 'rgba(0,0,0,0.2)'}`
+                    e.currentTarget.style.boxShadow = dark ? '3px 3px 0 rgba(120,140,255,0.25)' : '3px 3px 0 rgba(0,0,0,0.12)'
+                    setShowHelp(false)
+                  }}
+                  style={{ position:'absolute', right:0, top:'24px', width:'340px', background: dark ? '#2e2e2e' : '#f0f0f0', backgroundImage: dark ? 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)' : 'linear-gradient(rgba(0,0,0,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.09) 1px, transparent 1px)', backgroundSize:'20px 20px', border: `1px solid ${dark ? 'rgba(120,140,255,0.5)' : 'rgba(0,0,0,0.2)'}`, boxShadow: dark ? '3px 3px 0 rgba(120,140,255,0.25)' : '3px 3px 0 rgba(0,0,0,0.12)', padding:'10px 12px', zIndex:100, fontFamily:'"Noto Sans TC",sans-serif', fontSize:'11px', color:text, lineHeight:1.5, textAlign:'left', borderRadius:6 }}>
+                  <div style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'9px', letterSpacing:'0.12em', textTransform:'uppercase', color: dark ? '#aaa' : '#888', marginBottom:'6px', paddingBottom:'3px', borderBottom:`1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}` }}>本專案得分明細</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                    {[
+                      { label:'完整度',  val:`${health.detail.completeness}`, max:'/40', desc:'根據O/G/S/MD的完成情況計算，MD若沒有填寫實際值會扣些許分' },
+                      { label:'執行率',  val:`${health.detail.todoScore}`,  max:'/45', desc:'Todo 完成比例' },
+                      { label:'逾期扣分', val:`-${health.detail.overduePenalty}`, max:'/30', desc:'每項逾期扣 3 分，最高扣 30 分' },
+                      { label:'活躍度',  val:`${health.detail.actScore}`,   max:'/15', desc:'近7天+15 / 近14天+8 / 近30天+4 / 其餘+0' },
+                    ].map(r => (
+                      <div key={r.label} style={{ display:'flex', alignItems:'flex-start', gap:'5px' }}>
+                        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', fontWeight:700, minWidth:'52px', flexShrink:0, color: dark ? '#ddd' : '#222' }}>{r.label}</span>
+                        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', fontWeight:900, color:'#FF00FF', minWidth:'22px', textAlign:'right', flexShrink:0 }}>{r.val}</span>
+                        <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color: dark ? '#888' : '#777', flexShrink:0 }}>{r.max}</span>
+                        <span style={{ fontSize:'10px', color: dark ? '#bbb' : '#555', lineHeight:1.3 }}>{r.desc}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-            <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', color:sub }}>HEALTH SCORE</span>
           </div>
+
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', gap:'10px' }}>
             <div style={{ display:'flex', alignItems:'baseline', gap:'8px' }}>
               <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:sub }}>評級</span>
-              <span style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'30px', color:health.color }}>{health.grade}</span>
+              <span style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'30px', color:detailDisplayColor }}>{health.grade}</span>
             </div>
             <div style={{ display:'flex', alignItems:'baseline', gap:'8px' }}>
-              <span style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'30px', color:health.color }}>{health.score}</span>
+              <span style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'30px', color:detailDisplayColor }}>{health.score}</span>
               <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:sub }}>/100</span>
             </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'6px', marginTop:'10px' }}>
-            {[
-              `完整度 ${health.detail.completeness}/40`,
-              `執行率 ${health.detail.todoScore}/30`,
-              `逾期扣分 -${health.detail.overduePenalty}`,
-              `活躍度 ${health.detail.actScore}/30`,
-              `MD ${health.detail.measureCount} 項`,
-              `MP ${health.detail.todoDone}/${health.detail.todoTotal}`,
-            ].map((item) => (
-              <div key={item} style={{ border:`1px solid ${dark ? '#333' : '#e1e1e1'}`, padding:'5px 7px', fontFamily:'"DM Mono",monospace', fontSize:'10px', color:sub }}>
-                {item}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -692,7 +906,7 @@ function ProjectDetailModal({ project, dark, onClose, onOpenProject }) {
             ['MD', data.measures.length],
             ['MP', data.todos.length],
           ].map(([k, v]) => (
-            <div key={k} style={{ border:`1px solid ${dark ? '#333' : '#ddd'}`, background: dark ? 'rgba(20,20,20,0.44)' : 'rgba(255,255,255,0.44)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', padding:'6px 8px' }}>
+            <div key={k} style={{ border:`1px solid ${dark ? '#333' : '#ddd'}`, background: dark ? 'rgba(20,20,20,0.3)' : 'rgba(255,255,255,0.3)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', padding:'6px 8px' }}>
               <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:sub }}>{k}</div>
               <div style={{ fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'18px', color:text }}>{v}</div>
             </div>
@@ -700,18 +914,43 @@ function ProjectDetailModal({ project, dark, onClose, onOpenProject }) {
         </div>
 
         <div style={{ fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px', lineHeight:1.7, color: dark ? '#c7c7c7' : '#444', background: dark ? 'rgba(20,20,20,0.4)' : 'rgba(255,255,255,0.4)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', border:`1px solid ${dark ? '#333' : '#ddd'}`, padding:'10px', marginBottom:'14px', whiteSpace:'pre-wrap', wordBreak:'break-word', overflowWrap:'anywhere' }}>
+          <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', fontWeight:700, color:sub, marginBottom:'4px' }}>OBJECTIVE</div>
           {project.objective?.trim() || '此專案尚未填寫 Objective。'}
         </div>
 
-        {overdueItems.length > 0 && (
+        {/* 顯示 OVERDUE MD (有逾期才顯示) */}
+        {overdueMDs.length > 0 && (
           <div style={{ border:`1px solid ${dark ? '#5a2222' : '#f0b7b7'}`, background: dark ? 'rgba(80,18,18,0.35)' : 'rgba(255,70,70,0.08)', padding:'10px', marginBottom:'14px' }}>
             <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', fontWeight:700, color:'#FF3333', marginBottom:'8px' }}>
-              OVERDUE MP ({overdueItems.length})
+              OVERDUE MD ({overdueMDs.length})
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-              {overdueItems.map((item, idx) => (
-                <div key={`${item.deadline}-${item.text || item.content || item.title || idx}`} style={{ border:`1px solid ${dark ? '#6a2a2a' : '#f3c6c6'}`, padding:'6px 8px', fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px', lineHeight:1.6, color: dark ? '#ffd2d2' : '#9e1d1d', whiteSpace:'pre-wrap', wordBreak:'break-word', overflowWrap:'anywhere' }}>
-                  <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', marginBottom:'2px' }}>截止：{item.deadline}</div>
+              {overdueMDs.map((item, idx) => (
+                <div key={`${item.idStr}-${idx}`} style={{ border:`1px solid ${dark ? '#6a2a2a' : '#f3c6c6'}`, padding:'6px 8px', fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px', lineHeight:1.6, color: dark ? '#ffd2d2' : '#9e1d1d', whiteSpace:'pre-wrap', wordBreak:'break-word', overflowWrap:'anywhere' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontFamily:'"DM Mono",monospace', fontSize:'10px', marginBottom:'2px' }}>
+                    <span style={{ fontWeight:'bold' }}>{item.idStr}</span>
+                    <span>截止：{item.deadline}</span>
+                  </div>
+                  {item.text || item.content || item.title || item.kpi || '未命名 MD'}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 顯示 OVERDUE MP (有逾期才顯示) */}
+        {overdueMPs.length > 0 && (
+          <div style={{ border:`1px solid ${dark ? '#5a2222' : '#f0b7b7'}`, background: dark ? 'rgba(80,18,18,0.35)' : 'rgba(255,70,70,0.08)', padding:'10px', marginBottom:'14px' }}>
+            <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', fontWeight:700, color:'#FF3333', marginBottom:'8px' }}>
+              OVERDUE MP ({overdueMPs.length})
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+              {overdueMPs.map((item, idx) => (
+                <div key={`${item.idStr}-${idx}`} style={{ border:`1px solid ${dark ? '#6a2a2a' : '#f3c6c6'}`, padding:'6px 8px', fontFamily:'"Noto Sans TC",sans-serif', fontSize:'12px', lineHeight:1.6, color: dark ? '#ffd2d2' : '#9e1d1d', whiteSpace:'pre-wrap', wordBreak:'break-word', overflowWrap:'anywhere' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontFamily:'"DM Mono",monospace', fontSize:'10px', marginBottom:'2px' }}>
+                    <span style={{ fontWeight:'bold' }}>{item.idStr}</span>
+                    <span>截止：{item.deadline}</span>
+                  </div>
                   {item.text || item.content || item.title || '未命名 MP'}
                 </div>
               ))}
@@ -722,11 +961,25 @@ function ProjectDetailModal({ project, dark, onClose, onOpenProject }) {
         <button
           className="cp-btn"
           onClick={() => onOpenProject(project)}
+          onMouseDown={e => {
+            e.currentTarget.style.transform = 'translate(2px,2px)'
+            e.currentTarget.style.boxShadow = '1px 1px 0 0 #000'
+          }}
+          onMouseUp={e => {
+            e.currentTarget.style.transform = 'none'
+            e.currentTarget.style.boxShadow = '3px 3px 0 0 #000'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'none'
+            e.currentTarget.style.boxShadow = '3px 3px 0 0 #000'
+          }}
           style={{ width:'100%', background:'#2222f0', color:'#fff', border:'2px solid #000', boxShadow:'3px 3px 0 0 #000', padding:'8px 10px', cursor:'pointer', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'11px', textTransform:'uppercase', letterSpacing:'0.08em' }}
         >
           前往專案編輯
         </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

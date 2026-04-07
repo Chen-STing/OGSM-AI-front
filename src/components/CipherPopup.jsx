@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 // ── 密文識別前綴（與後端 CipherService 保持一致）────────────────────────────
 const CIPHER_PREFIX = 'ENC:v1:'
@@ -45,7 +46,7 @@ export default function CipherPopup({ position, mode, onCipher, onClose, onRepla
   const [result,   setResult]   = useState(null)
   const [error,    setError]    = useState(null)
   const [loading,  setLoading]  = useState(false)
-  const [showPwd,  setShowPwd]  = useState(false)
+  
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
 
@@ -99,14 +100,15 @@ export default function CipherPopup({ position, mode, onCipher, onClose, onRepla
     onMouseUp:    (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${shadowColor}` },
   })
 
-  return (
+  const popup = (
     <div ref={ref} className="cipher-popup" style={{
       position: 'fixed', left: Math.max(8, safeX), top,
-      zIndex: 99999, width: '340px',
+      zIndex: 100001, width: '340px',
       background: dark ? '#1a1a1a' : '#fff',
       border: `3px solid ${accentColor_bd}`,
       boxShadow: `6px 6px 0 0 ${accentColor_sh}`,
       padding: '14px 16px 12px', pointerEvents: 'auto',
+      transform: 'translateZ(0)'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -129,7 +131,7 @@ export default function CipherPopup({ position, mode, onCipher, onClose, onRepla
           <div style={{ display: 'flex', gap: '6px' }}>
             <input
               ref={inputRef}
-              type={showPwd ? 'text' : 'password'}
+              type={'password'}
               value={password}
               onChange={e => { setPassword(e.target.value); setError(null) }}
               onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
@@ -141,10 +143,7 @@ export default function CipherPopup({ position, mode, onCipher, onClose, onRepla
                 color: dark ? '#fff' : '#000', outline: 'none', fontFamily: 'inherit',
               }}
             />
-            <button onClick={() => setShowPwd(v => !v)}
-              style={{ ...btnBase, background: dark ? '#222' : '#eee', color: dark ? '#fff' : '#000', border: `2px solid ${dark ? '#555' : '#ccc'}`, boxShadow: 'none', fontSize: '13px', padding: '4px 8px' }}
-              title={showPwd ? '隱藏' : '顯示'}
-            >{showPwd ? '🙈' : '👁'}</button>
+            
           </div>
           {error && (
             <div style={{ marginTop: '5px', fontSize: '11px', color: '#FF0000', fontWeight: 700 }}>
@@ -196,4 +195,6 @@ export default function CipherPopup({ position, mode, onCipher, onClose, onRepla
       </>)}
     </div>
   )
+
+  return createPortal(popup, document.body)
 }

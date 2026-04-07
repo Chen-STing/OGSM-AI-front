@@ -177,8 +177,35 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [showTodoPanel, setShowTodoPanel] = useState(false)
   const [showStrategistPanel, setShowStrategistPanel] = useState(false)
   const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [showTopActionMenu, setShowTopActionMenu] = useState(false)
   const [todoPanelOrigin, setTodoPanelOrigin] = useState(null)
   const [auditOrigin, setAuditOrigin] = useState(null)
+
+  // 👇 1. 狀態初始化：嘗試從 sessionStorage 讀取暫存的報告
+  const [aiStrategistState, setAiStrategistState] = useState(() => {
+    try {
+      // 建議用 project.id 當 key，避免切換不同專案時報告混在一起
+      const key = `ogsm-ai-report-${project?.id || 'draft'}`
+      const saved = sessionStorage.getItem(key)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // 防呆：如果使用者在「分析中 (loading)」時手滑重新整理，將其重置，避免無限轉圈
+        if (parsed.status === 'loading') {
+          parsed.status = parsed.text ? 'done' : 'idle'
+        }
+        return parsed
+      }
+    } catch (e) {}
+    return { status: 'idle', text: '', error: '' }
+  })
+
+  // 👇 2. 狀態同步：每當 aiStrategistState 改變時，就自動存入 sessionStorage
+  useEffect(() => {
+    try {
+      const key = `ogsm-ai-report-${project?.id || 'draft'}`
+      sessionStorage.setItem(key, JSON.stringify(aiStrategistState))
+    } catch (e) {}
+  }, [aiStrategistState, project?.id])
 
   const [aiDialog, setAiDialog] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -193,6 +220,7 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   const [dragStrategy, setDragStrategy] = useState(null); const [dragOverStrategy, setDragOverStrategy] = useState(null)
   const scrollRef = useRef(null); const scrollRafRef = useRef(null)
   const dragMouseDownRef = useRef(null)
+  const topActionMenuTimeoutRef = useRef(null)
 
   const handleScrollZoneDragOver = useCallback((e) => {
     const el = scrollRef.current; if (!el) return
@@ -203,6 +231,17 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     if (speed !== 0) { const step = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(step) }; scrollRafRef.current = requestAnimationFrame(step) }
   }, [])
   const handleScrollZoneDragEnd = useCallback(() => { if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null } }, [])
+
+  // Top action menu hover delay handlers (avoid flicker when moving between button and menu)
+  const handleTopMenuMouseEnter = useCallback(() => {
+    if (topActionMenuTimeoutRef.current) { clearTimeout(topActionMenuTimeoutRef.current); topActionMenuTimeoutRef.current = null }
+    setShowTopActionMenu(true)
+  }, [])
+
+  const handleTopMenuMouseLeave = useCallback(() => {
+    if (topActionMenuTimeoutRef.current) clearTimeout(topActionMenuTimeoutRef.current)
+    topActionMenuTimeoutRef.current = setTimeout(() => { setShowTopActionMenu(false); topActionMenuTimeoutRef.current = null }, 150)
+  }, [])
 
   useEffect(() => {
     if (openTodos.size === 0) return
@@ -219,6 +258,15 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [openTodos])
+
+  useEffect(() => {
+    return () => {
+      if (topActionMenuTimeoutRef.current) {
+        clearTimeout(topActionMenuTimeoutRef.current)
+        topActionMenuTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const s = useMemo(() => buildStyles(darkMode), [darkMode])
   const allTodos = useMemo(() => (draft?.goals || []).flatMap(g => g.strategies.flatMap(s => s.measures.flatMap(m => m.todos || []))), [draft])
@@ -388,6 +436,12 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
           status: m.status || 'NotStarted',
           deadline: m.deadline || '',
           assignees: Array.isArray(m.assignees) ? m.assignees : [],
+          // 新增：把 todos (MP 行動步驟) 一併抽出來送給 AI
+          todos: (m.todos || []).map(t => ({
+            text: t.text || '',
+            deadline: t.deadline || '',
+            done: !!t.done
+          }))
         })),
       })),
     }))
@@ -404,24 +458,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
 
   const versionSnapshot = useMemo(() => {
     if (!draft) return null
-    return {
-      objective: draft.objective || '',
-      goals: (draft.goals || []).map(g => ({ text: g.text || '' })),
-      strategies: (draft.goals || []).flatMap(g => (g.strategies || []).map(s => ({ text: s.text || '' }))),
-      measures: (draft.goals || []).flatMap(g =>
-        (g.strategies || []).flatMap(s =>
-          (s.measures || []).map(m => ({
-            kpi: m.kpi || '',
-            target: m.target || '',
-            actual: m.actual || '',
-            deadline: m.deadline || '',
-            progress: m.progress || 0,
-            status: m.status || 'NotStarted',
-            assignees: Array.isArray(m.assignees) ? m.assignees : [],
-          }))
-        )
-      ),
-    }
+    // 直接深拷貝當前的草稿狀態，保留所有 O, G, S, MD, MP 的完整階層結構
+    return JSON.parse(JSON.stringify(draft))
   }, [draft])
 
   const handleRestoreVersion = useCallback((restoredData) => {
@@ -522,6 +560,21 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
         .dark .b-header-btn { border-color: rgba(255,255,255,0.2); box-shadow: 2px 2px 0 rgba(255,255,255,0.1); }
         .b-header-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(0,0,0,1); }
         .dark .b-header-btn:active { box-shadow: 1px 1px 0 rgba(255,255,255,0.1); }
+
+        .b-top-action-menu {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          min-width: 168px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding: 8px;
+          background: ${dark ? '#141414' : '#f3f4f6'};
+          border: 2px solid ${dark ? 'rgba(255,255,255,0.2)' : '#000'};
+          box-shadow: 3px 3px 0 ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,1)'};
+          z-index: 60;
+        }
         
         .ogsm-table-row { transition: background 0.15s; }
         .ogsm-table-row:hover { background: ${dark ? 'rgba(0,0,255,0.04)' : 'rgba(0,0,255,0.02)'}; }
@@ -660,22 +713,66 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
             </div>
           </div>
 
-          <button className="b-header-btn b-action-btn" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setAuditOrigin(r); onAudit(draft, r); }} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
-            <Icons.FileText /> 審計報告
-          </button>
-          
-          <button className="b-header-btn b-action-btn" onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTodoPanelOrigin(r); setShowTodoPanel(true); }} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
-            <Icons.CheckCircle /> MP 總覽
-            {pendingTodos > 0 && <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: B_PINK, color: '#fff', fontSize: '9px', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: `1px solid ${dark ? '#2a2a2a' : '#fff'}` }}>{pendingTodos > 99 ? '99' : pendingTodos}</span>}
-          </button>
+          <div
+            style={{ position: 'relative' }}
+            onMouseEnter={handleTopMenuMouseEnter}
+            onMouseLeave={handleTopMenuMouseLeave}
+          >
+            <button
+              className="b-header-btn b-action-btn"
+              onClick={() => setShowTopActionMenu(v => !v)}
+              style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#ffee59'; e.currentTarget.style.color = '#000' }}
+              onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+            >
+              <Icons.More /> 功能面板
+            </button>
 
-          <button className="b-header-btn b-action-btn" onClick={() => setShowStrategistPanel(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000' }} onMouseEnter={e => { e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
-            <Icons.Zap /> AI 策略
-          </button>
+            {showTopActionMenu && (
+              <div className="b-top-action-menu">
+                <button
+                  className="b-header-btn b-action-btn"
+                  onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setAuditOrigin(r); onAudit(draft, r); setShowTopActionMenu(false) }}
+                  style={{ padding: '6px 10px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', justifyContent: 'flex-start' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ffee59'; e.currentTarget.style.color = '#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+                >
+                  <Icons.FileText /> 審計報告
+                </button>
 
-          <button className="b-header-btn b-action-btn" onClick={() => versionProjectId && setShowVersionHistory(true)} style={{ padding: '6px 12px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', opacity: versionProjectId ? 1 : 0.45, cursor: versionProjectId ? 'pointer' : 'not-allowed' }} onMouseEnter={e => { if (!versionProjectId) return; e.currentTarget.style.background = dark ? '#ffee59' : '#ffee59'; e.currentTarget.style.color = dark ? '#000' : '#000' }} onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}>
-            <Icons.Calendar /> 版本歷史
-          </button>
+                <button
+                  className="b-header-btn b-action-btn"
+                  onClick={e => { const r = e.currentTarget.getBoundingClientRect(); setTodoPanelOrigin(r); setShowTodoPanel(true); setShowTopActionMenu(false) }}
+                  style={{ padding: '6px 10px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', position: 'relative', justifyContent: 'flex-start' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ffee59'; e.currentTarget.style.color = '#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+                >
+                  <Icons.CheckCircle /> MP 總覽
+                  {pendingTodos > 0 && <span style={{ marginLeft: 'auto', background: B_PINK, color: '#fff', fontSize: '9px', minWidth: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', border: `1px solid ${dark ? '#2a2a2a' : '#fff'}`, padding: '0 4px' }}>{pendingTodos > 99 ? '99+' : pendingTodos}</span>}
+                </button>
+
+                <button
+                  className="b-header-btn b-action-btn"
+                  onClick={() => { setShowStrategistPanel(true); setShowTopActionMenu(false) }}
+                  style={{ padding: '6px 10px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', justifyContent: 'flex-start' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#ffee59'; e.currentTarget.style.color = '#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+                >
+                  <Icons.Zap /> AI 策略審查
+                </button>
+
+                <button
+                  className="b-header-btn b-action-btn"
+                  onClick={() => { if (!versionProjectId) return; setShowVersionHistory(true); setShowTopActionMenu(false) }}
+                  style={{ padding: '6px 10px', background: dark ? '#2a2a2a' : '#fff', color: dark ? '#fff' : '#000', opacity: versionProjectId ? 1 : 0.45, cursor: versionProjectId ? 'pointer' : 'not-allowed', justifyContent: 'flex-start' }}
+                  onMouseEnter={e => { if (!versionProjectId) return; e.currentTarget.style.background = '#ffee59'; e.currentTarget.style.color = '#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = dark ? '#2a2a2a' : '#fff'; e.currentTarget.style.color = dark ? '#fff' : '#000' }}
+                >
+                  <Icons.Calendar /> 版本歷史
+                </button>
+              </div>
+            )}
+          </div>
 
           <button className="b-header-btn b-action-btn" onClick={() => setEditMode(!editMode)} style={{ padding: '6px 12px', background: editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'), color: editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }} onMouseEnter={e => { e.currentTarget.style.background = B_BLUE; e.currentTarget.style.color = '#fff' }} onMouseLeave={e => { e.currentTarget.style.background = editMode ? (dark ? '#fff' : '#000') : (dark ? 'rgba(0,0,255,0.2)' : 'rgba(0,0,255,0.1)'); e.currentTarget.style.color = editMode ? (dark ? '#000' : '#fff') : '#5d90d8' }}>
             <Icons.Edit /> {editMode ? '停止編輯' : '編輯'}
@@ -1017,6 +1114,9 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
           dark={darkMode}
           onClose={() => setShowStrategistPanel(false)}
           apiEndpoint="/api/ai/strategist"
+          shapeConfig={aiConfirmShapeConfig}
+          aiState={aiStrategistState}
+          setAiState={setAiStrategistState}
         />
       )}
 
@@ -1030,6 +1130,8 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
           apiGetVersions={(id) => api.getVersionHistory(id)}
           apiSaveVersion={(id, snapshot, message) => api.saveVersion(id, snapshot, message)}
           apiRestoreVersion={(id, versionId) => api.restoreVersion(id, versionId)}
+          apiUpdateVersion={(id, versionId, message) => api.updateVersion(id, versionId, message)}
+          apiDeleteVersion={(id, versionId) => api.deleteVersion(id, versionId)}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export const TRANSLATE_MODE_LABEL = {
   'zh-en': '中 ↔ 英', 'zh-ja': '中 ↔ 日', 'zh-vi': '中 ↔ 越',
@@ -46,16 +47,18 @@ export default function TranslationPopup({ result, position, loading, mode, canR
     onMouseUp:    (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = `4px 4px 0 0 ${shadowColor}` },
   })
 
-  return (
+  const popup = (
     <div ref={ref} className="translate-popup" style={{
       position: 'fixed',
       left: Math.max(8, safeX),
       top: safeY + 20 > window.innerHeight - 180 ? position.y - 180 : safeY,
-      zIndex: 99999, width: '320px',
+      zIndex: 100001, width: '320px',
       background: dark ? '#1a1a1a' : '#fff',
       border: `3px solid ${dark ? '#fff' : '#000'}`,
       boxShadow: dark ? '6px 6px 0 0 rgba(255,255,255,0.25)' : '6px 6px 0 0 #000',
       padding: '14px 16px 12px', pointerEvents: 'auto',
+      // ensure 3d compositing to avoid stacking context issues
+      transform: 'translateZ(0)'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -88,4 +91,6 @@ export default function TranslationPopup({ result, position, loading, mode, canR
       </div>
     </div>
   )
+
+  return createPortal(popup, document.body)
 }
