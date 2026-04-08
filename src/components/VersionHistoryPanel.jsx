@@ -110,6 +110,11 @@ function diffSnapshots(prev, next) {
   return changes
 }
 
+function isSameSnapshot(a, b) {
+  if (!a || !b) return false
+  return diffSnapshots(a, b).length === 0 && diffSnapshots(b, a).length === 0
+}
+
 // ─── 子組件 ───────────────────────────────────────────────────────────────────
 
 function DiffBadge({ type }) {
@@ -132,6 +137,7 @@ function DiffBadge({ type }) {
 
 function VersionCard({ 
   version, isSelected, isCurrent, onSelect, onRestore, dark, loading,
+  canRestore = false,
   // ▼ 這些是確保編輯與刪除能運作的關鍵屬性
   editingId, editMsg, setEditMsg, onStartEdit, onSaveEdit, onCancelEdit, onStartDelete 
 }) {
@@ -239,7 +245,7 @@ function VersionCard({
       )}
 
       {/* ── 還原按鈕 ── */}
-      {isSelected && !isCurrent && !isEditing && (
+      {isSelected && canRestore && !isEditing && (
         <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={(e) => { e.stopPropagation(); onRestore(version) }}
@@ -685,11 +691,16 @@ export default function VersionHistoryPanel({
               </div>
             ) : (
               versions.map((v, i) => (
+              (() => {
+                const isCurrentByData = isSameSnapshot(v.snapshot, currentData)
+                const canRestore = !isCurrentByData
+                return (
               <VersionCard
                 key={v.id ?? i}
                 version={v}
                 isSelected={selectedVersion?.id === v.id}
-                isCurrent={i === 0}
+                isCurrent={isCurrentByData}
+                canRestore={canRestore}
                 onSelect={setSelected}
                 onRestore={(ver) => setConfirm(ver)}
                 dark={dark}
@@ -704,6 +715,8 @@ export default function VersionHistoryPanel({
                 onCancelEdit={() => setEditingId(null)}
                 onStartDelete={(ver) => setConfirmDelete(ver)}
               />
+                )
+              })()
               ))
             )}
           </div>

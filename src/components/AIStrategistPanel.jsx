@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { genModalShapes, MODAL_DEFAULT_CONFIGS } from '../bgConfig.js'
 
-
 function renderShapes(shapes) {
   return (
     <>
@@ -41,129 +40,31 @@ const REVIEW_DIMENSIONS = [
   { id: 'consistency', label: '一致性與邏輯連貫性', icon: '🔗', desc: 'OGSM 各層是否邏輯連貫？' },
 ]
 
-// ─── 建立分析 prompt ──────────────────────────────────────────────────────────
-
-function buildPrompt(project) {
-  const safe = (v) => { /* ...原有的 safe 邏輯保持不變... */ }
-
-  return `你是一位資深策略顧問，專精 OGSM 框架。
-請以繁體中文審查以下 OGSM 計畫，並給出深度、具體、有建設性的分析。
-
-【專案名稱】
-${project.name || '未命名'}
-
-【Objective（目標）】
-${safe(project.objective)}
-
-【Goals（目的）】
-${safe(project.goals)}
-
-【Strategies（策略）】
-${safe(project.strategies)}
-
-【MD 定量指標與 MP 行動步驟】
-${safe(project.measures)}
-
----
-
-請依以下六個維度進行審查，每個維度給出：
-1. 【評分 X/10】（1-10分）
-2. 主要發現（2-3 句）
-3. 具體改善建議（2-3 條可執行的行動建議）
-
-審查維度：
-- 🎯 目標對齊度：Goals 是否緊密支撐 Objective？有沒有偏離核心目標的 Goal？
-- 📏 具體性與可測量性：MD 是否有明確數字、時間點、負責人？是否可以被客觀衡量？
-- ⚙️ 可行性：Strategies 是否務實？資源、時間、能力是否匹配？
-- 📋 完整性：各個維度是否都填寫完整？有無明顯缺漏？
-- ✅ 執行追蹤性：MP 步驟是否具體且有明確的期限或負責人？能否有效追蹤進度？
-- 🔗 一致性與邏輯連貫性：從 O→G→S→MD→MP 的邏輯鏈是否流暢？有無矛盾或跳躍？
-
-最後給出：
-- 整體評分（1-10）與一句話總結
-- 最優先應解決的 3 個問題（按重要性排序）
-- 一個激勵性的收尾評語
-
-請保持犀利誠實，不要只說好話。格式清晰，每個段落用標題分隔。`
-}
-
 // ─── 串流 API 呼叫 ─────────────────────────────────────────────────────────────
 
-async function callAI({ project, apiKey, apiEndpoint, onChunk, onDone, onError, signal }) {
-  const projectData = {
-    name: project.name,
-    objective: project.objective,
-    goals: project.goals,
-    strategies: project.strategies,
-    measures: project.measures,
-  }
-
+async function callAI({ project, apiEndpoint, onChunk, onDone, onError, signal }) {
   try {
-    if (apiEndpoint) {
-      // 後端 proxy（推薦）
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectData }),
-        signal,
-      })
-      if (!res.ok) {
-        let detail = ''
-        try {
-          const data = await res.json()
-          detail = data?.message || data?.error || data?.title || JSON.stringify(data)
-        } catch {
-          try { detail = await res.text() } catch {}
-        }
-        throw new Error(detail || `HTTP ${res.status}`)
-      }
+    const endpoint = apiEndpoint || '/api/ai/strategist'
+    
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectData: project }),
+      signal,
+    })
 
-      // 嘗試 streaming
-      if (res.headers.get('content-type')?.includes('text/event-stream')) {
-        const reader = res.body.getReader()
-        const dec    = new TextDecoder()
-        let buf = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += dec.decode(value, { stream: true })
-          const lines = buf.split('\n')
-          buf = lines.pop() ?? ''
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') break
-              try { onChunk(JSON.parse(data).text ?? '') } catch {}
-            }
-          }
-        }
-      } else {
+    if (!res.ok) {
+      let detail = ''
+      try {
         const data = await res.json()
-        onChunk(data.analysis ?? data.text ?? '')
+        detail = data?.message || data?.error || data?.title || JSON.stringify(data)
+      } catch {
+        try { detail = await res.text() } catch {}
       }
-      onDone()
-      return
+      throw new Error(detail || `HTTP ${res.status}`)
     }
 
-    if (apiKey) {
-      // 直連 Anthropic（前端用，建議只在開發時使用）
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'messages-2023-12-15',
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-6',
-          max_tokens: 2000,
-          stream: true,
-          messages: [{ role: 'user', content: buildPrompt(project) }],
-        }),
-        signal,
-      })
-      if (!res.ok) throw new Error(`Anthropic API ${res.status}`)
+    if (res.headers.get('content-type')?.includes('text/event-stream')) {
       const reader = res.body.getReader()
       const dec    = new TextDecoder()
       let buf = ''
@@ -174,22 +75,18 @@ async function callAI({ project, apiKey, apiEndpoint, onChunk, onDone, onError, 
         const lines = buf.split('\n')
         buf = lines.pop() ?? ''
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') continue
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.type === 'content_block_delta') {
-              onChunk(parsed.delta?.text ?? '')
-            }
-          } catch {}
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') break
+            try { onChunk(JSON.parse(data).text ?? '') } catch {}
+          }
         }
       }
-      onDone()
-      return
+    } else {
+      const data = await res.json()
+      onChunk(data.analysis ?? data.text ?? '')
     }
-
-    throw new Error('請提供 apiKey 或 apiEndpoint')
+    onDone()
   } catch (e) {
     if (e.name !== 'AbortError') onError(e.message)
   }
@@ -309,25 +206,21 @@ function RenderAnalysis({ text, dark }) {
 
 // ─── 主組件 ────────────────────────────────────────────────────────────────────
 
-export default function AIStrategistPanel({ project, dark = false, onClose, apiKey, apiEndpoint, shapeConfig, aiState, setAiState }) {
-  // ✅ 改用由外部 OgsmEditor 傳進來的狀態，若無則給予預設值防呆
+export default function AIStrategistPanel({ project, dark = false, onClose, apiEndpoint, shapeConfig, aiState, setAiState }) {
   const status = aiState?.status ?? 'idle'
   const text   = aiState?.text ?? ''
   const error  = aiState?.error ?? ''
 
-  // 封裝 setter，完美相容你下方 callAI 時用到的 setText(prev => prev + chunk) 寫法
   const setStatus = useCallback((val) => setAiState?.(prev => ({ ...prev, status: typeof val === 'function' ? val(prev.status) : val })), [setAiState])
   const setText   = useCallback((val) => setAiState?.(prev => ({ ...prev, text:   typeof val === 'function' ? val(prev.text)   : val })), [setAiState])
   const setError  = useCallback((val) => setAiState?.(prev => ({ ...prev, error:  typeof val === 'function' ? val(prev.error)  : val })), [setAiState])
 
   const abortRef = useRef(null)
   const bodyRef  = useRef(null)
+  const [copied, setCopied] = useState(false)
 
   const cfg = shapeConfig ?? MODAL_DEFAULT_CONFIGS.aiconfirm
   const shapes = genModalShapes('aiconfirm', cfg, cfg.seed)
-
-  // 👇 新增這行：追蹤複製狀態
-  const [copied, setCopied] = useState(false)
 
   // Escape 關閉
   useEffect(() => {
@@ -353,14 +246,13 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
 
     callAI({
       project,
-      apiKey,
       apiEndpoint,
       signal: ctrl.signal,
       onChunk: (chunk) => setText(prev => prev + chunk),
       onDone:  () => setStatus('done'),
       onError: (msg) => { setError(msg); setStatus('error') },
     })
-  }, [project, apiKey, apiEndpoint])
+  }, [project, apiEndpoint, setText, setError, setStatus])
 
   const stopAnalysis = () => {
     abortRef.current?.abort()
@@ -384,7 +276,7 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
         @keyframes aiPulse{0%,100%{opacity:0.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
         .ai-body::-webkit-scrollbar{width:5px} .ai-body::-webkit-scrollbar-track{background:${dark?'#0a0a0a':'#f0f0f0'}} .ai-body::-webkit-scrollbar-thumb{background:${dark?'#333':'#ccc'}}
       
-        /* 👇 4. 補上圖形漂浮動畫 */
+        /* 圖形漂浮動畫 */
         @keyframes acd-starFloat   { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 25%{transform:translate(20px,-30px) rotate(90deg) scale(1.25)} 50%{transform:translate(-10px,20px) rotate(180deg) scale(0.85)} 75%{transform:translate(30px,10px) rotate(270deg) scale(1.15)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
         @keyframes acd-crossFloat  { 0%{transform:translate(0,0) rotate(0deg) scale(1)} 33%{transform:translate(-25px,20px) rotate(120deg) scale(1.2)} 66%{transform:translate(15px,-15px) rotate(240deg) scale(0.8)} 100%{transform:translate(0,0) rotate(360deg) scale(1)} }
         @keyframes acd-circleFloat { 0%{transform:translate(0,0) scale(0.88)} 33%{transform:translate(20px,-25px) scale(2)} 66%{transform:translate(-15px,15px) scale(1.5)} 100%{transform:translate(0,0) scale(0.88)} }
@@ -418,7 +310,7 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
         animation:'aiFadeIn 0.2s ease',overflow:'hidden',
         }}>
 
-        {/* 👇 5. 呼叫渲染圖形 */}
+        {/* 呼叫渲染圖形 */}
         {renderShapes(shapes)}
 
         {/* ── Header ── */}
@@ -585,7 +477,7 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
               onClick={() => {
                 navigator.clipboard.writeText(text).then(() => {
                   setCopied(true)
-                  setTimeout(() => setCopied(false), 2000) // 2秒後恢復原狀
+                  setTimeout(() => setCopied(false), 2000)
                 }).catch(()=>{})
               }}
               style={{
@@ -600,7 +492,6 @@ export default function AIStrategistPanel({ project, dark = false, onClose, apiK
               onMouseDown={e=>{e.currentTarget.style.transform='translate(1px,1px)';e.currentTarget.style.boxShadow='2px 2px 0 0 #000'; e.currentTarget.style.filter=dark?'brightness(1.25)':'brightness(0.9)'}}
               onMouseUp={e=>{e.currentTarget.style.transform='translate(-2px,-2px)';e.currentTarget.style.boxShadow='5px 5px 0 0 #000'; e.currentTarget.style.filter='none'}}
             >
-              {/* 👇 根據狀態切換文字 */}
               {copied ? '✅ 已複製！' : '複製報告'}
             </button>
             <button

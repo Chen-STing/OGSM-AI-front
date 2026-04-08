@@ -177,6 +177,20 @@ function ClickBurst({ x, y }) {
   return <div style={{ position: 'fixed', left: x - 20, top: y - 20, width: 40, height: 40, borderRadius: '50%', border: '4px solid #FF00FF', pointerEvents: 'none', zIndex: 9999, animation: 'click-burst 0.5s ease-out forwards' }} />;
 }
 
+function normalizeMemberNames(input) {
+  if (!Array.isArray(input)) return [];
+  const names = input
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object') return item.name ?? item.label ?? item.value ?? '';
+      return '';
+    })
+    .map((name) => String(name).trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(names));
+}
+
 export default function App() {
   const [route, setRoute] = useState(() => parseRoute());
   const [transition, setTransition] = useState('idle');
@@ -189,6 +203,7 @@ export default function App() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [members, setMembers] = useState([]);
+  const membersEditedRef = useRef(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showGenerate, setShowGenerate] = useState(false);
@@ -259,7 +274,16 @@ export default function App() {
           setProjects(prev => prev.map((p, i) => results[i].status === "fulfilled" ? results[i].value : p));
         });
       }).catch(() => setLoadingList(false));
-      api.getMembers().then(setMembers).catch(() => {});
+      api.getMembers().then((data) => {
+        const fetched = normalizeMemberNames(data);
+        setMembers(prev => {
+          // 若使用者已在本地編輯過，保留本地資料並合併遠端，避免被晚到回應覆蓋
+          if (membersEditedRef.current) {
+            return Array.from(new Set([...normalizeMemberNames(prev), ...fetched]));
+          }
+          return fetched;
+        });
+      }).catch(() => {});
     });
   }, []);
 
@@ -544,10 +568,12 @@ export default function App() {
   }, []);
 
   const handleMembersChange = useCallback(async (newMembers) => {
-    setMembers(newMembers);
+    const normalized = normalizeMemberNames(newMembers);
+    membersEditedRef.current = true;
+    setMembers(normalized);
     try {
       const { api } = await import("./services/api.js");
-      await api.saveMembers(newMembers);
+      await api.saveMembers(normalized);
     } catch (e) { showToast("人員儲存失敗", "error"); }
   }, [showToast]);
 
@@ -735,6 +761,7 @@ export default function App() {
           <div style={{ flex: 1, position: "relative", zIndex: 10, overflow: "hidden" }}>
             <SwitchHome
               projects={projects}
+              members={members}
               onSelect={p => selectProject(p.id)}
               onNewProject={() => setShowGenerate(true)}
               onDeleteProject={handleDeleteProject}
@@ -757,6 +784,7 @@ export default function App() {
           <div style={{ flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
             <DashboardPanel
               projects={projects}
+              members={members}
               dark={dark}
               entering={isEnteringDashboard}
               exitingTo={isExitingDashboardToProjects ? 'projects' : isExitingDashboardToHome ? 'home' : null}

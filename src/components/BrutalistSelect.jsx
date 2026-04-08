@@ -314,6 +314,14 @@ export default function BrutalistSelect({
 
           {/* ─ 選項列表 ─ */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
+
+          <style>{`
+            .brutal-opt-${darkMode ? 'dark' : 'light'}:not([data-active="true"]):hover {
+              background: ${T.hoverBg} !important;
+              color: ${T.hoverText} !important;
+            }
+          `}</style>
+
           {(() => {
             const q = search.trim().toLowerCase()
             const filtered = q ? normalised.filter(o => o.label.toLowerCase().includes(q)) : normalised
@@ -329,6 +337,8 @@ export default function BrutalistSelect({
               return (
                 <div
                   key={opt.value}
+                  className={`brutal-opt-${darkMode ? 'dark' : 'light'}`}
+                  data-active={isActive}
                   onMouseDown={(e) => {
                     e.preventDefault()
                     if (multiple) {
@@ -343,18 +353,6 @@ export default function BrutalistSelect({
                       onChange(opt.value)
                       setOpen(false)
                       setSearch('')
-                    }
-                  }}
-                  onMouseEnter={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = T.hoverBg
-                      e.currentTarget.style.color = T.hoverText
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = 'transparent'
-                      e.currentTarget.style.color = T.text
                     }
                   }}
                   style={{

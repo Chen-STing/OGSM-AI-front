@@ -578,7 +578,7 @@ export default function GanttPanel({
         }}>
           <div>
             <div style={{ fontFamily: '"DM Mono",monospace', fontSize: '10px', color: '#FF6600', fontWeight: 900, letterSpacing: '0.1em' }}>
-              [ GANTT CHART v2 ]
+              [ GANTT CHART ]
             </div>
             <div style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, fontSize: '17px', color: text }}>
               {project?.name || '行動項目'} — 時程總覽

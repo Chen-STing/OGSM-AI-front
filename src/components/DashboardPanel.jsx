@@ -666,7 +666,7 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function DashboardPanel({ projects = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering, onSelectProject }) {
+export default function DashboardPanel({ projects = [], members = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering, onSelectProject }) {
   const [bgConfig] = useState(loadSavedBgConfig);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectedAssignees, setSelectedAssignees] = useState(new Set());
@@ -715,7 +715,21 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
     const unlockedProjects = projects.filter(p => !p.isLocked);
     const targets = selectedIds.size === 0 ? unlockedProjects : unlockedProjects.filter(p => selectedIds.has(p.id));
     const names = new Set();
+
+    // No project selected: show full global member list.
+    // Project selected: replace options with assignees found in the selected projects only.
+    if (selectedIds.size === 0) {
+      (Array.isArray(members) ? members : []).forEach((n) => {
+        const name = String(n || '').trim();
+        if (name) names.add(name);
+      });
+    }
+
     targets.forEach(p => {
+      (Array.isArray(p.assignees) ? p.assignees : []).forEach((n) => {
+        const name = String(n || '').trim();
+        if (name) names.add(name);
+      });
       (p.goals || []).forEach(g => {
         (g.strategies || []).forEach(s => {
           (s.measures || []).forEach(m => {
@@ -730,7 +744,16 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
       });
     });
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, [projects, selectedIds]);
+  }, [projects, selectedIds, members]);
+
+  useEffect(() => {
+    setSelectedAssignees(prev => {
+      if (prev.size === 0) return prev;
+      const allowed = new Set(allAssignees);
+      const next = new Set([...prev].filter(name => allowed.has(name)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allAssignees]);
 
   const rawData = useMemo(() => buildStats(projects.filter(p => !p.isLocked), selectedIds), [projects, selectedIds]);
 
@@ -1203,6 +1226,17 @@ export default function DashboardPanel({ projects = [], dark = false, onBack, on
         {viewMode === 'charts' && stats.length > 0 && (
           <div className="db-card-enter" style={{ animationDelay: '0.1s' }}>
             <ChartsSection stats={stats} dark={dark} unassignedMeasures={rawData.unassignedMeasures} unassignedTodos={rawData.unassignedTodos} chartView={chartView} />
+          </div>
+        )}
+
+        {viewMode === 'charts' && stats.length === 0 && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', opacity: 0.5 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={T.text} strokeWidth="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            <span style={{ fontSize: '14px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: T.textMuted }}>
+              目前無數據圖表資料
+            </span>
           </div>
         )}
 

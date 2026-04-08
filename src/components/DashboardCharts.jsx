@@ -523,8 +523,8 @@ function ScatterPlot({ members, dark }) {
                 {[
                   { label: 'MD 完成率', value: `${m.measurePct}%`, color: progressColor(m.measurePct) },
                   { label: 'MP 完成率', value: `${m.todoPct}%`,   color: progressColor(m.todoPct) },
-                  { label: 'MD 總/完成', value: `${m.totalMeasures}/${m.completedMeasures}`, color: B_BLUE },
-                  { label: 'MP 總/完成', value: `${m.totalTodos}/${m.doneTodos}`, color: B_PINK },
+                  { label: 'MD 完成/總', value: `${m.completedMeasures}/${m.totalMeasures}`, color: B_BLUE },
+                  { label: 'MP 完成/總', value: `${m.doneTodos}/${m.totalTodos}`, color: B_PINK },
                   { label: '進行中 MD', value: m.inProgressMeasures, color: B_CYAN },
                   { label: '逾期 (MD+MP)', value: overdueTot, color: overdueTot>0 ? B_PINK : B_GREEN },
                   { label: '負責專案', value: m.projects?.length ?? m.projects?.size ?? 0, color: B_ORANGE },

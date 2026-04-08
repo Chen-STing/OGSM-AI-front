@@ -292,7 +292,7 @@ function NewProjectCard({ onNewProject, dark, index, size = 260 }) {
   );
 }
 
-export default function ProjectsPage({ projects, onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings, onOpenDashboard, onPatchProject, showToast }) {
+export default function ProjectsPage({ projects, members = [], onSelect, onNewProject, onDeleteProject, onBack, dark, onToggleDark, entering, exitingTo, onUpdateProject, onOpenMemberSettings, onOpenDashboard, onPatchProject, showToast }) {
   const [query, setQuery]       = useState("");
   const [progMin, setProgMin]   = useState(0);
   const [progMax, setProgMax]   = useState(100);
@@ -384,11 +384,20 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
   // New states for Assignees filter
   const allMembers = React.useMemo(() => {
     const s = new Set();
+    (Array.isArray(members) ? members : []).forEach(m => {
+      const name = String(m || '').trim();
+      if (name) s.add(name);
+    });
     projects.forEach(p => {
-      if (Array.isArray(p.assignees)) p.assignees.forEach(m => s.add(m));
+      if (Array.isArray(p.assignees)) {
+        p.assignees.forEach(m => {
+          const name = String(m || '').trim();
+          if (name) s.add(name);
+        });
+      }
     });
     return Array.from(s).sort();
-  }, [projects]);
+  }, [projects, members]);
   const [memberFilters, setMemberFilters] = useState(new Set());
   const toggleMemberFilter = (m) => setMemberFilters(prev => {
     const n = new Set(prev);
@@ -396,11 +405,14 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
       n.delete(m);
     } else {
       if (m === '__UNASSIGNED__') {
+        // 未設定與具名成員互斥
         n.clear();
+        n.add('__UNASSIGNED__');
       } else {
+        // 選具名成員時移除未設定
         n.delete('__UNASSIGNED__');
+        n.add(m);
       }
-      n.add(m);
     }
     return n;
   });
@@ -589,7 +601,12 @@ export default function ProjectsPage({ projects, onSelect, onNewProject, onDelet
     }
     if (memberFilters.size > 0) {
       const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];
-      if (pAssignees.length > 0 && !pAssignees.some(m => memberFilters.has(m))) return false;
+      const includeUnassigned = memberFilters.has('__UNASSIGNED__');
+      const selectedMembers = Array.from(memberFilters).filter(m => m !== '__UNASSIGNED__');
+      const matchedMember = selectedMembers.length > 0 && pAssignees.some(m => selectedMembers.includes(m));
+      // 當有選任何具名成員時，未設定專案也一併顯示
+      const matchedUnassigned = pAssignees.length === 0 && (includeUnassigned || selectedMembers.length > 0);
+      if (!(matchedMember || matchedUnassigned)) return false;
     }
     if (assigneeConditions.size > 0) {
       const pAssignees = Array.isArray(p.assignees) ? p.assignees : [];

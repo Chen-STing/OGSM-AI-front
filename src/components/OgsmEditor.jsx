@@ -246,12 +246,14 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
   useEffect(() => {
     if (openTodos.size === 0) return
     const handler = (e) => {
-      // 點 todo 區、header 按鈕、sidebar toggle、dark mode toggle 時不收起
+      // 點 todo 區、header 按鈕、側邊欄按鈕、翻譯/加解密浮窗時不收起
       if (
         e.target.closest('[data-todo-zone]') ||
         e.target.closest('.b-action-btn') ||
         e.target.closest('.b-header-btn') ||
-        e.target.closest('[data-sidebar-toggle]')
+        e.target.closest('[data-sidebar-toggle]') ||
+        e.target.closest('.translate-popup') ||
+        e.target.closest('.cipher-popup')
       ) return
       setOpenTodos(new Set())
     }

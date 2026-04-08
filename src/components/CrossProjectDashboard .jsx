@@ -137,19 +137,28 @@ function calcHealthScore(project) {
   detail.strategyCount = stratCount
   detail.measureCount = validMeasuresCount
 
-  // 2. Todo 執行率（45 分）- 
+  // 2. Todo 執行率（45 分）- 無 MP 0分；少於 16 個微幅扣分
   const todoDone = todos.filter(t => t.done).length
-  const todoRate = todos.length > 0 ? todoDone / todos.length : 0
-  const todoScore = todos.length > 0 ? todoRate * 45 : 22.5 // 沒有 todo 給一半
+  let todoScore = 0
+  let todoRate = 0
+  if (todos.length > 0) {
+    todoRate = todoDone / todos.length
+    let baseScore = todoRate * 45
+    // 未滿 16 個，每個缺口扣 1 分做為懲罰
+    if (todos.length < 16) {
+      baseScore -= (16 - todos.length) * 1
+    }
+    todoScore = Math.max(0, baseScore)
+  }
   score += todoScore
   detail.todoRate = todos.length > 0 ? Math.round(todoRate * 100) : null
   detail.todoScore = Math.round(todoScore)
   detail.todoDone = todoDone
   detail.todoTotal = todos.length
 
-  // 3. 逾期懲罰（最高 -30）- 每項扣 3 分
+  // 3. 逾期懲罰（最高 -30）- 每項扣 5 分
   const overdue  = todos.filter(t => checkIsOverdue(t, today)).length
-  const overdueP = Math.min(30, overdue * 3)
+  const overdueP = Math.min(30, overdue * 5)
   score -= overdueP
   detail.overdue = overdue
   detail.overduePenalty = overdueP
@@ -312,8 +321,8 @@ function ProjectCard({ project, index, dark, onSelect }) {
         <MiniBar label="GOALS"     value={goals.filter(g=>g?.content?.trim()||g?.text?.trim()).length}    max={Math.max(1,goals.length)}    color={accentColor} dark={dark} />
         <MiniBar label="STRATEGIES" value={strats.filter(s=>s?.content?.trim()||s?.text?.trim()).length}  max={Math.max(1,strats.length)}   color={accentColor} dark={dark} />
         {/* MD 進度條連動有效值檢測 */}
-        <MiniBar label="MD" value={measures.filter(m=>getMeasureScore(m)>0).length} max={Math.max(1,measures.length)} color={accentColor} dark={dark} />
-        <MiniBar label="MP" value={todos.filter(t=>t.done).length} max={Math.max(1,todos.length)}    color={accentColor}     dark={dark} />
+        <MiniBar label="MD(含實績)" value={measures.filter(m=>getMeasureScore(m)>0).length} max={Math.max(1,measures.length)} color={accentColor} dark={dark} />
+        <MiniBar label="MP"        value={todos.filter(t=>t.done).length} max={Math.max(1,todos.length)}    color={accentColor}     dark={dark} />
       </div>
 
       {/* Overdue warnings 分別顯示 MD / MP */}
@@ -502,9 +511,9 @@ export default function CrossProjectDashboard({ projects = [], dark = false, onS
                   <div style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'9px', letterSpacing:'0.12em', textTransform:'uppercase', color: dark ? '#aaa' : '#888', marginBottom:'5px', paddingBottom:'3px', borderBottom:`1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}` }}>評分機制</div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
                     {[
-                      { label:'完整度', score:'+40', desc:'根據O/G/S/MD的完成情況計算，MD若沒有填寫實際值會扣些許分' },
-                      { label:'執行率', score:'+45', desc:'MP Todo 完成比例' },
-                      { label:'逾期扣分', score:'−30', desc:'每項逾期扣 3 分，最多扣 30 分' },
+                      { label:'完整度', score:'+40', desc:'O 有填即可 ; G 至少2個 ; S 至少4項 ; MD 至少8項，有無實際值填寫再評分' },
+                      { label:'執行率', score:'+45', desc:'MP完成比例(至少16項 ; 無MP為0)' },
+                      { label:'逾期扣分', score:'−30', desc:'每項逾期扣 5 分，最高扣 30 分' },
                       { label:'活躍度', score:'+15', desc:'近7天+15 / 近14天+8 / 近30天+4 / 其餘+0' },
                     ].map(r => (
                       <div key={r.label} style={{ display:'flex', alignItems:'flex-start', gap:'6px' }}>
@@ -869,11 +878,12 @@ function ProjectDetailModal({ project, dark, onClose, onOpenProject }) {
                   <div style={{ fontFamily:'"DM Mono",monospace', fontWeight:700, fontSize:'9px', letterSpacing:'0.12em', textTransform:'uppercase', color: dark ? '#aaa' : '#888', marginBottom:'6px', paddingBottom:'3px', borderBottom:`1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}` }}>本專案得分明細</div>
                   <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
                     {[
-                      { label:'完整度',  val:`${health.detail.completeness}`, max:'/40', desc:'根據O/G/S/MD的完成情況計算，MD若沒有填寫實際值會扣些許分' },
-                      { label:'執行率',  val:`${health.detail.todoScore}`,  max:'/45', desc:'Todo 完成比例' },
-                      { label:'逾期扣分', val:`-${health.detail.overduePenalty}`, max:'/30', desc:'每項逾期扣 3 分，最高扣 30 分' },
+                      { label:'完整度',  val:`${health.detail.completeness}`, max:'/40', desc:'O 有填即可 (5分) ; G 至少2個 (5分) ; S 至少4項 (10分) ; MD 至少8項 (20分)，有無實際值填寫再評分' },
+                      { label:'執行率',  val:`${health.detail.todoScore}`,  max:'/45', desc:'MP完成比例(至少16項 ; 無MP為0)' },
+                      { label:'逾期扣分', val:`-${health.detail.overduePenalty}`, max:'/30', desc:'每項逾期扣 5 分，最高扣 30 分' },
                       { label:'活躍度',  val:`${health.detail.actScore}`,   max:'/15', desc:'近7天+15 / 近14天+8 / 近30天+4 / 其餘+0' },
                     ].map(r => (
+                      
                       <div key={r.label} style={{ display:'flex', alignItems:'flex-start', gap:'5px' }}>
                         <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', fontWeight:700, minWidth:'52px', flexShrink:0, color: dark ? '#ddd' : '#222' }}>{r.label}</span>
                         <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', fontWeight:900, color:'#FF00FF', minWidth:'22px', textAlign:'right', flexShrink:0 }}>{r.val}</span>
