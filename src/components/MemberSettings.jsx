@@ -54,6 +54,7 @@ export default function MemberSettings({ members=[], onChange, onClose, darkMode
   const [searchVal,  setSearchVal]  = useState('')
   const [editingIdx, setEditingIdx] = useState(null)
   const [editVal,    setEditVal]    = useState('')
+  const [renameMap,  setRenameMap]  = useState({})
 
   const T = darkMode ? DARK : LIGHT
   const cfg    = shapeConfig ?? MODAL_DEFAULT_CONFIGS.member
@@ -66,8 +67,45 @@ export default function MemberSettings({ members=[], onChange, onClose, darkMode
   const addMember    = () => { const name=inputVal.trim(); if(!name||draft.includes(name))return; setDraft(p=>[...p,name]); setInputVal('') }
   const removeMember = (idx) => { setDraft(p=>p.filter((_,i)=>i!==idx)); if(editingIdx===idx)setEditingIdx(null) }
   const startEdit    = (idx) => { setEditingIdx(idx); setEditVal(draft[idx]) }
-  const confirmEdit  = (idx) => { const name=editVal.trim(); if(!name)return; setDraft(p=>{const n=[...p];n[idx]=name;return n}); setEditingIdx(null) }
-  const handleDone   = () => { let f=draft; if(editingIdx!==null&&editVal.trim()){f=[...draft];f[editingIdx]=editVal.trim()}; onChange(f); onClose() }
+  const confirmEdit  = (idx) => {
+    const name = editVal.trim()
+    if (!name) return
+    const prevName = draft[idx]
+    if (draft.some((item, i) => i !== idx && item === name)) return
+    setDraft(p => { const n = [...p]; n[idx] = name; return n })
+    if (prevName && prevName !== name) {
+      setRenameMap(prev => {
+        const next = { ...prev }
+        Object.keys(next).forEach((key) => {
+          if (next[key] === prevName) next[key] = name
+        })
+        next[prevName] = name
+        if (name in next) delete next[name]
+        return next
+      })
+    }
+    setEditingIdx(null)
+  }
+  const handleDone   = () => {
+    let f = draft
+    let finalRenameMap = renameMap
+    if (editingIdx !== null && editVal.trim()) {
+      const nextName = editVal.trim()
+      const prevName = draft[editingIdx]
+      f = [...draft]
+      f[editingIdx] = nextName
+      if (prevName && prevName !== nextName) {
+        finalRenameMap = { ...renameMap }
+        Object.keys(finalRenameMap).forEach((key) => {
+          if (finalRenameMap[key] === prevName) finalRenameMap[key] = nextName
+        })
+        finalRenameMap[prevName] = nextName
+        if (nextName in finalRenameMap) delete finalRenameMap[nextName]
+      }
+    }
+    onChange(f, { renameMap: finalRenameMap })
+    onClose()
+  }
   const handleCancel = () => { setEditingIdx(null); onClose() }
   const handleKey    = (e) => { if(e.key==='Enter')addMember(); if(e.key==='Escape')handleCancel() }
   const handleEditKey= (e,idx) => { if(e.key==='Enter')confirmEdit(idx); if(e.key==='Escape')setEditingIdx(null) }

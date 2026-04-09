@@ -191,6 +191,94 @@ function normalizeMemberNames(input) {
   return Array.from(new Set(names));
 }
 
+function normalizeRenameMap(input) {
+  if (!input || typeof input !== 'object') return {};
+  const map = {};
+  Object.entries(input).forEach(([rawFrom, rawTo]) => {
+    const from = String(rawFrom || '').trim();
+    const to = String(rawTo || '').trim();
+    if (from && to && from !== to) map[from] = to;
+  });
+  return map;
+}
+
+function resolveRenamedName(name, renameMap) {
+  const base = String(name || '').trim();
+  if (!base) return '';
+  if (!renameMap[base]) return base;
+
+  let current = base;
+  const visited = new Set([current]);
+  while (renameMap[current] && !visited.has(renameMap[current])) {
+    current = renameMap[current];
+    visited.add(current);
+  }
+  return current;
+}
+
+function remapAssigneeList(list, renameMap) {
+  if (!Array.isArray(list)) return list;
+  const next = [];
+  let changed = false;
+
+  list.forEach((item) => {
+    const mapped = resolveRenamedName(item, renameMap);
+    if (!mapped) return;
+    if (mapped !== item) changed = true;
+    if (!next.includes(mapped)) next.push(mapped);
+    else if (mapped === item) changed = true;
+  });
+
+  if (next.length !== list.length) changed = true;
+  return changed ? next : list;
+}
+
+function renameProjectAssignees(project, renameMap) {
+  if (!project || typeof project !== 'object') return project;
+  if (!renameMap || Object.keys(renameMap).length === 0) return project;
+
+  let changed = false;
+  const nextProject = JSON.parse(JSON.stringify(project));
+
+  const remapAssigneeFields = (node) => {
+    if (!node || typeof node !== 'object') return;
+
+    if (Array.isArray(node.assignees)) {
+      const nextAssignees = remapAssigneeList(node.assignees, renameMap);
+      if (nextAssignees !== node.assignees) {
+        node.assignees = nextAssignees;
+        changed = true;
+      }
+    }
+
+    if (typeof node.assignee === 'string') {
+      const mapped = resolveRenamedName(node.assignee, renameMap);
+      if (mapped !== node.assignee) {
+        node.assignee = mapped;
+        changed = true;
+      }
+    }
+  };
+
+  remapAssigneeFields(nextProject);
+
+  if (Array.isArray(nextProject.goals)) {
+    nextProject.goals.forEach((goal) => {
+      if (!goal || !Array.isArray(goal.strategies)) return;
+      goal.strategies.forEach((strategy) => {
+        if (!strategy || !Array.isArray(strategy.measures)) return;
+        strategy.measures.forEach((measure) => {
+          remapAssigneeFields(measure);
+          if (!Array.isArray(measure?.todos)) return;
+          measure.todos.forEach((todo) => remapAssigneeFields(todo));
+        });
+      });
+    });
+  }
+
+  return changed ? nextProject : project;
+}
+
 export default function App() {
   const [route, setRoute] = useState(() => parseRoute());
   const [transition, setTransition] = useState('idle');
@@ -203,6 +291,7 @@ export default function App() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [members, setMembers] = useState([]);
+  const [memberRenameMap, setMemberRenameMap] = useState({});
   const membersEditedRef = useRef(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -567,13 +656,39 @@ export default function App() {
     setActiveProject(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
   }, []);
 
-  const handleMembersChange = useCallback(async (newMembers) => {
+  const handleMembersChange = useCallback(async (newMembers, options = {}) => {
     const normalized = normalizeMemberNames(newMembers);
+    const renameMap = normalizeRenameMap(options?.renameMap);
     membersEditedRef.current = true;
     setMembers(normalized);
+    setMemberRenameMap(renameMap);
+
+    const hasRename = Object.keys(renameMap).length > 0;
+    const renamedProjects = [];
+
+    if (hasRename) {
+      setProjects((prev) => prev.map((project) => {
+        const nextProject = renameProjectAssignees(project, renameMap);
+        if (nextProject !== project) renamedProjects.push(nextProject);
+        return nextProject;
+      }));
+    }
+
     try {
       const { api } = await import("./services/api.js");
       await api.saveMembers(normalized);
+
+      if (renamedProjects.length > 0) {
+        const saveResults = await Promise.allSettled(
+          renamedProjects
+            .filter((project) => project?.id && Array.isArray(project.goals))
+            .map((project) => api.update(project.id, project))
+        );
+        const failedCount = saveResults.filter((result) => result.status === 'rejected').length;
+        if (failedCount > 0) {
+          showToast(`有 ${failedCount} 個專案的人員名稱同步失敗`, "error");
+        }
+      }
     } catch (e) { showToast("人員儲存失敗", "error"); }
   }, [showToast]);
 
@@ -825,7 +940,7 @@ export default function App() {
                   <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900, textTransform: "uppercase", fontSize: "14px", letterSpacing: "0.1em", opacity: 0.6 }}>載入中…</span>
                 </div>
               ) : activeProject ? (
-                <OgsmEditor project={activeProject} onSave={handleSave} onAudit={p => { setAuditProject(p); setShowAudit(true); }} members={members} darkMode={dark} sidebarOpen={sidebarOpen} aiConfirmShapeConfig={modalConfigs.aiconfirm} />
+                <OgsmEditor project={activeProject} onSave={handleSave} onAudit={p => { setAuditProject(p); setShowAudit(true); }} members={members} memberRenameMap={memberRenameMap} darkMode={dark} sidebarOpen={sidebarOpen} aiConfirmShapeConfig={modalConfigs.aiconfirm} />
               ) : (
                 <EmptyState onNewProject={() => setShowGenerate(true)} dark={dark} />
               )}

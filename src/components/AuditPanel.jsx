@@ -946,7 +946,7 @@ export default function AuditPanel({ project, onClose, darkMode = true, originRe
             </div>
             <div style={s.statsRow}>
               {[
-                { num: allMeasures.length, label: 'KPI 總數', color: T.text },
+                { num: allMeasures.length, label: 'MD 總數', color: T.text },
                 { num: totalCounts.Completed, label: '已完成', color: ACCENT_GREEN },
                 { num: totalCounts.InProgress, label: '進行中', color: ACCENT_CYAN },
                 { num: totalCounts.Overdue, label: '已逾期', color: ACCENT_PINK },

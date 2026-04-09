@@ -62,6 +62,79 @@ function clampDateToMax(date, maxDate) {
   return date > maxDate ? maxDate : date
 }
 
+function resolveMemberRename(name, renameMap) {
+  const base = String(name || '').trim()
+  if (!base) return ''
+  if (!renameMap?.[base]) return base
+
+  let current = base
+  const visited = new Set([current])
+  while (renameMap[current] && !visited.has(renameMap[current])) {
+    current = renameMap[current]
+    visited.add(current)
+  }
+  return current
+}
+
+function remapMemberList(list, renameMap) {
+  if (!Array.isArray(list)) return list
+  const next = []
+  let changed = false
+
+  list.forEach((name) => {
+    const mapped = resolveMemberRename(name, renameMap)
+    if (!mapped) return
+    if (mapped !== name) changed = true
+    if (!next.includes(mapped)) next.push(mapped)
+    else changed = true
+  })
+
+  if (next.length !== list.length) changed = true
+  return changed ? next : list
+}
+
+function applyMemberRenameToProject(projectLike, renameMap) {
+  if (!projectLike || typeof projectLike !== 'object') return projectLike
+  if (!renameMap || Object.keys(renameMap).length === 0) return projectLike
+
+  let changed = false
+  const next = JSON.parse(JSON.stringify(projectLike))
+
+  const remapNode = (node) => {
+    if (!node || typeof node !== 'object') return
+
+    if (Array.isArray(node.assignees)) {
+      const nextList = remapMemberList(node.assignees, renameMap)
+      if (nextList !== node.assignees) {
+        node.assignees = nextList
+        changed = true
+      }
+    }
+
+    if (typeof node.assignee === 'string') {
+      const mapped = resolveMemberRename(node.assignee, renameMap)
+      if (mapped !== node.assignee) {
+        node.assignee = mapped
+        changed = true
+      }
+    }
+  }
+
+  remapNode(next)
+  if (Array.isArray(next.goals)) {
+    next.goals.forEach((goal) => {
+      goal?.strategies?.forEach((strategy) => {
+        strategy?.measures?.forEach((measure) => {
+          remapNode(measure)
+          measure?.todos?.forEach((todo) => remapNode(todo))
+        })
+      })
+    })
+  }
+
+  return changed ? next : projectLike
+}
+
 const autoResize = (e) => {
   const el = e.target
   // 找到最近的 scroll container，儲存 scrollTop 避免跳位
@@ -167,7 +240,7 @@ function getDragImg() {
 }
 
 // ─── MAIN EDITOR COMPONENT ───────────────────────────────────────────────────
-export default function OgsmEditor({ project, onSave, onAudit, members = [], darkMode = true, sidebarOpen, aiConfirmShapeConfig }) {
+export default function OgsmEditor({ project, onSave, onAudit, members = [], memberRenameMap = {}, darkMode = true, sidebarOpen, aiConfirmShapeConfig }) {
   const [draft, setDraft]   = useState(null)
   const [dirty, setDirty]   = useState(false)
   const [saving, setSaving] = useState(false)
@@ -280,6 +353,16 @@ export default function OgsmEditor({ project, onSave, onAudit, members = [], dar
     setDraft(d)
     setDirty(false)
   }, [project])
+
+  useEffect(() => {
+    if (!draft) return
+    if (!memberRenameMap || Object.keys(memberRenameMap).length === 0) return
+    const nextDraft = applyMemberRenameToProject(draft, memberRenameMap)
+    if (nextDraft !== draft) {
+      setDraft(nextDraft)
+      setDirty(true)
+    }
+  }, [draft, memberRenameMap])
 
   const update = useCallback((updater) => { setDraft(d => updater(JSON.parse(JSON.stringify(d)))); setDirty(true) }, [])
 
