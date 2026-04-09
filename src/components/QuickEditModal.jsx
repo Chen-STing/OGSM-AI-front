@@ -137,9 +137,11 @@ function CollapseBlock({ label, headerTitle, headerColor, badge, defaultOpen=fal
       background:   'transparent',
       boxShadow:    `2px 2px 0 ${baseShadow}`,
       transition:   'border-color 0.12s, box-shadow 0.12s',
+      transform:    'translateZ(0)', // 強制硬體加速，防止殘影
     }}>
-      {/* header row */}
-      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'rgba(0,0,0,0.15)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
+      {/* ⚠️ 關鍵修復：這裡移除了 backdropFilter，避免在滾動時造成殘影破圖 */}
+      <div style={{ display:'flex', alignItems:'center', background:open?T.altBg:'rgba(0,0,0,0.25)', borderLeft:`4px solid ${headerColor}`, transition:'background 0.15s' }}>
+        
         {/* drag grip */}
         {dragHandleProps && (
           <div {...dragHandleProps} title="拖拉排序"
@@ -594,16 +596,20 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
         .qe-date-overdue::-webkit-calendar-picker-indicator { filter: brightness(0) saturate(100%) invert(12%) sepia(90%) saturate(6000%) hue-rotate(0deg) brightness(85%) !important; }
       `}</style>
 
-      {/* backdrop */}
-      <div ref={overlayRef} onClick={e=>{if(e.target===overlayRef.current)onClose()}}
-        style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
-        {/* modal */}
-          <div style={{ background:'transparent', border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${accentShadow}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', maxHeight:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', overflow:'hidden' }}>
-            
-            <BrutalistBackground dark={dark} bgConfig={bgConfig} />
+      {/* 外層容器：純粹定位用，無背景與模糊 */}
+      <div style={{ position:'fixed', inset:0, zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
+        
+        {/* 1. 獨立遮罩層：負責模糊與半透明黑底 */}
+        <div ref={overlayRef} onClick={e => { if (e.target === overlayRef.current) onClose() }}
+          style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)' }} />
+
+        {/* 2. 彈窗主體：確保 zIndex 在遮罩之上 */}
+        <div style={{ background:'transparent', border:`3px solid ${accentColor}`, boxShadow:`8px 8px 0 ${accentShadow}`, width:'100%', maxWidth:type==='measure'?'640px':'800px', height:'90vh', display:'flex', flexDirection:'column', animation:'qe-pop 0.22s cubic-bezier(0.34,1.56,0.64,1) both', position:'relative', zIndex:1, isolation:'isolate', overflow:'hidden' }}>
+          
+          <BrutalistBackground dark={dark} bgConfig={bgConfig} />
 
           {/* header */}
-          <div style={{ position:'relative', zIndex:2, background:T.headerBg, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', padding:'14px 24px', borderBottom:`3px solid ${accentColor}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ position:'relative', zIndex:2, background:T.headerBg, padding:'14px 24px', borderBottom:`3px solid ${accentColor}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:'12px', flex:1, minWidth:0 }}>
               <div style={{ background:accentColor, color:'#000', padding:'6px 12px', fontSize:'10px', fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', flexShrink:0 }}>{label}</div>
               <input
@@ -619,13 +625,14 @@ export default function QuickEditModal({ type, data, label, members=[], dark, ob
             </button>
           </div>
 
-          {/* body */}
-          <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'16px 20px', position:'relative', zIndex:2 }}>
+          {/* body：加入強制硬體加速，徹底解決滾動殘影 */}
+          <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'16px 20px', position:'relative', zIndex:2, willChange: 'transform', transform: 'translate3d(0,0,0)' }}>
             {renderBody()}
           </div>
 
           {/* footer */}
-          <div style={{ position:'relative', zIndex:2, background:'transparent', padding:'14px 24px', display:'flex', justifyContent:'flex-end', gap:'12px', flexShrink:0 }}>            <button onClick={onClose} data-bg={'transparent'} data-hover={dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}
+          <div style={{ position:'relative', zIndex:2, background:'transparent', padding:'14px 24px', display:'flex', justifyContent:'flex-end', gap:'12px', flexShrink:0 }}>            
+            <button onClick={onClose} data-bg={'transparent'} data-hover={dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}
               style={{ background:'transparent', border:`3px solid ${T.border}`, color:T.text, fontFamily:'"Space Grotesk",sans-serif', fontWeight:900, fontSize:'13px', textTransform:'uppercase', letterSpacing:'0.08em', padding:'9px 22px', cursor:'pointer', boxShadow:`4px 4px 0 0 ${sh}`, transition:'all 0.15s' }}
               {...btnH}>取消</button>
             <button onClick={()=>onSave(local)} data-bg={accentColor} data-hover={dark?'#223fce':'#7389dd'}

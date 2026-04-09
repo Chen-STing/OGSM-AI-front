@@ -901,6 +901,7 @@ export default function App() {
               projects={projects}
               members={members}
               dark={dark}
+              bgConfig={bgConfig}
               entering={isEnteringDashboard}
               exitingTo={isExitingDashboardToProjects ? 'projects' : isExitingDashboardToHome ? 'home' : null}
               onSelectProject={(p) => selectProject(p.id)}

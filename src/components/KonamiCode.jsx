@@ -63,9 +63,12 @@ const CSS = `
   .konami-tab{cursor:pointer;transition:all 0.12s;user-select:none}
   .custom-cursor .konami-tab{cursor:${CURSOR_HAND_URL}!important}
   .konami-tab:hover{opacity:1!important}
-  .k-slider{-webkit-appearance:none;appearance:none;width:100%;height:4px;outline:none;cursor:${CURSOR_HAND_URL};background:rgba(128,128,128,0.2);border-radius:2px}
-  .k-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border:3px solid #000;border-radius:0;cursor:${CURSOR_HAND_URL}}
-  .k-slider::-moz-range-thumb{width:18px;height:18px;border:3px solid #000;border-radius:0;appearance:none;cursor:${CURSOR_HAND_URL}}
+  .k-slider{-webkit-appearance:none;appearance:none;width:100%;height:4px;outline:none;cursor:pointer;background:rgba(128,128,128,0.2);border-radius:2px}
+  .k-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border:3px solid #000;border-radius:0;cursor:pointer}
+  .k-slider::-moz-range-thumb{width:18px;height:18px;border:3px solid #000;border-radius:0;appearance:none;cursor:pointer}
+  .custom-cursor .k-slider{cursor:${CURSOR_HAND_URL}}
+  .custom-cursor .k-slider::-webkit-slider-thumb{cursor:${CURSOR_HAND_URL}}
+  .custom-cursor .k-slider::-moz-range-thumb{cursor:${CURSOR_HAND_URL}}
   .k-slider-star::-webkit-slider-thumb{background:${YELLOW}}
   .k-slider-circle::-webkit-slider-thumb{background:${PINK}}
   .k-slider-cross::-webkit-slider-thumb{background:${GREEN}}

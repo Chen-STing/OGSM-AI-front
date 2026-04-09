@@ -666,8 +666,8 @@ function OverviewRow({ stats, unassignedMeasures = 0, unassignedTodos = 0, dark 
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function DashboardPanel({ projects = [], members = [], dark = false, onBack, onGoHome, onToggleDark, exitingTo, entering, onSelectProject }) {
-  const [bgConfig] = useState(loadSavedBgConfig);
+export default function DashboardPanel({ projects = [], members = [], dark = false, bgConfig: bgConfigProp, onBack, onGoHome, onToggleDark, exitingTo, entering, onSelectProject }) {
+  const bgConfig = bgConfigProp ?? loadSavedBgConfig();
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectedAssignees, setSelectedAssignees] = useState(new Set());
   const [sortKey, setSortKey] = useState('measurePct');

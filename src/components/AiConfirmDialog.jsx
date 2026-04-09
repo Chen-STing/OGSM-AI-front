@@ -51,9 +51,9 @@ export default function AiConfirmDialog({ type, currentText='', onConfirm, onCan
   const shapes = genModalShapes('aiconfirm', cfg, cfg.seed)
 
   const config = {
-    goal:     { headerLabel:'AI 生成 STRATEGIES', desc:'根據此 Goal，AI 將生成 2～3 個 Strategies，以及各自的定量指標與 MP 檢核步驟。', inputLabel:'GOAL 內容', placeholder:'輸入 Goal 描述，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Objective 自動生成合適的 Goal 內容', confirmLabel:'⚡ 生成 Strategies' },
-    strategy: { headerLabel:'AI 生成 MEASURES', desc:'根據此 Strategy，AI 將生成定量指標，以及各指標對應的 MP 檢核步驟。', inputLabel:'STRATEGY 內容', placeholder:'輸入 Strategy 描述，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Goal 自動生成合適的 Strategy 內容', confirmLabel:'⚡ 生成 Measures' },
-    measure:  { headerLabel:'AI 生成 MP 檢核步驟', desc:'根據此定量指標，AI 將生成 3～5 個具體可執行的 MP 檢核步驟。', inputLabel:'定量指標內容', placeholder:'輸入定量指標名稱，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Strategy 自動生成合適的定量指標與檢核步驟', confirmLabel:'⚡ 生成 MP 檢核步驟' },
+    goal:     { headerLabel:'AI 生成 Goal', desc:'根據此 Goal，AI 將生成 2～3 個 Strategies，以及各自的定量指標與 MP 檢核步驟。', inputLabel:'GOAL 內容', placeholder:'輸入 Goal 描述，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Objective 自動生成合適的 Goal 內容', confirmLabel:'⚡ 生成 Strategies' },
+    strategy: { headerLabel:'AI 生成 Strategy', desc:'根據此 Strategy，AI 將生成定量指標，以及各指標對應的 MP 檢核步驟。', inputLabel:'STRATEGY 內容', placeholder:'輸入 Strategy 描述，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Goal 自動生成合適的 Strategy 內容', confirmLabel:'⚡ 生成 Measures' },
+    measure:  { headerLabel:'AI 生成 MD 定量指標', desc:'根據此定量指標，AI 將生成 3～5 個具體可執行的 MP 檢核步驟。', inputLabel:'定量指標內容', placeholder:'輸入定量指標名稱，或留空讓 AI 自行補充…', hint:'留空時 AI 會根據 Strategy 自動生成合適的定量指標與檢核步驟', confirmLabel:'⚡ 生成 MP 檢核步驟' },
   }[type] || {}
 
   const isEmpty = !text.trim()
